@@ -1,5 +1,5 @@
---- Richards.java.orig	Fri Oct 24 16:25:36 1997
-+++ richards.java	Fri Aug 17 16:50:56 2012
+--- richards.java.orig	2015-06-24 16:53:19.514626737 +0100
++++ richards.java	2015-06-24 15:34:02.726339326 +0100
 @@ -6,10 +6,6 @@
  //  Translation from C++, Mario Wolczko
  //  Outer loop added by Alex Jacoby
@@ -20,7 +20,21 @@
  
    int       Count() { return count; }
    int Destination() { return destination; }
-@@ -327,7 +323,7 @@
+@@ -204,6 +200,13 @@
+   static int  get_queuePacketCount()      { return qpktCount; }
+   static void set_queuePacketCount(int i) { qpktCount = i; }
+ 
++  public static void reset() {
++      Task.taskTab = new Task[TaskTabSize];
++      Task.taskList = null;
++      Task.holdCount = 0;
++      Task.qpktCount = 0;
++  }
++
+   Task(int i, int p, Packet w, TaskState initialState, TaskRec r) {
+     link = taskList;
+     SetIdent(i);
+@@ -327,7 +330,7 @@
    Task fn(Packet pkt, TaskRec r) {
      HandlerTaskRec h = (HandlerTaskRec)r;
      if (pkt != null) {
@@ -29,7 +43,7 @@
  	h.WorkInAdd(pkt);
        else
          h.DeviceInAdd(pkt);
-@@ -371,10 +367,10 @@
+@@ -371,10 +374,10 @@
        return hold();
      } else if ((i.Control() & 1) == 0) {
        i.SetControl(i.Control() / 2);
@@ -42,7 +56,7 @@
      }
    }
  
-@@ -395,9 +391,9 @@
+@@ -395,9 +398,9 @@
      if (pkt == null)
        return waitTask();
  
@@ -55,7 +69,7 @@
      w.SetDestination(dest);
      pkt.SetIdent(dest);
      pkt.SetDatum(0);
-@@ -414,18 +410,22 @@
+@@ -414,18 +417,29 @@
  //----- Richards -----------------------------------------------------
  
  
@@ -72,6 +86,13 @@
  
 -  static int iterations = 10;
 +  int iterations;
++
++  // krun entry point
++  public void runIter(int param) {
++      iterations = param;
++      boolean result = run();
++      assert(result);
++  }
  
    public void inst_main(String[] args) { 
 +    if (args.length > 0)
@@ -81,3 +102,16 @@
      System.out.println("Richards benchmark (deutsch_acc_virtual) starting...");
      long startTime = System.currentTimeMillis();
      if (!run())
+@@ -458,9 +472,10 @@
+ 
+   public boolean run() {
+     for (int i= 0; i < iterations; i++){
+-      Task.set_holdCount(0);
+-      Task.set_queuePacketCount(0);  // Added to allow repeated execution
++      //Task.set_holdCount(0);
++      //Task.set_queuePacketCount(0);  // Added to allow repeated execution
+ 				     // of the test.    Ole Agesen, 3/95.
++      Task.reset();
+ 
+       new IdleTask(I_IDLE, 1, 10000, (new TaskState()).Running(),
+ 		   new IdleTaskRec());
