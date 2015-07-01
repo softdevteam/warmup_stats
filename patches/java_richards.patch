@@ -1,5 +1,5 @@
---- richards.java.orig	2015-06-24 16:53:19.514626737 +0100
-+++ richards.java	2015-06-24 15:34:02.726339326 +0100
+--- richards_orig.java	2015-07-01 10:27:00.368175322 +0100
++++ /home/vext01/research/warmup_experiment/benchmarks/richards/java/richards.java	2015-07-01 10:25:27.866276671 +0100
 @@ -6,10 +6,6 @@
  //  Translation from C++, Mario Wolczko
  //  Outer loop added by Alex Jacoby
@@ -69,7 +69,7 @@
      w.SetDestination(dest);
      pkt.SetIdent(dest);
      pkt.SetDatum(0);
-@@ -414,18 +417,29 @@
+@@ -414,18 +417,34 @@
  //----- Richards -----------------------------------------------------
  
  
@@ -91,7 +91,12 @@
 +  public void runIter(int param) {
 +      iterations = param;
 +      boolean result = run();
-+      assert(result);
++      //assert(result);
++      // Assertions are off by default in java
++      // ensure this check really happens
++      if (!result) {
++          System.out.println("failed!");
++      }
 +  }
  
    public void inst_main(String[] args) { 
@@ -102,7 +107,7 @@
      System.out.println("Richards benchmark (deutsch_acc_virtual) starting...");
      long startTime = System.currentTimeMillis();
      if (!run())
-@@ -458,9 +472,10 @@
+@@ -458,9 +477,10 @@
  
    public boolean run() {
      for (int i= 0; i < iterations; i++){
@@ -115,3 +120,12 @@
  
        new IdleTask(I_IDLE, 1, 10000, (new TaskState()).Running(),
  		   new IdleTaskRec());
+@@ -496,7 +516,7 @@
+       if (Task.get_queuePacketCount() == 23246 && Task.get_holdCount() == 9297) 
+         ; // correct
+       else {
+-        System.out.println("Incorrect results!");
++        //System.out.println("Incorrect results!");
+         return false;
+       }
+     }
