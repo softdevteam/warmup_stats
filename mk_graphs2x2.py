@@ -2,6 +2,7 @@
 """
 usage:
 mk_graphs2x2.py <config file1> <machine name1> <config file2> <machine name2>
+  [<x_start> <y_start>]
 """
 
 import sys
@@ -51,7 +52,7 @@ def rolling_window(a, window):
     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
 
-def main(data_dcts, mch_names):
+def main(data_dcts, mch_names, x_bounds):
     keys = sorted(data_dcts[0]["data"].keys())
     for key in keys:
         # Assume data in json files have the same keys
@@ -61,7 +62,7 @@ def main(data_dcts, mch_names):
         executions1 = data_dcts[0]["data"][key]
         executions2 = data_dcts[1]["data"][key]
 
-        interactive(key, [executions1, executions2], mch_names)
+        interactive(key, [executions1, executions2], mch_names, x_bounds)
 
 
 def draw_runseq_subplot(axis, data, title):
@@ -95,7 +96,7 @@ def draw_runseq_subplot(axis, data, title):
     axis.set_ylabel("Time(s)")
 
 
-def interactive(key, executions, mch_names):
+def interactive(key, executions, mch_names, x_bounds):
     assert len(executions) == 2
     assert len(executions[0]) == 2
     assert len(executions[1]) == 2
@@ -110,7 +111,13 @@ def interactive(key, executions, mch_names):
         for idx in range(n_execs):
             data = mch_execs[idx]
             title = "%s, Execution #%d" % (mch_name.title(), idx)
-            draw_runseq_subplot(axes[row, col], data, title)
+            axis = axes[row, col]
+
+            if x_bounds == [None, None]:
+                x_bounds = [0, len(data) - 1]
+
+            axis.set_xlim(x_bounds)
+            draw_runseq_subplot(axis, data, title)
             col += 1
         row += 1
         col = 0
@@ -131,6 +138,15 @@ if __name__ == "__main__":
     except IndexError:
         usage()
 
+    try:
+        x_start = int(sys.argv[5])
+        x_end = int(sys.argv[6])
+    except IndexError:  # optional
+        x_start = None
+        x_end = None
+    except ValueError:
+        usage()
+
     json_file1 = output_name(cfile1)
     json_file2 = output_name(cfile2)
 
@@ -140,4 +156,4 @@ if __name__ == "__main__":
         data_dct2 = json.load(fh2)
 
     plt.close()  # avoid extra blank window
-    main([data_dct1, data_dct2], [mch_name1, mch_name2])
+    main([data_dct1, data_dct2], [mch_name1, mch_name2], [x_start, x_end])
