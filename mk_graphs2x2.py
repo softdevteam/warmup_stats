@@ -13,20 +13,31 @@ import numpy as np
 
 plt.style.use('ggplot')
 
-# Set figure size for plots
 plt.figure(tight_layout=True)
 
-# Set font size
+# Set font sizes
 font = {
     'family': 'sans',
     'weight': 'regular',
     'size': '12',
 }
 matplotlib.rc('font', **font)
+SUPTITLE_FONT_SIZE = 14
+TITLE_FONT_SIZE = 12
 
 ROLLING_AVG = 200
 STDDEV_FACTOR = 2.575
 LINES_PERCENT = 1
+
+# Configures border and spacing of subplots.
+# Here we just make it more space efficient for the paper
+SUBPLOT_PARAMS = {
+    'bottom': 0.03,
+    'left': 0.05,
+    'right': 0.98,
+    'top': 0.95,
+    'wspace': 0.11,
+}
 
 
 def usage():
@@ -79,7 +90,7 @@ def draw_runseq_subplot(axis, data, title):
     #axis.plot(avg * (1 + LINES_PERCENT / 100.0))
     #axis.plot(avg * (1 - LINES_PERCENT / 100.0))
 
-    axis.set_title(title)
+    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
     axis.set_xlabel("Iteration")
     axis.set_ylabel("Time(s)")
 
@@ -98,13 +109,14 @@ def interactive(key, executions, mch_names):
     for mch_name, mch_execs in zip(mch_names, executions):
         for idx in range(n_execs):
             data = mch_execs[idx]
-            title = "%s, exec %d" % (mch_name, idx)
+            title = "%s, Execution #%d" % (mch_name.title(), idx)
             draw_runseq_subplot(axes[row, col], data, title)
             col += 1
         row += 1
         col = 0
 
-    fig.suptitle(key)
+    fig.subplots_adjust(**SUBPLOT_PARAMS)
+    fig.suptitle(key, fontsize=SUPTITLE_FONT_SIZE)
     mng = plt.get_current_fig_manager()
     mng.resize(*mng.window.maxsize())
     plt.show()
