@@ -25,7 +25,7 @@ font = {
 matplotlib.rc('font', **font)
 
 ROLLING_AVG = 200
-STDDEV_FACTOR = 2.575
+STDDEV_FACTOR = 2.575 # a 99% confidence interval
 LINES_PERCENT = 1
 
 
