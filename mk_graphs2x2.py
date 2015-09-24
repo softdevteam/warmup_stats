@@ -1,8 +1,10 @@
 #!/usr/bin/env python2.7
 """
 usage:
-mk_graphs2x2.py <config file1> <machine name1> <config file2> <machine name2>
-  [<x_start> <y_start>]
+mk_graphs2x2.py <mode> <config file1> <machine name1> <config file2>
+  <machine name2> [<x_start> <y_start>]
+
+where mode is one of {interactive, export}
 """
 
 import sys
@@ -20,11 +22,12 @@ plt.figure(tight_layout=True)
 font = {
     'family': 'sans',
     'weight': 'regular',
-    'size': '12',
+    'size': '13',
 }
 matplotlib.rc('font', **font)
-SUPTITLE_FONT_SIZE = 14
-TITLE_FONT_SIZE = 12
+SUPTITLE_FONT_SIZE = 18
+TITLE_FONT_SIZE = 17
+AXIS_FONTSIZE = 14
 
 ROLLING_AVG = 200
 STDDEV_FACTOR = 2.575
@@ -33,12 +36,15 @@ LINES_PERCENT = 1
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
 SUBPLOT_PARAMS = {
-    'bottom': 0.03,
+    'hspace': 0.35,
+    'bottom': 0.07,
     'left': 0.05,
     'right': 0.98,
-    'top': 0.95,
+    'top': 0.93,
     'wspace': 0.11,
 }
+
+EXPORT_SIZE_INCHES = 20, 8
 
 
 def usage():
@@ -52,7 +58,7 @@ def rolling_window(a, window):
     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
 
-def main(data_dcts, mch_names, x_bounds):
+def main(mode, data_dcts, mch_names, x_bounds):
     keys = sorted(data_dcts[0]["data"].keys())
     for key in keys:
         # Assume data in json files have the same keys
@@ -62,7 +68,7 @@ def main(data_dcts, mch_names, x_bounds):
         executions1 = data_dcts[0]["data"][key]
         executions2 = data_dcts[1]["data"][key]
 
-        interactive(key, [executions1, executions2], mch_names, x_bounds)
+        draw_plot(mode, key, [executions1, executions2], mch_names, x_bounds)
 
 
 def draw_runseq_subplot(axis, data, title):
@@ -89,14 +95,16 @@ def draw_runseq_subplot(axis, data, title):
     axis.plot(avg)
 
     #axis.plot(avg * (1 + LINES_PERCENT / 100.0))
-    #axis.plot(avg * (1 - LINES_PERCENT / 100.0))
+    5#axis.plot(avg * (1 - LINES_PERCENT / 100.0))
 
     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-    axis.set_xlabel("Iteration")
-    axis.set_ylabel("Time(s)")
+    axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
+    axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
 
 
-def interactive(key, executions, mch_names, x_bounds):
+def draw_plot(mode, key, executions, mch_names, x_bounds):
+    print("Drawing %s..." % key)
+
     assert len(executions) == 2
     assert len(executions[0]) == 2
     assert len(executions[1]) == 2
@@ -123,24 +131,38 @@ def interactive(key, executions, mch_names, x_bounds):
         col = 0
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
-    fig.suptitle(key, fontsize=SUPTITLE_FONT_SIZE)
-    mng = plt.get_current_fig_manager()
-    mng.resize(*mng.window.maxsize())
-    plt.show()
+    fig.suptitle(key.title(), fontsize=SUPTITLE_FONT_SIZE, fontweight="bold")
+    if mode == "interactive":
+        mng = plt.get_current_fig_manager()
+        mng.resize(*mng.window.maxsize())
+        plt.show()
+    else:
+        filename = "graph_%s.pdf" % (key.replace(":", "__"))
+        fig.set_size_inches(*EXPORT_SIZE_INCHES)
+        plt.savefig(filename=filename, format="pdf", dpi=300)
+    plt.close()
 
 if __name__ == "__main__":
     from krun.util import output_name
     try:
-        cfile1 = sys.argv[1]
-        mch_name1 = sys.argv[2]
-        cfile2 = sys.argv[3]
-        mch_name2 = sys.argv[4]
+        mode = sys.argv[1]
+    except IndexError:
+        usage()
+
+    if mode not in ["interactive", "export"]:
+        usage()
+
+    try:
+        cfile1 = sys.argv[2]
+        mch_name1 = sys.argv[3]
+        cfile2 = sys.argv[4]
+        mch_name2 = sys.argv[5]
     except IndexError:
         usage()
 
     try:
-        x_start = int(sys.argv[5])
-        x_end = int(sys.argv[6])
+        x_start = int(sys.argv[6])
+        x_end = int(sys.argv[7])
     except IndexError:  # optional
         x_start = None
         x_end = None
@@ -156,4 +178,5 @@ if __name__ == "__main__":
         data_dct2 = json.load(fh2)
 
     plt.close()  # avoid extra blank window
-    main([data_dct1, data_dct2], [mch_name1, mch_name2], [x_start, x_end])
+    main(mode, [data_dct1, data_dct2],
+         [mch_name1, mch_name2], [x_start, x_end])
