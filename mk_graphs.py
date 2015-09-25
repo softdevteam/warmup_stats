@@ -29,7 +29,7 @@ TITLE_FONT_SIZE = 17
 AXIS_FONTSIZE = 14
 
 ROLLING_AVG = 200
-STDDEV_FACTOR = 2.575  # a 99% confidence interval
+STDDEV_FACTOR = 3.290526731492  # a 99.9% confidence interval
 LINES_PERCENT = 1
 
 # Configures border and spacing of subplots.
