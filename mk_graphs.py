@@ -76,6 +76,7 @@ def draw_plots(mode, key, executions, mch_name, x_bounds):
         data = executions[idx]
         title = "%s, %s, Execution #%d" % (key, mch_name.title(), idx)
         axis = axes[0, 0]
+        axis.ticklabel_format(useOffset=False)
 
         if x_bounds == [None, None]:
             x_bounds = [0, len(data) - 1]
