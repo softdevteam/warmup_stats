@@ -108,8 +108,12 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
         row += 1
         col = 0
 
+    key_elems = key.split(":")
+    assert len(key_elems) == 3
+    display_key = "%s, %s"  % (key_elems[0], key_elems[1])
+
     fig.subplots_adjust(**SUBPLOT_PARAMS)
-    fig.suptitle(key, fontsize=SUPTITLE_FONT_SIZE, fontweight="bold")
+    fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight="bold")
     if mode == "interactive":
         mng = plt.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
