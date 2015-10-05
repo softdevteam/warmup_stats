@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
+import display_names
 
 plt.style.use('ggplot')
 
@@ -110,7 +111,9 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
 
     key_elems = key.split(":")
     assert len(key_elems) == 3
-    display_key = "%s, %s"  % (key_elems[0], key_elems[1])
+    bench_display = display_names.BENCHMARKS.get(
+        key_elems[0], key_elems[0].title())
+    display_key = "%s, %s"  % (bench_display, key_elems[1])
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
     fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight="bold")
