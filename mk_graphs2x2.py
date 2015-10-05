@@ -95,7 +95,7 @@ def draw_runseq_subplot(axis, data, title, y_range=None):
     axis.plot(avg)
 
     #axis.plot(avg * (1 + LINES_PERCENT / 100.0))
-    5#axis.plot(avg * (1 - LINES_PERCENT / 100.0))
+    #axis.plot(avg * (1 - LINES_PERCENT / 100.0))
 
     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
     axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
