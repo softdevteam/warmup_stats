@@ -32,9 +32,9 @@ AXIS_FONTSIZE = 14
 # Here we just make it more space efficient for the paper
 SUBPLOT_PARAMS = {
     'hspace': 0.35,
-    'bottom': 0.07,
-    'left': 0.05,
-    'right': 0.98,
+    'bottom': 0.1,
+    'left': 0.12,
+    'right': 0.95,
     'top': 0.93,
     'wspace': 0.11,
 }
