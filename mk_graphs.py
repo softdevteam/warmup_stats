@@ -89,8 +89,8 @@ def draw_plots(mode, key, executions, mch_name, x_bounds):
             mng.resize(*mng.window.maxsize())
             plt.show()
         else:
-            filename = "graph__1x1__%s__exec%03d__%s__%s.pdf" % \
-                (key.replace(":", "_"), idx, x_bounds[0], x_bounds[1])
+            filename = "graph__%s__1x1__%s__exec%03d__%s__%s.pdf" % \
+                (mch_name, key.replace(":", "_"), idx, x_bounds[0], x_bounds[1])
             fig.set_size_inches(*EXPORT_SIZE_INCHES)
             plt.savefig(filename=filename, format="pdf", dpi=300)
         plt.close()
