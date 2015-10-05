@@ -29,10 +29,6 @@ SUPTITLE_FONT_SIZE = 18
 TITLE_FONT_SIZE = 17
 AXIS_FONTSIZE = 14
 
-ROLLING_AVG = 200
-STDDEV_FACTOR = 3.290526731492  # a 99.9% confidence interval
-LINES_PERCENT = 1
-
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
 SUBPLOT_PARAMS = {
@@ -52,12 +48,6 @@ def usage():
     sys.exit(1)
 
 
-def rolling_window(a, window):
-    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
-    strides = a.strides + (a.strides[-1],)
-    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
-
-
 def main(mode, data_dcts, mch_names, x_bounds):
     keys = sorted(data_dcts[0]["data"].keys())
     for key in keys:
@@ -73,29 +63,6 @@ def main(mode, data_dcts, mch_names, x_bounds):
 
 def draw_runseq_subplot(axis, data, title, y_range=None):
     axis.plot(data)
-    avg = np.convolve(
-        data, np.ones((ROLLING_AVG,))/ROLLING_AVG)[ROLLING_AVG-1:-ROLLING_AVG]
-    window = rolling_window(np.array(data), ROLLING_AVG)
-    rolling_stddev = np.std(window, 1)
-    pad = ROLLING_AVG / 2
-
-    avg = np.mean(window, 1)
-
-    upper_std_dev = avg + STDDEV_FACTOR * rolling_stddev
-    upper_std_dev = np.insert(upper_std_dev, 0, [None] * pad)
-
-    lower_std_dev = avg - STDDEV_FACTOR * rolling_stddev
-    lower_std_dev = np.insert(lower_std_dev, 0, [None] * pad)
-
-    # Must come after std_dev lines built
-    avg = np.insert(avg, 0, [None] * pad)
-
-    axis.plot(lower_std_dev)
-    axis.plot(upper_std_dev)
-    axis.plot(avg)
-
-    #axis.plot(avg * (1 + LINES_PERCENT / 100.0))
-    5#axis.plot(avg * (1 - LINES_PERCENT / 100.0))
 
     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
     axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
