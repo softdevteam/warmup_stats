@@ -71,7 +71,7 @@ def main(mode, data_dcts, mch_names, x_bounds):
         draw_plot(mode, key, [executions1, executions2], mch_names, x_bounds)
 
 
-def draw_runseq_subplot(axis, data, title):
+def draw_runseq_subplot(axis, data, title, y_range=None):
     axis.plot(data)
     avg = np.convolve(
         data, np.ones((ROLLING_AVG,))/ROLLING_AVG)[ROLLING_AVG-1:-ROLLING_AVG]
@@ -101,6 +101,9 @@ def draw_runseq_subplot(axis, data, title):
     axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
     axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
 
+    if y_range:
+        axis.set_ylim(y_range)
+
 
 def draw_plot(mode, key, executions, mch_names, x_bounds):
     print("Drawing %s..." % key)
@@ -110,6 +113,13 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
     assert len(executions[1]) == 2
     n_execs = 2
     n_files = 2  # number of json files
+
+    # find the min and max y values across all plots for this view.
+    y_min, y_max = float("inf"), float("-inf")
+    for machine_execs in executions:
+        for execution in machine_execs:
+             y_min = min(min(execution), y_min)
+             y_max = max(max(execution), y_max)
 
     fig, axes = plt.subplots(n_execs, n_files, squeeze=False)
 
@@ -125,7 +135,7 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
                 x_bounds = [0, len(data) - 1]
 
             axis.set_xlim(x_bounds)
-            draw_runseq_subplot(axis, data, title)
+            draw_runseq_subplot(axis, data, title, [y_min, y_max])
             col += 1
         row += 1
         col = 0
