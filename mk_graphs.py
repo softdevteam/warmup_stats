@@ -70,11 +70,15 @@ def draw_runseq_subplot(axis, data, title):
 def draw_plots(mode, key, executions, mch_name, x_bounds):
     print("Drawing %s..." % key)
 
+    key_elems = key.split(":")
+    assert len(key_elems) == 3
+    display_key = "%s, %s"  % (key_elems[0], key_elems[1])
+
     for idx in xrange(len(executions)):
         fig, axes = plt.subplots(1, 1, squeeze=False)
 
         data = executions[idx]
-        title = "%s, %s, Execution #%d" % (key, mch_name.title(), idx)
+        title = "%s, %s, Execution #%d" % (display_key, mch_name.title(), idx)
         axis = axes[0, 0]
         axis.ticklabel_format(useOffset=False)
 
