@@ -12,23 +12,12 @@ import json
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
-import numpy as np
-import display_names
+import util_graph
 
-plt.style.use('ggplot')
 
 plt.figure(tight_layout=True)
 
-# Set font sizes
-font = {
-    'family': 'sans',
-    'weight': 'regular',
-    'size': '13',
-}
-matplotlib.rc('font', **font)
 SUPTITLE_FONT_SIZE = 18
-TITLE_FONT_SIZE = 17
-AXIS_FONTSIZE = 14
 
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
@@ -38,7 +27,7 @@ SUBPLOT_PARAMS = {
     'left': 0.05,
     'right': 0.98,
     'top': 0.93,
-    'wspace': 0.11,
+    'wspace': 0.15,
 }
 
 EXPORT_SIZE_INCHES = 20, 8
@@ -62,17 +51,6 @@ def main(mode, data_dcts, mch_names, x_bounds):
         draw_plot(mode, key, [executions1, executions2], mch_names, x_bounds)
 
 
-def draw_runseq_subplot(axis, data, title, y_range=None):
-    axis.plot(data)
-
-    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-    axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
-    axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
-
-    if y_range:
-        axis.set_ylim(y_range)
-
-
 def draw_plot(mode, key, executions, mch_names, x_bounds):
     print("Drawing %s..." % key)
 
@@ -86,8 +64,8 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
     y_min, y_max = float("inf"), float("-inf")
     for machine_execs in executions:
         for execution in machine_execs:
-             y_min = min(min(execution), y_min)
-             y_max = max(max(execution), y_max)
+            y_min = min(min(execution), y_min)
+            y_max = max(max(execution), y_max)
 
     fig, axes = plt.subplots(n_execs, n_files, squeeze=False)
 
@@ -101,19 +79,20 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
             axis.ticklabel_format(useOffset=False)
 
             if x_bounds == [None, None]:
-                x_bounds = [0, len(data) - 1]
+                x_bounds = [0, len(data)]
 
             axis.set_xlim(x_bounds)
-            draw_runseq_subplot(axis, data, title, [y_min, y_max])
+            util_graph.draw_runseq_subplot(axis, data, title, x_bounds,
+                                           [y_min, y_max])
             col += 1
         row += 1
         col = 0
 
     key_elems = key.split(":")
     assert len(key_elems) == 3
-    bench_display = display_names.BENCHMARKS.get(
+    bench_display = util_graph.BENCHMARKS.get(
         key_elems[0], key_elems[0].title())
-    display_key = "%s, %s"  % (bench_display, key_elems[1])
+    display_key = "%s, %s" % (bench_display, key_elems[1])
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
     fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight="bold")
@@ -122,8 +101,8 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
         mng.resize(*mng.window.maxsize())
         plt.show()
     else:
-        filename = "graph__2x2__%s__%s__%s.pdf" % (key.replace(":", "_"),
-                                             x_bounds[0], x_bounds[1])
+        filename = "graph__2x2__%s__%s__%s.pdf" % \
+            (key.replace(":", "_"), x_bounds[0], x_bounds[1])
         fig.set_size_inches(*EXPORT_SIZE_INCHES)
         plt.savefig(filename=filename, format="pdf", dpi=300)
     plt.close()
