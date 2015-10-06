@@ -67,6 +67,12 @@ def draw_plot(mode, key, executions, mch_names, x_bounds):
             y_min = min(min(execution), y_min)
             y_max = max(max(execution), y_max)
 
+    # Allow 2% pad either side
+    rng = y_max - y_min
+    adj = rng * 0.02
+    y_min -= adj
+    y_max += adj
+
     fig, axes = plt.subplots(n_execs, n_files, squeeze=False)
 
     row = 0
