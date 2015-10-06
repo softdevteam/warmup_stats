@@ -11,23 +11,9 @@ import json
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
-import numpy as np
-import display_names
-
-plt.style.use('ggplot')
+import util_graph
 
 plt.figure(tight_layout=True)
-
-# Set font sizes
-font = {
-    'family': 'sans',
-    'weight': 'regular',
-    'size': '13',
-}
-matplotlib.rc('font', **font)
-SUPTITLE_FONT_SIZE = 18
-TITLE_FONT_SIZE = 17
-AXIS_FONTSIZE = 14
 
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
@@ -60,22 +46,14 @@ def main(mode, data_dct, mch_name, x_bounds):
         draw_plots(mode, key, executions, mch_name, x_bounds)
 
 
-def draw_runseq_subplot(axis, data, title):
-    axis.plot(data)
-
-    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-    axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
-    axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
-
-
 def draw_plots(mode, key, executions, mch_name, x_bounds):
     print("Drawing %s..." % key)
 
     key_elems = key.split(":")
     assert len(key_elems) == 3
-    bench_display = display_names.BENCHMARKS.get(
+    bench_display = util_graph.BENCHMARKS.get(
         key_elems[0], key_elems[0].title())
-    display_key = "%s, %s"  % (bench_display, key_elems[1])
+    display_key = "%s, %s" % (bench_display, key_elems[1])
 
     for idx in xrange(len(executions)):
         fig, axes = plt.subplots(1, 1, squeeze=False)
@@ -86,10 +64,13 @@ def draw_plots(mode, key, executions, mch_name, x_bounds):
         axis.ticklabel_format(useOffset=False)
 
         if x_bounds == [None, None]:
-            x_bounds = [0, len(data) - 1]
+            x_bounds = [0, len(data)]
+
+        y_min, y_max = min(data), max(data)
 
         axis.set_xlim(x_bounds)
-        draw_runseq_subplot(axis, data, title)
+        util_graph.draw_runseq_subplot(axis, data, title, x_bounds,
+                                       [y_min, y_max])
         fig.subplots_adjust(**SUBPLOT_PARAMS)
 
         if mode == "interactive":
@@ -98,7 +79,8 @@ def draw_plots(mode, key, executions, mch_name, x_bounds):
             plt.show()
         else:
             filename = "graph__%s__1x1__%s__exec%03d__%s__%s.pdf" % \
-                (mch_name, key.replace(":", "_"), idx, x_bounds[0], x_bounds[1])
+                (mch_name, key.replace(":", "_"),
+                 idx, x_bounds[0], x_bounds[1])
             fig.set_size_inches(*EXPORT_SIZE_INCHES)
             plt.savefig(filename=filename, format="pdf", dpi=300)
         plt.close()
