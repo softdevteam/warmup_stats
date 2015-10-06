@@ -68,6 +68,12 @@ def draw_plots(mode, key, executions, mch_name, x_bounds):
 
         y_min, y_max = min(data), max(data)
 
+        # Allow 2% pad either side
+        rng = y_max - y_min
+        adj = rng * 0.02
+        y_min -= adj
+        y_max += adj
+
         axis.set_xlim(x_bounds)
         util_graph.draw_runseq_subplot(axis, data, title, x_bounds,
                                        [y_min, y_max])
