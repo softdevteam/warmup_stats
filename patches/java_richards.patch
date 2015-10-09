@@ -1,5 +1,5 @@
---- richards_orig.java	2015-07-01 10:27:00.368175322 +0100
-+++ /home/vext01/research/warmup_experiment/benchmarks/richards/java/richards.java	2015-07-01 10:25:27.866276671 +0100
+--- COM/sun/labs/kanban/richards_deutsch_acc_virtual/Richards.java	1997-10-24 16:25:36.000000000 +0200
++++ ../benchmarks/richards/java/richards.java	2015-10-09 13:05:57.584629687 +0200
 @@ -6,10 +6,6 @@
  //  Translation from C++, Mario Wolczko
  //  Outer loop added by Alex Jacoby
@@ -69,13 +69,15 @@
      w.SetDestination(dest);
      pkt.SetIdent(dest);
      pkt.SetDatum(0);
-@@ -414,18 +417,34 @@
+@@ -414,18 +417,36 @@
  //----- Richards -----------------------------------------------------
  
  
 -public class Richards implements Benchmark
 +public class richards implements Benchmark
  {
++  static void init() {};
++
    private long total_ms;
    public long getRunTime() { return total_ms; }
  
@@ -107,7 +109,7 @@
      System.out.println("Richards benchmark (deutsch_acc_virtual) starting...");
      long startTime = System.currentTimeMillis();
      if (!run())
-@@ -458,9 +477,10 @@
+@@ -458,9 +479,10 @@
  
    public boolean run() {
      for (int i= 0; i < iterations; i++){
@@ -120,7 +122,7 @@
  
        new IdleTask(I_IDLE, 1, 10000, (new TaskState()).Running(),
  		   new IdleTaskRec());
-@@ -496,7 +516,7 @@
+@@ -496,7 +518,7 @@
        if (Task.get_queuePacketCount() == 23246 && Task.get_holdCount() == 9297) 
          ; // correct
        else {
