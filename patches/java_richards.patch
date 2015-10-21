@@ -1,5 +1,5 @@
---- COM/sun/labs/kanban/richards_deutsch_acc_virtual/Richards.java	1997-10-24 16:25:36.000000000 +0200
-+++ ../benchmarks/richards/java/richards.java	2015-10-09 13:05:57.584629687 +0200
+--- richards.java.orig	2015-10-21 13:54:24.291801337 +0100
++++ richards.java	2015-10-21 14:06:20.722910146 +0100
 @@ -6,10 +6,6 @@
  //  Translation from C++, Mario Wolczko
  //  Outer loop added by Alex Jacoby
@@ -69,7 +69,7 @@
      w.SetDestination(dest);
      pkt.SetIdent(dest);
      pkt.SetDatum(0);
-@@ -414,18 +417,36 @@
+@@ -414,18 +417,40 @@
  //----- Richards -----------------------------------------------------
  
  
@@ -81,6 +81,10 @@
    private long total_ms;
    public long getRunTime() { return total_ms; }
  
++  private static final int EXPECT_QPKT = 23246;
++  private static final int EXPECT_HOLD = 9297;
++
++
    public static void main(String[] args) {
 -    (new Richards()).inst_main(args);
 +    (new richards()).inst_main(args);
@@ -109,25 +113,31 @@
      System.out.println("Richards benchmark (deutsch_acc_virtual) starting...");
      long startTime = System.currentTimeMillis();
      if (!run())
-@@ -458,9 +479,10 @@
+@@ -458,9 +483,7 @@
  
    public boolean run() {
      for (int i= 0; i < iterations; i++){
 -      Task.set_holdCount(0);
 -      Task.set_queuePacketCount(0);  // Added to allow repeated execution
-+      //Task.set_holdCount(0);
-+      //Task.set_queuePacketCount(0);  // Added to allow repeated execution
- 				     // of the test.    Ole Agesen, 3/95.
+-				     // of the test.    Ole Agesen, 3/95.
 +      Task.reset();
  
        new IdleTask(I_IDLE, 1, 10000, (new TaskState()).Running(),
  		   new IdleTaskRec());
-@@ -496,7 +518,7 @@
-       if (Task.get_queuePacketCount() == 23246 && Task.get_holdCount() == 9297) 
-         ; // correct
-       else {
+@@ -493,11 +516,11 @@
+ 
+       schedule();
+ 
+-      if (Task.get_queuePacketCount() == 23246 && Task.get_holdCount() == 9297) 
+-        ; // correct
+-      else {
 -        System.out.println("Incorrect results!");
-+        //System.out.println("Incorrect results!");
-         return false;
+-        return false;
++      int qpkt_count = Task.get_queuePacketCount();
++      int hold_count = Task.get_holdCount();
++      if ((qpkt_count != EXPECT_QPKT) || (hold_count != EXPECT_HOLD)) {
++          System.out.printf("bad checksums: %d:%d %d:%d\n",
++                  qpkt_count, EXPECT_QPKT, hold_count, EXPECT_HOLD);
        }
      }
+     return true;
