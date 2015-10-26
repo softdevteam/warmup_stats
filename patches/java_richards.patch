@@ -1,5 +1,5 @@
---- richards.java.orig	2015-10-21 13:54:24.291801337 +0100
-+++ richards.java	2015-10-21 14:06:20.722910146 +0100
+--- richards.java.orig	2015-10-21 14:10:10.997455330 +0100
++++ richards.java	2015-10-26 09:57:56.295345949 +0000
 @@ -6,10 +6,6 @@
  //  Translation from C++, Mario Wolczko
  //  Outer loop added by Alex Jacoby
@@ -20,7 +20,15 @@
  
    int       Count() { return count; }
    int Destination() { return destination; }
-@@ -204,6 +200,13 @@
+@@ -194,7 +190,6 @@
+ 
+   static Task taskList;
+ 
+-  static final boolean tracing = false;
+   private static int holdCount = 0;
+   private static int qpktCount = 0;
+ 
+@@ -204,6 +199,13 @@
    static int  get_queuePacketCount()      { return qpktCount; }
    static void set_queuePacketCount(int i) { qpktCount = i; }
  
@@ -34,7 +42,15 @@
    Task(int i, int p, Packet w, TaskState initialState, TaskRec r) {
      link = taskList;
      SetIdent(i);
-@@ -327,7 +330,7 @@
+@@ -309,7 +311,6 @@
+       }
+     } else {
+       d.SetPending(pkt);
+-      if (tracing) trace((char)pkt.Datum());
+       return hold();
+     }
+   }
+@@ -327,7 +328,7 @@
    Task fn(Packet pkt, TaskRec r) {
      HandlerTaskRec h = (HandlerTaskRec)r;
      if (pkt != null) {
@@ -43,7 +59,7 @@
  	h.WorkInAdd(pkt);
        else
          h.DeviceInAdd(pkt);
-@@ -371,10 +374,10 @@
+@@ -371,10 +372,10 @@
        return hold();
      } else if ((i.Control() & 1) == 0) {
        i.SetControl(i.Control() / 2);
@@ -56,7 +72,7 @@
      }
    }
  
-@@ -395,9 +398,9 @@
+@@ -395,9 +396,9 @@
      if (pkt == null)
        return waitTask();
  
@@ -69,7 +85,7 @@
      w.SetDestination(dest);
      pkt.SetIdent(dest);
      pkt.SetDatum(0);
-@@ -414,18 +417,40 @@
+@@ -414,22 +415,37 @@
  //----- Richards -----------------------------------------------------
  
  
@@ -96,26 +112,41 @@
 +  // krun entry point
 +  public void runIter(int param) {
 +      iterations = param;
-+      boolean result = run();
-+      //assert(result);
-+      // Assertions are off by default in java
-+      // ensure this check really happens
-+      if (!result) {
-+          System.out.println("failed!");
-+      }
++      run();
 +  }
  
-   public void inst_main(String[] args) { 
+-  public void inst_main(String[] args) { 
++  public void inst_main(String[] args) {
 +    if (args.length > 0)
 +        iterations = Integer.parseInt(args[0]);
 +    else
 +        iterations = 10;
      System.out.println("Richards benchmark (deutsch_acc_virtual) starting...");
      long startTime = System.currentTimeMillis();
-     if (!run())
-@@ -458,9 +483,7 @@
+-    if (!run())
+-      return;
++    run();
+     long endTime = System.currentTimeMillis();
+     System.out.println("finished.");
+     total_ms= endTime - startTime;
+@@ -444,23 +460,17 @@
+     while (t != null) {
+       Packet pkt = null;
  
-   public boolean run() {
+-      if (Task.tracing) 
+-	System.out.println("tcb=" + t.Ident());
+-
+       if (t.IsTaskHoldingOrWaiting()) 
+         t = t.Link();
+       else {
+-        if (Task.tracing) Task.trace((char)('0' + t.Ident()));
+         t = t.RunTask();
+       }
+     }
+   }
+ 
+-  public boolean run() {
++  public void run() {
      for (int i= 0; i < iterations; i++){
 -      Task.set_holdCount(0);
 -      Task.set_queuePacketCount(0);  // Added to allow repeated execution
@@ -124,7 +155,7 @@
  
        new IdleTask(I_IDLE, 1, 10000, (new TaskState()).Running(),
  		   new IdleTaskRec());
-@@ -493,11 +516,11 @@
+@@ -493,14 +503,14 @@
  
        schedule();
  
@@ -138,6 +169,10 @@
 +      if ((qpkt_count != EXPECT_QPKT) || (hold_count != EXPECT_HOLD)) {
 +          System.out.printf("bad checksums: %d:%d %d:%d\n",
 +                  qpkt_count, EXPECT_QPKT, hold_count, EXPECT_HOLD);
++          System.exit(1);
        }
      }
-     return true;
+-    return true;
+   }
+ 
+   // Task IDs
