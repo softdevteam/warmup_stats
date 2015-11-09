@@ -1,0 +1,78 @@
+diff --git a/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java b/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java
+index 356a478..b8ba1cd 100644
+--- a/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java
++++ b/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java
+@@ -539,4 +539,19 @@ public abstract class TrufflePrimitiveNodes {
+         }
+     }
+ 
++    @CoreMethod(names = "clock_gettime_monotonic", onSingleton = true)
++    public abstract static class ClockGetTimeMonotonicNode extends CoreMethodArrayArgumentsNode {
++
++        public ClockGetTimeMonotonicNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public double clockGetTimeMonotonic() {
++            return getContext().getMonotonicClock().clock_gettime_monotonic();
++        }
++
++    }
++
+ }
+diff --git a/truffle/src/main/java/org/jruby/truffle/runtime/ClockGetTimeMonotonic.java b/truffle/src/main/java/org/jruby/truffle/runtime/ClockGetTimeMonotonic.java
+new file mode 100644
+index 0000000..6472d63
+--- /dev/null
++++ b/truffle/src/main/java/org/jruby/truffle/runtime/ClockGetTimeMonotonic.java
+@@ -0,0 +1,16 @@
++/*
++ * Copyright (c) 2015 Oracle and/or its affiliates. All rights reserved. This
++ * code is released under a tri EPL/GPL/LGPL license. You can use it,
++ * redistribute it and/or modify it under the terms of the:
++ *
++ * Eclipse Public License version 1.0
++ * GNU General Public License version 2
++ * GNU Lesser General Public License version 2.1
++ */
++package org.jruby.truffle.runtime;
++
++public interface ClockGetTimeMonotonic {
++
++    double clock_gettime_monotonic();
++
++}
+diff --git a/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java b/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java
+index a0b7082..06941f4 100644
+--- a/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java
++++ b/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java
+@@ -87,6 +87,7 @@ public class RubyContext extends ExecutionContext implements TruffleContextInter
+ 
+     private final POSIX posix;
+     private final NativeSockets nativeSockets;
++    private final ClockGetTimeMonotonic monotonicClock;
+ 
+     private final CoreLibrary coreLibrary;
+     private final FeatureManager featureManager;
+@@ -156,6 +157,10 @@ public class RubyContext extends ExecutionContext implements TruffleContextInter
+         loader.library("c");
+         nativeSockets = loader.load();
+ 
++        final LibraryLoader<ClockGetTimeMonotonic> clockLoader = LibraryLoader.create(ClockGetTimeMonotonic.class);
++        clockLoader.library("kruntime");
++        monotonicClock = clockLoader.load();
++
+         warnings = new Warnings(this);
+ 
+         // Object space manager needs to come early before we create any objects
+@@ -668,4 +673,8 @@ public class RubyContext extends ExecutionContext implements TruffleContextInter
+ 
+         return env.importSymbol(name.toString());
+     }
++
++    public ClockGetTimeMonotonic getMonotonicClock() {
++        return monotonicClock;
++    }
+ }
