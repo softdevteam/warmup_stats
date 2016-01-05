@@ -7,6 +7,7 @@ import argparse
 import bz2
 import datetime
 import json
+import math
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -33,16 +34,16 @@ SUBPLOT_PARAMS = {
     'bottom': 0.07,
     'left': 0.07,
     'right': 0.98,
-    'top': 0.93,
+    'top': 0.95,
     'wspace': 0.15,
 }
 
 # Display names that can't be formatted with .title()
 BENCHMARKS = {
-    "binarytrees":      "Binary Trees",
-    "spectralnorm":     "Spectral Norm",
-    "fannkuch_redux":   "Fannkuch Redux",
-    "nbody":            "N-Body",
+    'binarytrees':      'Binary Trees',
+    'spectralnorm':     'Spectral Norm',
+    'fannkuch_redux':   'Fannkuch Redux',
+    'nbody':            'N-Body',
 }
 
 GRID_MINOR_X_DIVS = 20
@@ -69,13 +70,14 @@ FONT = {
 }
 matplotlib.rc('font', **FONT)
 
-EXPORT_SIZE_INCHES = 20, 8
+MAX_SUBPLOTS_PER_ROW = 2
+EXPORT_SIZE_INCHES = 10, 8  # Based on 1 chart per page.
 DPI = 300
 
 
 def main(is_interactive, data_dcts, percentiles, window_size,
          level, num_samples, outfile, benchmark=None):
-    """Create a new dictonary in bmark->machine->data format.
+    """Create a new dictionary in bmark->machine->data format.
     Plot all data.
     """
     if is_interactive:  # Display all benchmarks on the screen.
@@ -91,7 +93,7 @@ def main(is_interactive, data_dcts, percentiles, window_size,
                 elif (benchmark is not None) and key != benchmark:
                     continue
                 else:
-                    draw_plot(is_interactive, key, executions, machine,
+                    draw_page(is_interactive, key, executions, machine,
                               percentiles, level, num_samples, window_size)
     else:  # Generate all charts and write to a single PDF.
         from matplotlib.backends.backend_pdf import PdfPages
@@ -109,13 +111,21 @@ def main(is_interactive, data_dcts, percentiles, window_size,
                     elif (benchmark is not None) and key != benchmark:
                         continue
                     else:
-                        fig = draw_plot(is_interactive, key, executions,
-                                        machine, percentiles, level,
-                                        num_samples, window_size)
-                        fig.set_tight_layout(True)
-                        fig.set_size_inches(*EXPORT_SIZE_INCHES)
-                        pdf.savefig(fig, dpi=DPI, orientation='landscape')
+                        fig, suptitle, export_size = draw_page(is_interactive,
+                                                               key,
+                                                               executions,
+                                                               machine,
+                                                               percentiles,
+                                                               level,
+                                                               num_samples,
+                                                               window_size)
+                        fig.set_size_inches(*export_size)
+                        pdf.savefig(fig,
+                                    dpi=fig.dpi, orientation='landscape',
+                                    bbox_inches='tight',
+                                    bbox_extra_artists=[suptitle])
                         plt.close()
+        print('Saved: %s' % outfile)
 
 
 def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks):
@@ -252,13 +262,20 @@ def draw_subplot(axis, data, title, x_range, y_range, percentiles,
     legend.draw_frame(False)
 
 
-def draw_plot(is_interactive, key, executions, machine_name,
+def draw_page(is_interactive, key, executions, machine_name,
               percentiles, level, num_samples, window_size):
     """Plot a single benchmark (may have been executed on multiple machines).
     """
     print('Plotting benchmark: %s...' % key)
 
-    n_files = 1  # number of json files
+    if len(executions) > 2:
+        n_cols = MAX_SUBPLOTS_PER_ROW
+        n_rows = int(math.ceil(float(len(executions)) / MAX_SUBPLOTS_PER_ROW))
+    else:
+        n_cols, n_rows = len(executions), 1
+    if not is_interactive:
+        print('On this page, %g plots will be arranged in %g rows and %g columns.' %
+              (len(executions), n_rows, n_cols))
 
     # find the min and max y values across all plots for this view.
     y_min, y_max = float('inf'), float('-inf')
@@ -272,12 +289,12 @@ def draw_plot(is_interactive, key, executions, machine_name,
     y_min -= adj
     y_max += adj
 
-    fig, axes = plt.subplots(n_files, len(executions), squeeze=False)
+    fig, axes = plt.subplots(n_rows, n_cols, squeeze=False)
 
-    row, col = 0, 0
-    for idx in range(len(executions)):
-        data = executions[idx]
-        title = '%s, Execution #%d' % (machine_name.title(), idx)
+    index, row, col = 0, 0, 0
+    while index < len(executions):
+        data = executions[index]
+        title = '%s, Execution #%d' % (machine_name.title(), index + 1)
         axis = axes[row, col]
         axis.ticklabel_format(useOffset=False)
         x_bounds = [0, len(data)]
@@ -285,8 +302,10 @@ def draw_plot(is_interactive, key, executions, machine_name,
         draw_subplot(axis, data, title, x_bounds, [y_min, y_max],
                      percentiles, level, num_samples, window_size)
         col += 1
-    row += 1
-    col = 0
+        if col == MAX_SUBPLOTS_PER_ROW:
+            col = 0
+            row += 1
+        index = row * MAX_SUBPLOTS_PER_ROW + col
 
     key_elems = key.split(':')
     assert len(key_elems) == 3, \
@@ -295,17 +314,19 @@ def draw_plot(is_interactive, key, executions, machine_name,
     display_key = '%s, %s' % (bench_display, key_elems[1])
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
-    fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight='bold')
+    suptitle = fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight='bold')
     if is_interactive:
         mng = plt.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
         plt.show()
         plt.close()
-        return
+        return None, None, None
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close plt.
-        return fig
+        export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
+                       EXPORT_SIZE_INCHES[1] * n_rows)
+        return fig, suptitle, export_size
 
 
 def set_pdf_metadata(pdf_document):
