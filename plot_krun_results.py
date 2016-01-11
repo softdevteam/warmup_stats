@@ -76,7 +76,7 @@ DPI = 300
 
 
 def main(is_interactive, data_dcts, percentiles, window_size,
-         level, num_samples, outfile, benchmark=None):
+         level, num_samples, outfile, xlimits, single_exec, benchmark=None):
     """Create a new dictionary in bmark->machine->data format.
     Plot all data.
     """
@@ -94,7 +94,8 @@ def main(is_interactive, data_dcts, percentiles, window_size,
                     continue
                 else:
                     draw_page(is_interactive, key, executions, machine,
-                              percentiles, level, num_samples, window_size)
+                              percentiles, level, num_samples, window_size,
+                              xlimits, single_exec)
     else:  # Generate all charts and write to a single PDF.
         from matplotlib.backends.backend_pdf import PdfPages
         with PdfPages(outfile) as pdf:
@@ -111,19 +112,20 @@ def main(is_interactive, data_dcts, percentiles, window_size,
                     elif (benchmark is not None) and key != benchmark:
                         continue
                     else:
-                        fig, suptitle, export_size = draw_page(is_interactive,
-                                                               key,
-                                                               executions,
-                                                               machine,
-                                                               percentiles,
-                                                               level,
-                                                               num_samples,
-                                                               window_size)
+                        fig, export_size = draw_page(is_interactive,
+                                                     key,
+                                                     executions,
+                                                     machine,
+                                                     percentiles,
+                                                     level,
+                                                     num_samples,
+                                                     window_size,
+                                                     xlimits,
+                                                     single_exec)
                         fig.set_size_inches(*export_size)
                         pdf.savefig(fig,
                                     dpi=fig.dpi, orientation='landscape',
-                                    bbox_inches='tight',
-                                    bbox_extra_artists=[suptitle])
+                                    bbox_inches='tight')
                         plt.close()
         print('Saved: %s' % outfile)
 
@@ -233,12 +235,13 @@ def draw_subplot(axis, data, title, x_range, y_range, percentiles,
         axis.plot(pc_data[percentile], label=label)
 
     # Plot sliding window confidence intervals.
-    cis = sliding_window_confidence(data_narray, level, num_samples, window_size)
-    iterations = numpy.array(list(xrange(len(data))))
-    axis.fill_between(iterations, cis[0], data_narray, alpha=FILL_ALPHA,
-                      facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
-    axis.fill_between(iterations, data_narray, cis[1], alpha=FILL_ALPHA,
-                      facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
+    if level > 0:
+        cis = sliding_window_confidence(data_narray, level, num_samples, window_size)
+        iterations = numpy.array(list(xrange(len(data))))
+        axis.fill_between(iterations, cis[0], data_narray, alpha=FILL_ALPHA,
+                          facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
+        axis.fill_between(iterations, data_narray, cis[1], alpha=FILL_ALPHA,
+                          facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
 
     # Re-style the chart.
     major_xticks = compute_grid_offsets(
@@ -258,30 +261,44 @@ def draw_subplot(axis, data, title, x_range, y_range, percentiles,
     axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
     axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
     axis.set_ylim(y_range)
-    legend = axis.legend(ncol=3, fontsize='medium')
-    legend.draw_frame(False)
+    if len(percentiles) > 0:
+        legend = axis.legend(ncol=3, fontsize='medium')
+        legend.draw_frame(False)
 
 
 def draw_page(is_interactive, key, executions, machine_name,
-              percentiles, level, num_samples, window_size):
+              percentiles, level, num_samples, window_size, xlimits, single_exec):
     """Plot a single benchmark (may have been executed on multiple machines).
     """
     print('Plotting benchmark: %s...' % key)
 
-    if len(executions) > 2:
-        n_cols = MAX_SUBPLOTS_PER_ROW
-        n_rows = int(math.ceil(float(len(executions)) / MAX_SUBPLOTS_PER_ROW))
-    else:
-        n_cols, n_rows = len(executions), 1
+    if single_exec is not None:
+        executions = [executions[single_exec]]
+
+    n_execs = len(executions)
+
+    n_rows = int(math.ceil(float(len(executions)) / MAX_SUBPLOTS_PER_ROW))
+    n_cols = min(MAX_SUBPLOTS_PER_ROW, n_execs)
+
     if not is_interactive:
         print('On this page, %g plots will be arranged in %g rows and %g columns.' %
               (len(executions), n_rows, n_cols))
 
     # find the min and max y values across all plots for this view.
+    if xlimits is None:
+        xlimits_start = 0
+        xlimits_stop = len(executions[0])  # assume all execs are the same length
+    else:
+        try:
+            xlimits_start, xlimits_stop = [int(x) for x in xlimits.split(",")]
+        except ValueError:
+            print("invalid xlimits pair")
+            sys.exit(1)
+
     y_min, y_max = float('inf'), float('-inf')
     for execution in executions:
-        y_min = min(min(execution), y_min)
-        y_max = max(max(execution), y_max)
+        y_min = min(min(execution[xlimits_start:xlimits_stop]), y_min)
+        y_max = max(max(execution[xlimits_start:xlimits_stop]), y_max)
 
     # Allow 2% pad either side
     rng = y_max - y_min
@@ -291,13 +308,24 @@ def draw_page(is_interactive, key, executions, machine_name,
 
     fig, axes = plt.subplots(n_rows, n_cols, squeeze=False)
 
+    key_elems = key.split(':')
+    assert len(key_elems) == 3, \
+            'Malformed Krun results file: bad benchmark name: %s' % key
+    bench_display = BENCHMARKS.get(key_elems[0], key_elems[0].title())
+
     index, row, col = 0, 0, 0
-    while index < len(executions):
+    while index < n_execs:
         data = executions[index]
-        title = '%s, Execution #%d' % (machine_name.title(), index + 1)
+
+        actual_index = index + 1
+        if single_exec:
+            actual_index = single_exec + 1
+
+        title = '%s, %s, %s, Process execution #%d' % (
+            bench_display, key_elems[1], machine_name.title(), actual_index)
         axis = axes[row, col]
         axis.ticklabel_format(useOffset=False)
-        x_bounds = [0, len(data)]
+        x_bounds = [xlimits_start, xlimits_stop]
         axis.set_xlim(x_bounds)
         draw_subplot(axis, data, title, x_bounds, [y_min, y_max],
                      percentiles, level, num_samples, window_size)
@@ -307,26 +335,19 @@ def draw_page(is_interactive, key, executions, machine_name,
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
-    key_elems = key.split(':')
-    assert len(key_elems) == 3, \
-            'Malformed Krun results file: bad benchmark name: %s' % key
-    bench_display = BENCHMARKS.get(key_elems[0], key_elems[0].title())
-    display_key = '%s, %s' % (bench_display, key_elems[1])
-
     fig.subplots_adjust(**SUBPLOT_PARAMS)
-    suptitle = fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight='bold')
     if is_interactive:
         mng = plt.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
         plt.show()
         plt.close()
-        return None, None, None
+        return None, None
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close plt.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
                        EXPORT_SIZE_INCHES[1] * n_rows)
-        return fig, suptitle, export_size
+        return fig, export_size
 
 
 def set_pdf_metadata(pdf_document):
@@ -418,7 +439,7 @@ def create_cli_parser():
                         dest='level',
                         default=99.0,
                         type=float,
-                        help='Level of confidence.')
+                        help='Level of confidence. Set to -1 to remove CIs.')
     parser.add_argument('--samples', '-s',
                         action='store',
                         dest='num_samples',
@@ -434,6 +455,15 @@ def create_cli_parser():
                         help=('Only draw charts for a specific benchmark/' +
                               'vm/variant triplet. ' +
                               'e.g. binarytrees:Hotspot:default-java'))
+    parser.add_argument('--xlimits', '-x',
+                        help=("Specify X-axis limits as a comma separated pair "
+                              "'start,end'. Samples start from 0. e.g. "
+                              "'-x 100,130' will show samples in the range "
+                              "100 to 130."))
+    parser.add_argument('--single-exec', '-e',
+                        type=int,
+                        help=("Emit a graph for a single process execution. "
+                              "e.g. '-e 0' emits only the first."))
     return parser
 
 
@@ -447,9 +477,11 @@ if __name__ == '__main__':
     plt.close()  # avoid extra blank window
     if not options.interactive:
         print 'Saving results to: %s' % options.outfile
-    print (('Charting with sliding window size: %d, confidence level: %d ' +
+    print (('Charting with sliding window size: %d, xlimits: %s, '
+            'single_exec: %s, confidence level: %d '
             'bootstrap samples: %d and percentiles: %s') %
-            (options.window_size, options.level, options.num_samples,
+            (options.window_size, options.xlimits, options.single_exec,
+             options.level, options.num_samples,
              " ".join([str(pc) for pc in options.percentiles])))
     float_percentiles = [float(pc) for pc in options.percentiles]
     main(options.interactive,
@@ -459,4 +491,6 @@ if __name__ == '__main__':
          options.level,
          options.num_samples,
          options.outfile,
+         options.xlimits,
+         options.single_exec,
          benchmark=options.benchmark)
