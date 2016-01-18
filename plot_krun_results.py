@@ -59,6 +59,8 @@ LINE_COLOUR = 'k'
 LINE_WIDTH = 1
 FILL_ALPHA = 0.2
 
+OUTLIER_MARKER = 'ro'
+
 TICK_FONTSIZE = 12
 TITLE_FONT_SIZE = 17
 AXIS_FONTSIZE = 14
@@ -76,7 +78,8 @@ DPI = 300
 
 
 def main(is_interactive, data_dcts, percentiles, window_size,
-         level, num_samples, outfile, xlimits, single_exec, benchmark=None):
+         level, num_samples, outfile, xlimits, single_exec,
+         with_outliers, benchmark=None):
     """Create a new dictionary in bmark->machine->data format.
     Plot all data.
     """
@@ -93,9 +96,13 @@ def main(is_interactive, data_dcts, percentiles, window_size,
                 elif (benchmark is not None) and key != benchmark:
                     continue
                 else:
+                    if with_outliers:
+                        outliers = data_dcts[machine]['outliers'][key]
+                    else:
+                        outliers = None
                     draw_page(is_interactive, key, executions, machine,
                               percentiles, level, num_samples, window_size,
-                              xlimits, single_exec)
+                              xlimits, single_exec, outliers)
     else:  # Generate all charts and write to a single PDF.
         from matplotlib.backends.backend_pdf import PdfPages
         with PdfPages(outfile) as pdf:
@@ -112,16 +119,21 @@ def main(is_interactive, data_dcts, percentiles, window_size,
                     elif (benchmark is not None) and key != benchmark:
                         continue
                     else:
-                        fig, export_size = draw_page(is_interactive,
-                                                     key,
-                                                     executions,
-                                                     machine,
-                                                     percentiles,
-                                                     level,
-                                                     num_samples,
-                                                     window_size,
-                                                     xlimits,
-                                                     single_exec)
+                        if with_outliers:
+                            outliers = data_dcts[machine]['outliers'][key]
+                        else:
+                            outliers = None
+                        fig, suptitle, export_size = draw_page(is_interactive,
+                                                               key,
+                                                               executions,
+                                                               machine,
+                                                               percentiles,
+                                                               level,
+                                                               num_samples,
+                                                               window_size,
+                                                               xlimits,
+                                                               single_exec,
+                                                               outliers)
                         fig.set_size_inches(*export_size)
                         pdf.savefig(fig,
                                     dpi=fig.dpi, orientation='landscape',
@@ -222,11 +234,15 @@ def sliding_window_percentiles(data, percentiles, window_size=200):
 
 
 def draw_subplot(axis, data, title, x_range, y_range, percentiles,
-                 level, num_samples, window_size):
+                 level, num_samples, window_size, outliers):
     data_narray = numpy.array(data)
 
     # Plot the original measurements.
     axis.plot(data_narray, label='Measurement', color=LINE_COLOUR)
+
+    # If there are outliers, highlight them.
+    if outliers is not None:
+        axis.plot(outliers, data_narray[outliers], OUTLIER_MARKER, label='Outliers')
 
     # Plot sliding window percentiles.
     pc_data = sliding_window_percentiles(data_narray, percentiles, window_size)
@@ -267,7 +283,8 @@ def draw_subplot(axis, data, title, x_range, y_range, percentiles,
 
 
 def draw_page(is_interactive, key, executions, machine_name,
-              percentiles, level, num_samples, window_size, xlimits, single_exec):
+              percentiles, level, num_samples, window_size, xlimits,
+              single_exec, outliers):
     """Plot a single benchmark (may have been executed on multiple machines).
     """
     print('Plotting benchmark: %s...' % key)
@@ -294,12 +311,10 @@ def draw_page(is_interactive, key, executions, machine_name,
         except ValueError:
             print("invalid xlimits pair")
             sys.exit(1)
-
     y_min, y_max = float('inf'), float('-inf')
     for execution in executions:
         y_min = min(min(execution[xlimits_start:xlimits_stop]), y_min)
         y_max = max(max(execution[xlimits_start:xlimits_stop]), y_max)
-
     # Allow 2% pad either side
     rng = y_max - y_min
     adj = rng * 0.02
@@ -307,7 +322,6 @@ def draw_page(is_interactive, key, executions, machine_name,
     y_max += adj
 
     fig, axes = plt.subplots(n_rows, n_cols, squeeze=False)
-
     key_elems = key.split(':')
     assert len(key_elems) == 3, \
             'Malformed Krun results file: bad benchmark name: %s' % key
@@ -316,6 +330,7 @@ def draw_page(is_interactive, key, executions, machine_name,
     index, row, col = 0, 0, 0
     while index < n_execs:
         data = executions[index]
+        outliers_exec = outliers[index] if outliers is not None else None
 
         actual_index = index + 1
         if single_exec:
@@ -328,14 +343,22 @@ def draw_page(is_interactive, key, executions, machine_name,
         x_bounds = [xlimits_start, xlimits_stop]
         axis.set_xlim(x_bounds)
         draw_subplot(axis, data, title, x_bounds, [y_min, y_max],
-                     percentiles, level, num_samples, window_size)
+                     percentiles, level, num_samples, window_size,
+                     outliers_exec)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
+    key_elems = key.split(':')
+    assert len(key_elems) == 3, \
+            'Malformed Krun results file: bad benchmark name: %s' % key
+    bench_display = BENCHMARKS.get(key_elems[0], key_elems[0].title())
+    display_key = '%s, %s' % (bench_display, key_elems[1])
+
     fig.subplots_adjust(**SUBPLOT_PARAMS)
+    suptitle = fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight='bold')
     if is_interactive:
         mng = plt.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
@@ -347,7 +370,7 @@ def draw_page(is_interactive, key, executions, machine_name,
         # Caller MUST close plt.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
                        EXPORT_SIZE_INCHES[1] * n_rows)
-        return fig, export_size
+        return fig, suptitle, export_size
 
 
 def set_pdf_metadata(pdf_document):
@@ -456,6 +479,10 @@ def create_cli_parser():
                               'vm/variant triplet. ' +
                               'e.g. binarytrees:Hotspot:default-java'))
     parser.add_argument('--xlimits', '-x',
+                        action='store',
+                        dest='xlimits',
+                        default=None,
+                        type=str,
                         help=("Specify X-axis limits as a comma separated pair "
                               "'start,end'. Samples start from 0. e.g. "
                               "'-x 100,130' will show samples in the range "
@@ -464,6 +491,12 @@ def create_cli_parser():
                         type=int,
                         help=("Emit a graph for a single process execution. "
                               "e.g. '-e 0' emits only the first."))
+    parser.add_argument('--with_outliers',
+                        action='store_true',
+                        dest='outliers',
+                        default=False,
+                        help=('Annotate outliers. Only use this if your Krun' +
+                              ' results file contains outlier information.'))
     return parser
 
 
@@ -493,4 +526,5 @@ if __name__ == '__main__':
          options.outfile,
          options.xlimits,
          options.single_exec,
+         options.outliers,
          benchmark=options.benchmark)
