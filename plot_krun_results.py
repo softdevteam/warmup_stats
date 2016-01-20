@@ -9,13 +9,14 @@ import datetime
 import json
 import math
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy
 import numpy.random
 import os
 import os.path
 import seaborn
+import sys
 
 seaborn.set_palette("colorblind")
 seaborn.set_style('whitegrid', {"lines.linewidth": 1.0, "axes.linewidth": 1.0})
@@ -25,8 +26,6 @@ plt.figure(tight_layout=True)
 
 PDF_FILENAME = 'krun_results.pdf'
 
-SUPTITLE_FONT_SIZE = 18
-
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
 SUBPLOT_PARAMS = {
@@ -35,7 +34,7 @@ SUBPLOT_PARAMS = {
     'left': 0.07,
     'right': 0.98,
     'top': 0.95,
-    'wspace': 0.15,
+    'wspace': 0.20,
 }
 
 # Display names that can't be formatted with .title()
@@ -60,11 +59,15 @@ LINE_WIDTH = 1
 FILL_ALPHA = 0.2
 
 OUTLIER_MARKER = 'ro'
+UNIQUE_MARKER = 'bo'
+COMMON_MARKER = 'go'
 
-TICK_FONTSIZE = 12
-TITLE_FONT_SIZE = 17
-AXIS_FONTSIZE = 14
-BASE_FONTSIZE = 13
+# Default (PDF) font sizes
+TICK_FONTSIZE = 18
+TITLE_FONT_SIZE = 20
+AXIS_FONTSIZE = 20
+BASE_FONTSIZE = 20
+
 FONT = {
     'family': 'sans',
     'weight': 'regular',
@@ -77,69 +80,65 @@ EXPORT_SIZE_INCHES = 10, 8  # Based on 1 chart per page.
 DPI = 300
 
 
-def main(is_interactive, data_dcts, percentiles, window_size,
-         level, num_samples, outfile, xlimits, single_exec,
-         with_outliers, benchmark=None):
+def main(is_interactive, data_dcts, window_size, outfile, xlimits, single_exec,
+         with_outliers, unique_outliers, mean=False, sigma=False,
+         benchmark=None):
     """Create a new dictionary in bmark->machine->data format.
     Plot all data.
     """
-    if is_interactive:  # Display all benchmarks on the screen.
-        for machine in data_dcts:
-            keys = sorted(data_dcts[machine]['data'].keys())
-            for key in keys:
-                bench, vm, variant = key.split(':')
-                executions = data_dcts[machine]['data'][key]
-                if benchmark is None and len(executions) == 0:
-                    print('Skipping: %s (no executions)' % key)
-                elif benchmark is None and len(executions[0]) == 0:
-                    print('Skipping: %s (benchmark crashed)' % key)
-                elif (benchmark is not None) and key != benchmark:
-                    continue
+    pdf = None  # PDF output (non-interactive mode).
+
+    if not is_interactive:
+        pdf = PdfPages(outfile)
+        set_pdf_metadata(pdf)
+
+    benchmark_in_results = False
+    for machine in data_dcts:
+        keys = sorted(data_dcts[machine]['data'].keys())
+        if benchmark in keys:
+            benchmark_in_results = True
+        for key in keys:
+            bench, vm, variant = key.split(':')
+            executions = data_dcts[machine]['data'][key]
+            if benchmark is None and len(executions) == 0:
+                print('Skipping: %s (no executions)' % key)
+            elif benchmark is None and len(executions[0]) == 0:
+                print('Skipping: %s (benchmark crashed)' % key)
+            elif (benchmark is not None) and key != benchmark:
+                continue
+            else:
+                if with_outliers:
+                    outliers = data_dcts[machine]['outliers'][key]
                 else:
-                    if with_outliers:
-                        outliers = data_dcts[machine]['outliers'][key]
-                    else:
-                        outliers = None
-                    draw_page(is_interactive, key, executions, machine,
-                              percentiles, level, num_samples, window_size,
-                              xlimits, single_exec, outliers)
-    else:  # Generate all charts and write to a single PDF.
-        from matplotlib.backends.backend_pdf import PdfPages
-        with PdfPages(outfile) as pdf:
-            set_pdf_metadata(pdf)
-            for machine in data_dcts:
-                keys = sorted(data_dcts[machine]['data'].keys())
-                for key in keys:
-                    bench, vm, variant = key.split(':')
-                    executions = data_dcts[machine]['data'][key]
-                    if benchmark is None and len(executions) == 0:
-                        print('Skipping: %s (no executions)' % key)
-                    elif benchmark is None and len(executions[0]) == 0:
-                        print('Skipping: %s (benchmark crashed)' % key)
-                    elif (benchmark is not None) and key != benchmark:
-                        continue
-                    else:
-                        if with_outliers:
-                            outliers = data_dcts[machine]['outliers'][key]
-                        else:
-                            outliers = None
-                        fig, suptitle, export_size = draw_page(is_interactive,
-                                                               key,
-                                                               executions,
-                                                               machine,
-                                                               percentiles,
-                                                               level,
-                                                               num_samples,
-                                                               window_size,
-                                                               xlimits,
-                                                               single_exec,
-                                                               outliers)
-                        fig.set_size_inches(*export_size)
-                        pdf.savefig(fig,
-                                    dpi=fig.dpi, orientation='landscape',
-                                    bbox_inches='tight')
-                        plt.close()
-        print('Saved: %s' % outfile)
+                    outliers = None
+                if unique_outliers:
+                    unique = data_dcts[machine]['unique_outliers'][key]
+                    common = data_dcts[machine]['common_outliers'][key]
+                else:
+                    unique, common = None, None
+                fig, export_size = draw_page(is_interactive,
+                                             key,
+                                             executions,
+                                             machine,
+                                             window_size,
+                                             xlimits,
+                                             single_exec,
+                                             outliers,
+                                             unique,
+                                             common,
+                                             mean,
+                                             sigma)
+                if not is_interactive:
+                    fig.set_size_inches(*export_size)
+                    pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
+                                bbox_inches='tight')
+                    plt.close()
+        if not is_interactive:
+            pdf.close()
+            print('Saved: %s' % outfile)
+        if benchmark is not None and not benchmark_in_results:
+            fatal_error('Benchmark: %s did not appear in any results file.' %
+                        benchmark)
 
 
 def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks):
@@ -191,50 +190,8 @@ def _clamp_window_size(index, data_size, window_size=200):
     return (lh_index, rh_index)
 
 
-def bootstrap(data_array, n_resamples, alpha):
-    """ Bootstrap resample an array_like
-    """
-    index = numpy.floor(numpy.random.rand(n_resamples)*len(data_array)).astype(int)
-    bootstraps = data_array[index]
-    return numpy.percentile(bootstraps, [alpha / 2.0, 100 - (alpha / 2.0)], axis=0)
-
-
-def sliding_window_confidence(data, level, num_samples, window_size=200):
-    """Data should be a 1xn matrix.
-    """
-    rolling_cis = ([], [])  # lower, upper CI
-    alpha = 100.0 - level
-    for index, datum in enumerate(data):
-        l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
-        window = data[l_slice:r_slice]
-        assert len(window) == r_slice - l_slice
-        low, high = bootstrap(window, num_samples, alpha)
-        rolling_cis[0].append(low)
-        rolling_cis[1].append(high)
-    return rolling_cis
-
-
-def sliding_window_percentiles(data, percentiles, window_size=200):
-    """Data should be a 1xn matrix.
-    Returns a dictionary of:
-        percentile : float -> percentile values : float list
-    """
-    pc_data = dict()
-    percentile_set = set(percentiles)
-    for percentile in percentile_set:
-        pc_data[percentile] = list()
-    for index, _ in enumerate(data):
-        l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
-        window = data[l_slice:r_slice]
-        assert len(window) == r_slice - l_slice
-        for percentile in percentile_set:
-            value = numpy.percentile(window, percentile)
-            pc_data[percentile].append(value)
-    return pc_data
-
-
-def draw_subplot(axis, data, title, x_range, y_range, percentiles,
-                 level, num_samples, window_size, outliers):
+def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
+                 unique, common, mean, sigma):
     data_narray = numpy.array(data)
 
     # Plot the original measurements.
@@ -243,21 +200,35 @@ def draw_subplot(axis, data, title, x_range, y_range, percentiles,
     # If there are outliers, highlight them.
     if outliers is not None:
         axis.plot(outliers, data_narray[outliers], OUTLIER_MARKER, label='Outliers')
+    if unique is not None:
+        pc_unique = float(len(unique)) / float(len(data_narray)) * 100.0
+        axis.plot(unique, data_narray[unique], UNIQUE_MARKER,
+                  label=('Unique outliers (${%.2f}\\%%$)' % pc_unique))
+    if common is not None:
+        pc_common = float(len(common)) / float(len(data_narray)) * 100.0
+        axis.plot(common, data_narray[common], COMMON_MARKER,
+                  label=('Common outliers (${%.2f}\\%%$)' % pc_common))
 
-    # Plot sliding window percentiles.
-    pc_data = sliding_window_percentiles(data_narray, percentiles, window_size)
-    for percentile in pc_data:
-        label = r"$%d^\mathsf{th}$ percentile" % int(percentile)
-        axis.plot(pc_data[percentile], label=label)
-
-    # Plot sliding window confidence intervals.
-    if level > 0:
-        cis = sliding_window_confidence(data_narray, level, num_samples, window_size)
-        iterations = numpy.array(list(xrange(len(data))))
-        axis.fill_between(iterations, cis[0], data_narray, alpha=FILL_ALPHA,
-                          facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
-        axis.fill_between(iterations, data_narray, cis[1], alpha=FILL_ALPHA,
-                          facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
+    # Draw a rolling mean (optionally).
+    if mean:
+        means = list()
+        sigmas = (list(), list())
+        for index, datum in enumerate(data):
+            l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
+            window = data[l_slice:r_slice]
+            means.append(numpy.mean(window))
+            if sigma:
+                five_sigma = 5 * numpy.std(window)
+                sigmas[0].append(means[index] - five_sigma)
+                sigmas[1].append(means[index] + five_sigma)
+        axis.plot(data_narray, label='Mean')
+        # Fill between 5-sigmas.
+        if sigma:
+            iterations = numpy.array(list(xrange(len(data))))
+            axis.fill_between(iterations, sigmas[0], means, alpha=FILL_ALPHA,
+                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
+            axis.fill_between(iterations, means, sigmas[1], alpha=FILL_ALPHA,
+                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
 
     # Re-style the chart.
     major_xticks = compute_grid_offsets(
@@ -277,14 +248,24 @@ def draw_subplot(axis, data, title, x_range, y_range, percentiles,
     axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
     axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
     axis.set_ylim(y_range)
-    if len(percentiles) > 0:
-        legend = axis.legend(ncol=3, fontsize='medium')
+
+    handles, _ = axis.get_legend_handles_labels()
+    if sigma:
+        fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
+                                              alpha=FILL_ALPHA,
+                                              label='5$\sigma$')
+        handles.append(fill_patch)
+
+    # Avoid drawing the legend if we are only charting measurements.
+    if mean or sigma or (outliers is not None) or (unique is not None) or \
+       (common is not None):
+        legend = axis.legend(ncol=3, fontsize='medium', handles=handles)
         legend.draw_frame(False)
 
 
 def draw_page(is_interactive, key, executions, machine_name,
-              percentiles, level, num_samples, window_size, xlimits,
-              single_exec, outliers):
+              window_size, xlimits, single_exec, outliers,
+              unique, common, mean, sigma):
     """Plot a single benchmark (may have been executed on multiple machines).
     """
     print('Plotting benchmark: %s...' % key)
@@ -301,10 +282,10 @@ def draw_page(is_interactive, key, executions, machine_name,
         print('On this page, %g plots will be arranged in %g rows and %g columns.' %
               (len(executions), n_rows, n_cols))
 
-    # find the min and max y values across all plots for this view.
+    # Find the min and max y values across all plots for this view.
     if xlimits is None:
         xlimits_start = 0
-        xlimits_stop = len(executions[0])  # assume all execs are the same length
+        xlimits_stop = len(executions[0])  # Assume all execs are the same length
     else:
         try:
             xlimits_start, xlimits_stop = [int(x) for x in xlimits.split(",")]
@@ -323,14 +304,17 @@ def draw_page(is_interactive, key, executions, machine_name,
 
     fig, axes = plt.subplots(n_rows, n_cols, squeeze=False)
     key_elems = key.split(':')
-    assert len(key_elems) == 3, \
-            'Malformed Krun results file: bad benchmark name: %s' % key
+    if len(key_elems) != 3:
+            fatal_error('Malformed Krun results file: bad benchmark name: %s' %
+                        key)
     bench_display = BENCHMARKS.get(key_elems[0], key_elems[0].title())
 
     index, row, col = 0, 0, 0
     while index < n_execs:
         data = executions[index]
         outliers_exec = outliers[index] if outliers is not None else None
+        unique_exec = unique[index] if unique is not None else None
+        common_exec = common[index] if common is not None else None
 
         actual_index = index + 1
         if single_exec:
@@ -342,9 +326,8 @@ def draw_page(is_interactive, key, executions, machine_name,
         axis.ticklabel_format(useOffset=False)
         x_bounds = [xlimits_start, xlimits_stop]
         axis.set_xlim(x_bounds)
-        draw_subplot(axis, data, title, x_bounds, [y_min, y_max],
-                     percentiles, level, num_samples, window_size,
-                     outliers_exec)
+        draw_subplot(axis, data, title, x_bounds, [y_min, y_max], window_size,
+                     outliers_exec, unique_exec, common_exec, mean, sigma)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -352,13 +335,11 @@ def draw_page(is_interactive, key, executions, machine_name,
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
     key_elems = key.split(':')
-    assert len(key_elems) == 3, \
-            'Malformed Krun results file: bad benchmark name: %s' % key
+    if not len(key_elems) == 3:
+        fatal_error('Malformed Krun results file: bad benchmark name: %s' % key)
     bench_display = BENCHMARKS.get(key_elems[0], key_elems[0].title())
-    display_key = '%s, %s' % (bench_display, key_elems[1])
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
-    suptitle = fig.suptitle(display_key, fontsize=SUPTITLE_FONT_SIZE, fontweight='bold')
     if is_interactive:
         mng = plt.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
@@ -370,7 +351,7 @@ def draw_page(is_interactive, key, executions, machine_name,
         # Caller MUST close plt.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
                        EXPORT_SIZE_INCHES[1] * n_rows)
-        return fig, suptitle, export_size
+        return fig, export_size
 
 
 def set_pdf_metadata(pdf_document):
@@ -403,7 +384,8 @@ def get_data_dictionaries(json_files):
     """
     data_dictionary = dict()
     for filename in json_files:
-        assert os.path.exists(filename), 'File %s does not exist.' % filename
+        if not os.path.exists(filename):
+            fatal_error('File %s does not exist.' % filename)
         print('Loading: %s' % filename)
         data = read_krun_results_file(filename)
         machine_name = data['audit']['uname'].split(' ')[1]
@@ -420,7 +402,7 @@ def create_cli_parser():
     description = (('Plot data from Krun results file(s).' +
                     '\nExample usage:\n\n$ python %s -f results1.json.bz2\n' +
                     '$ python %s -i -f results1.json.bz2 -f results2.json.bz2' +
-                    ' --window 250 -l 99 -s 100000 -p 99 -p 95 -p 90\n' +
+                    ' --window 250 --mean --sigma --with-outliers\n' +
                     '$ python %s -b  binarytrees:Hotspot:default-java') %
                    (script, script, script))
     parser = argparse.ArgumentParser(description)
@@ -443,33 +425,12 @@ def create_cli_parser():
                         default=PDF_FILENAME,
                         type=str,
                         help=('Name of the PDF file to write to.'))
-    parser.add_argument('--percentiles', '-p',
-                        action='append',
-                        dest='percentiles',
-                        default=[],
-                        type=int,
-                        help=('Percentiles to plot. This switch can be used ' +
-                              'repeatedly to chart a number of sliding ' +
-                              'window percentiles.'))
     parser.add_argument('--window', '-w',
                         action='store',
                         dest='window_size',
                         default=200,
                         type=int,
                         help='Size of the sliding window used to draw percentiles.')
-    parser.add_argument('--level', '-l',
-                        action='store',
-                        dest='level',
-                        default=99.0,
-                        type=float,
-                        help='Level of confidence. Set to -1 to remove CIs.')
-    parser.add_argument('--samples', '-s',
-                        action='store',
-                        dest='num_samples',
-                        default=10000,
-                        type=int,
-                        help=('Number of bootstrap samples used to estimate ' +
-                              'the rolling confidence interval.'))
     parser.add_argument('--benchmark', '-b',
                         action='store',
                         dest='benchmark',
@@ -491,40 +452,71 @@ def create_cli_parser():
                         type=int,
                         help=("Emit a graph for a single process execution. "
                               "e.g. '-e 0' emits only the first."))
-    parser.add_argument('--with_outliers',
+    parser.add_argument('--mean', '-m',
+                        action='store_true',
+                        dest='mean',
+                        default=False,
+                        help=('Draw a rolling mean.'))
+    parser.add_argument('--sigma', '-s',
+                        action='store_true',
+                        dest='sigma',
+                        default=False,
+                        help=('Draw 5-sigma interval around the rolling mean.'))
+    parser.add_argument('--with-outliers',
                         action='store_true',
                         dest='outliers',
                         default=False,
                         help=('Annotate outliers. Only use this if your Krun' +
                               ' results file contains outlier information.'))
+    parser.add_argument('--with-unique-outliers',
+                        action='store_true',
+                        dest='unique_outliers',
+                        default=False,
+                        help=('Annotate outliers common to multiple ' +
+                              'executions and those unique to single ' +
+                              'executions differently.'))
     return parser
 
 
+def fatal_error(msg):
+    print('')
+    print('FATAL Krun plot error:')
+    print('\t'+ msg)
+    sys.exit(1)
+
+
 if __name__ == '__main__':
-    import sys
     parser = create_cli_parser()
     options = parser.parse_args()
     if options.interactive and (options.outfile != PDF_FILENAME):
         parser.print_help()
         sys.exit(1)
     plt.close()  # avoid extra blank window
-    if not options.interactive:
+    if options.interactive:
+        plt.switch_backend('TkAgg')
+    else:
+        from matplotlib.backends.backend_pdf import PdfPages
         print 'Saving results to: %s' % options.outfile
     print (('Charting with sliding window size: %d, xlimits: %s, '
-            'single_exec: %s, confidence level: %d '
-            'bootstrap samples: %d and percentiles: %s') %
-            (options.window_size, options.xlimits, options.single_exec,
-             options.level, options.num_samples,
-             " ".join([str(pc) for pc in options.percentiles])))
-    float_percentiles = [float(pc) for pc in options.percentiles]
+            'single_exec: %s, ') %
+            (options.window_size, options.xlimits, options.single_exec))
+    print ('Using matplotlib backend: %s' % matplotlib.get_backend())
+
+    # smaller fonts for on-screen plots
+    if options.interactive:
+        TICK_FONTSIZE = 12
+        TITLE_FONT_SIZE = 17
+        AXIS_FONTSIZE = 14
+        BASE_FONTSIZE = 13
+
     main(options.interactive,
          get_data_dictionaries(options.json_files),
-         float_percentiles,
          options.window_size,
-         options.level,
-         options.num_samples,
          options.outfile,
          options.xlimits,
          options.single_exec,
          options.outliers,
+         options.unique_outliers,
+         mean=options.mean,
+         sigma=options.sigma,
          benchmark=options.benchmark)
