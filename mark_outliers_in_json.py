@@ -27,7 +27,7 @@ import os
 import os.path
 
 
-def main(in_files, window_size):
+def main(in_files, window_size, threshold):
     krun_data = dict()
     for filename in in_files:
         assert os.path.exists(filename), 'File %s does not exist.' % filename
@@ -35,27 +35,56 @@ def main(in_files, window_size):
         krun_data[filename] = read_krun_results_file(filename)
         krun_data[filename]['window_size'] = window_size
     for filename in krun_data:
-        outliers = dict()
-        for benchmark in krun_data[filename]['data']:
-            outliers[benchmark] = list()
-            for p_exec in krun_data[filename]['data'][benchmark]:
-                outliers[benchmark].append(find_outliers(p_exec, window_size))
-        krun_data[filename]['outliers'] = outliers
+        all_outliers = dict()
+        unique_outliers = dict()
+        common_outliers = dict()
+        for bench in krun_data[filename]['data']:
+            all_outliers[bench] = list()
+            for p_exec in krun_data[filename]['data'][bench]:
+                all_outliers[bench].append(get_all_outliers(p_exec, window_size))
+            common, unique = get_outliers(all_outliers[bench],
+                                          window_size,
+                                          threshold)
+            common_outliers[bench] = common
+            unique_outliers[bench] = unique
+        krun_data[filename]['all_outliers'] = all_outliers
+        krun_data[filename]['common_outliers'] = common_outliers
+        krun_data[filename]['unique_outliers'] = unique_outliers
         new_filename = create_output_filename(filename, window_size)
         print('Writing out: %s' % new_filename)
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def find_outliers(data, window_size):
-    outliers = list()
+def get_outliers(all_outliers, window_size, threshold=1):
+    common, unique = list(), list()
+    for index, outliers in enumerate(all_outliers):
+        common_exec = list()
+        unique_exec = list()
+        for outlier in outliers:
+            other_execs = all_outliers[:index] + all_outliers[(index + 1):]
+            sum_ = 0
+            for execution in other_execs:
+                if outlier in execution:
+                    sum_ += 1
+            if sum_ >= threshold:
+                common_exec.append(outlier)
+            else:
+                unique_exec.append(outlier)
+        common.append(common_exec)
+        unique.append(unique_exec)
+    return common, unique
+
+
+def get_all_outliers(data, window_size):
+    all_outliers = list()
     for index, datum in enumerate(data):
         l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
         window = data[l_slice:r_slice]
         mean = numpy.mean(window)
         five_sigma = 5 * numpy.std(window)
-        if (mean - five_sigma) < datum < (mean + five_sigma):
-            outliers.append(index)
-    return outliers
+        if datum > (mean + five_sigma) or datum < (mean - five_sigma):
+            all_outliers.append(index)
+    return all_outliers
 
 
 def _clamp_window_size(index, data_size, window_size=200):
@@ -125,6 +154,17 @@ def create_cli_parser():
                         default=200,
                         type=int,
                         help='Size of the sliding window used to draw percentiles.')
+    parser.add_argument('--threshold', '-t',
+                        action='store',
+                        dest='threshold',
+                        metavar='THRESHOLD',
+                        default=1,
+                        type=int,
+                        help=('If an outlier appears in more than THRESHOLD ' +
+                              'executions it is said to be common to ' +
+                              'several executions and is stored in the ' +
+                              'common_outliers field of the JSON file, ' +
+                              'rather than the unique_outliers field.'))
     return parser
 
 
@@ -132,4 +172,4 @@ if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
     print 'Marking outliers with sliding window size: %d' % options.window_size
-    main(options.json_files, options.window_size)
+    main(options.json_files, options.window_size, options.threshold)
