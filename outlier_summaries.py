@@ -37,6 +37,10 @@ __LATEX_HEADER = lambda window_size: """
 \maketitle
 """ % window_size
 
+__LATEX_SECTION = lambda section: """
+\\section*{%s}
+""" % section
+
 __LATEX_START_TABLE = lambda col_title: """
 \\begin{center}
 \\begin{longtable}{l|r}
@@ -69,28 +73,47 @@ def main(data_dcts, window_size, latex_file):
     Save results in a JSON file.
     """
     outlier_summary = {'benchmarks':dict(), 'vms':dict(), 'variants':dict()}
+    common_summary = {'benchmarks':dict(), 'vms':dict(), 'variants':dict()}
+    unique_summary = {'benchmarks':dict(), 'vms':dict(), 'variants':dict()}
     for machine in data_dcts:
-        keys = sorted(data_dcts[machine]['outliers'].keys())
+        keys = sorted(data_dcts[machine]['all_outliers'].keys())
         for key in keys:
             bench, vm, variant = key.split(':')
             if bench not in outlier_summary['benchmarks']:
                 outlier_summary['benchmarks'][bench] = 0
+                common_summary['benchmarks'][bench] = 0
+                unique_summary['benchmarks'][bench] = 0
             if vm not in outlier_summary['vms']:
                 outlier_summary['vms'][vm] = 0
+                common_summary['vms'][vm] = 0
+                unique_summary['vms'][vm] = 0
             if variant not in outlier_summary['variants']:
                 outlier_summary['variants'][variant] = 0
-            executions = data_dcts[machine]['outliers'][key]
-            if len(executions) == 0:
+                common_summary['variants'][variant] = 0
+                unique_summary['variants'][variant] = 0
+            all_executions = data_dcts[machine]['all_outliers'][key]
+            common_executions = data_dcts[machine]['common_outliers'][key]
+            unique_executions = data_dcts[machine]['unique_outliers'][key]
+            if len(all_executions) == 0:
                 continue  # Benchmark skipped
-            elif len(executions[0]) == 0:
+            elif len(all_executions[0]) == 0:
                 continue  # Benchmark crashed.
             else:
-                for outlier_list in executions:
+                for outlier_list in all_executions:
                     outlier_summary['benchmarks'][bench] += len(outlier_list)
                     outlier_summary['vms'][vm] += len(outlier_list)
                     outlier_summary['variants'][variant] += len(outlier_list)
+                for outlier_list in common_executions:
+                    common_summary['benchmarks'][bench] += len(outlier_list)
+                    common_summary['vms'][vm] += len(outlier_list)
+                    common_summary['variants'][variant] += len(outlier_list)
+                for outlier_list in unique_executions:
+                    unique_summary['benchmarks'][bench] += len(outlier_list)
+                    unique_summary['vms'][vm] += len(outlier_list)
+                    unique_summary['variants'][variant] += len(outlier_list)
     # Write out results.
-    write_results_as_latex(outlier_summary, window_size, latex_file)
+    write_results_as_latex(outlier_summary, common_summary, unique_summary,
+                           window_size, latex_file)
     return
 
 
@@ -98,30 +121,40 @@ def _tex_escape(word):
     return word.replace('_', '\\_')
 
 
-def write_results_as_latex(outlier_summary, window_size, tex_file):
+def write_results_as_latex(outlier_summary, common_summary, unique_summary,
+                           window_size, tex_file):
     """Write a results file.
     """
     print('Writing data to %s.' % tex_file)
     with open(tex_file, 'w') as fp:
+        sections = (('All outliers', outlier_summary),
+                    ('Common outliers', common_summary),
+                    ('Unique outliers (only appear in one process execution)',
+                     unique_summary))
+        # Preamble.
         fp.write(__LATEX_HEADER(str(window_size)))
-        # Outliers per benchmark.
-        fp.write(__LATEX_START_TABLE('Benchmark'))
-        for bench in outlier_summary['benchmarks']:
-            fp.write('%s & %d \\\\ \n' %
-                     (_tex_escape(bench), outlier_summary['benchmarks'][bench]))
-        fp.write(__LATEX_END_TABLE)
-        # Outliers per VM.
-        fp.write(__LATEX_START_TABLE('Virtual machine'))
-        for vm in outlier_summary['vms']:
-            fp.write('%s & %d \\\\ \n' %
-                     (_tex_escape(vm), outlier_summary['vms'][vm]))
-        fp.write(__LATEX_END_TABLE)
-        # Outliers per language variant.
-        fp.write(__LATEX_START_TABLE('Language variant'))
-        for variant in outlier_summary['variants']:
-            fp.write('%s & %d \\\\ \n' %
-                     (_tex_escape(variant), outlier_summary['variants'][variant]))
-        fp.write(__LATEX_END_TABLE)
+        # Write out all sections.
+        for section_heading, summary in sections:
+            # Section heading.
+            fp.write(__LATEX_SECTION(section_heading))
+            # Outliers per benchmark.
+            fp.write(__LATEX_START_TABLE('Benchmark'))
+            for bench in summary['benchmarks']:
+                fp.write('%s & %d \\\\ \n' %
+                         (_tex_escape(bench), summary['benchmarks'][bench]))
+            fp.write(__LATEX_END_TABLE)
+            # Outliers per VM.
+            fp.write(__LATEX_START_TABLE('Virtual machine'))
+            for vm in summary['vms']:
+                fp.write('%s & %d \\\\ \n' %
+                         (_tex_escape(vm), summary['vms'][vm]))
+            fp.write(__LATEX_END_TABLE)
+            # Outliers per language variant.
+            fp.write(__LATEX_START_TABLE('Language variant'))
+            for variant in summary['variants']:
+                fp.write('%s & %d \\\\ \n' %
+                         (_tex_escape(variant), summary['variants'][variant]))
+            fp.write(__LATEX_END_TABLE)
         # End document.
         fp.write(__LATEX_FOOTER)
     return
