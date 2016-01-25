@@ -245,8 +245,8 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
 
     # Set title, axis labels and legend.
     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-    axis.set_xlabel("Iteration", fontsize=AXIS_FONTSIZE)
-    axis.set_ylabel("Time(s)", fontsize=AXIS_FONTSIZE)
+    axis.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
+    axis.set_ylabel('Time(s)', fontsize=AXIS_FONTSIZE)
     axis.set_ylim(y_range)
 
     handles, _ = axis.get_legend_handles_labels()
@@ -320,7 +320,7 @@ def draw_page(is_interactive, key, executions, machine_name,
         if single_exec:
             actual_index = single_exec + 1
 
-        title = '%s, %s, %s, Process execution #%d' % (
+        title = '%s, %s, %s, In-process execution #%d' % (
             bench_display, key_elems[1], machine_name.title(), actual_index)
         axis = axes[row, col]
         axis.ticklabel_format(useOffset=False)
