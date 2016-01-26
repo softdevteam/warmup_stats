@@ -33,7 +33,7 @@ SUBPLOT_PARAMS = {
     'bottom': 0.07,
     'left': 0.07,
     'right': 0.98,
-    'top': 0.95,
+    'top': 0.88,
     'wspace': 0.20,
 }
 
@@ -81,6 +81,7 @@ TICK_FONTSIZE = 18
 TITLE_FONT_SIZE = 20
 AXIS_FONTSIZE = 20
 BASE_FONTSIZE = 20
+LEGEND_FONTSIZE = 17
 
 FONT = {
     'family': 'sans',
@@ -293,18 +294,8 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
     axis.set_ylabel('Time(s)', fontsize=AXIS_FONTSIZE)
     axis.set_ylim(y_range)
 
-    handles, _ = axis.get_legend_handles_labels()
-    if sigma:
-        fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
-                                              alpha=FILL_ALPHA,
-                                              label='5$\sigma$')
-        handles.append(fill_patch)
-
-    # Avoid drawing the legend if we are only charting measurements.
-    if mean or sigma or (outliers is not None) or (unique is not None) or \
-       (common is not None):
-        legend = axis.legend(ncol=3, fontsize='medium', handles=handles)
-        legend.draw_frame(False)
+    handles, labels = axis.get_legend_handles_labels()
+    return handles, labels
 
 
 def draw_page(is_interactive, executions, titles, window_size, xlimits,
@@ -353,9 +344,9 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
         axis.ticklabel_format(useOffset=False)
         x_bounds = [xlimits_start, xlimits_stop]
         axis.set_xlim(x_bounds)
-        draw_subplot(axis, data, titles[index], x_bounds, [y_min, y_max],
-                     window_size, outliers_exec, unique_exec, common_exec,
-                     mean, sigma)
+        handles, labels = draw_subplot(axis, data, titles[index], x_bounds,
+                               [y_min, y_max], window_size, outliers_exec,
+                               unique_exec, common_exec, mean, sigma)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -363,6 +354,18 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
+
+    if sigma:  # Add sigma to legend.
+        fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
+                                              alpha=FILL_ALPHA,
+                                              label='5$\sigma$')
+        handles.append(fill_patch)
+        labels.append('5$\sigma$')
+
+    if (mean or sigma or (outliers is not None) or (unique is not None)):
+        fig.legend(handles, labels, loc='upper center',
+                   fontsize=LEGEND_FONTSIZE, ncol=10,)
+
     if is_interactive:
         mng = plt.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
