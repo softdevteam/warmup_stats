@@ -685,6 +685,9 @@ def fatal_error(msg):
 if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
+    if options.outliers and options.unique_outliers:
+        fatal_error('Cannot use --with-outliers and --with-unique-outliers '
+                    'together.')
     if options.interactive and (options.outfile != PDF_FILENAME):
         parser.print_help()
         sys.exit(1)
