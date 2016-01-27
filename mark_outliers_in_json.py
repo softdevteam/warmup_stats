@@ -135,19 +135,26 @@ def create_cli_parser():
     """Create a parser to deal with command line switches.
     """
     script = os.path.basename(__file__)
-    description = (('Write lists of outliers into Krun results file(s).' +
-                    '\nExample usage:\n\n$ python %s -f results1.json.bz2\n' +
-                    '$ python %s -f results1.json.bz2 -f results2.json.bz2' +
-                    ' --window 250') % (script, script))
+    description = ('Write lists of outliers into Krun results file(s). '
+                   'This script does not alter your original Krun results '
+                   'file. Instead it writes out a new file whose name '
+                   'indicates the size of the sliding window used to '
+                   'detect outliers. For example, if the input file is'
+                   'results.json.bz2 and the window size is 200, the '
+                   'output of this script will be stored in file'
+                   'results_outliers_w200.json.bz2.'
+                   '\nExample usage:\n\n$ python %s -f results1.json.bz2\n'
+                   '$ python %s -f results1.json.bz2 -f results2.json.bz2'
+                   ' --window 250' % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('--filename', '-f',
                         action='append',
                         dest='json_files',
                         default=[],
                         type=str,
-                        help=('Krun results file. This switch can be used ' +
-                              'repeatedly to chart data from a number of ' +
-                              'results files.'))
+                        help='Krun results file. This switch can be used '
+                             'repeatedly to chart data from a number of '
+                             'results files.')
     parser.add_argument('--window', '-w',
                         action='store',
                         dest='window_size',
@@ -160,11 +167,11 @@ def create_cli_parser():
                         metavar='THRESHOLD',
                         default=1,
                         type=int,
-                        help=('If an outlier appears in more than THRESHOLD ' +
-                              'executions it is said to be common to ' +
-                              'several executions and is stored in the ' +
-                              'common_outliers field of the JSON file, ' +
-                              'rather than the unique_outliers field.'))
+                        help='If an outlier appears in more than THRESHOLD '
+                             'executions it is said to be common to '
+                             'several executions and is stored in the '
+                             'common_outliers field of the JSON file, '
+                             'rather than the unique_outliers field.')
     return parser
 
 
