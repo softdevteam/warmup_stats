@@ -266,7 +266,7 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
                 sigmas[0].append(means[index] - five_sigma)
                 sigmas[1].append(means[index] + five_sigma)
         if mean:  # Plot the mean.
-            axis.plot(data_narray, label='Mean')
+            axis.plot(means, label='Mean')
         if sigma:  # Fill between 5-sigmas.
             iterations = numpy.array(list(xrange(len(data))))
             axis.fill_between(iterations, sigmas[0], means, alpha=FILL_ALPHA,
