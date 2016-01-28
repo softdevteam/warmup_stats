@@ -47,10 +47,10 @@ BENCHMARKS = {
 
 # Machine names that need to be reformatted.
 MACHINES = {
-    'bencher3': '4709K/Linux',
-    'bencher5': '4790/Linux',
-    'bencher6': '4790/OpenBSD',
-    'bencher7': 'ARM',
+    'bencher3': 'Linux1/i7-4790K',
+    'bencher5': 'Linux2/i7-4790',
+    'bencher6': 'OpenBSD/i7-4790',
+    'bencher7': 'ARM',  # this machine has not been set up yet
 }
 
 GRID_MINOR_X_DIVS = 20
@@ -362,7 +362,21 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
         handles.append(fill_patch)
         labels.append('5$\sigma$')
 
-    if (mean or sigma or (outliers is not None) or (unique is not None)):
+    outliers_plotted = False
+    if isinstance(outliers, list):
+        if not all([x == None for x in outliers]):
+            outliers_plotted = True
+    elif outliers is not None:
+        outliers_plotted = True
+
+    unique_plotted = False
+    if isinstance(unique, list):
+        if not all([x == None for x in unique]):
+            unique_plotted = True
+    elif unique is not None:
+        unique_plotted = True
+
+    if mean or sigma or outliers_plotted or unique_plotted:
         fig.legend(handles, labels, loc='upper center',
                    fontsize=LEGEND_FONTSIZE, ncol=10,)
 
@@ -483,10 +497,10 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                 else:
                     benchmark_name = benchmark_name.title()
                 for p_exec in xrange(len(selected_data[key])):
-                    title = '%s, %s, %s, In-process execution #%d' % \
+                    title = '%s, %s, %s, Process execution #%d' % \
                             (benchmark_name,
                              key.split(':')[1],
-                             machine_name.title(),
+                             machine_name,
                              p_exec + 1)
                     plot_titles[machine][key].append(title)
         else:  # Chart only the data specified on command line.
@@ -533,10 +547,10 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                         # Add run sequence to selected data.
                         selected_data[key].append(data['data'][key][p_exec])
                         # Construct plot title.
-                        title = '%s, %s, %s, In-process execution #%d' % \
+                        title = '%s, %s, %s, Process execution #%d' % \
                                 (benchmark_name,
                                  key.split(':')[1],
-                                 machine_name.title(),
+                                 machine_name,
                                  p_exec + 1)
                         plot_titles[machine][key].append(title)
 
