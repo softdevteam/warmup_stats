@@ -362,7 +362,21 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
         handles.append(fill_patch)
         labels.append('5$\sigma$')
 
-    if (mean or sigma or (outliers is not None) or (unique is not None)):
+    outliers_plotted = False
+    if isinstance(outliers, list):
+        if not all([x == None for x in outliers]):
+            outliers_plotted = True
+    elif outliers is not None:
+        outliers_plotted = True
+
+    unique_plotted = False
+    if isinstance(unique, list):
+        if not all([x == None for x in unique]):
+            unique_plotted = True
+    elif unique is not None:
+        unique_plotted = True
+
+    if mean or sigma or outliers_plotted or unique_plotted:
         fig.legend(handles, labels, loc='upper center',
                    fontsize=LEGEND_FONTSIZE, ncol=10,)
 
