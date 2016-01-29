@@ -18,6 +18,8 @@ import os.path
 import seaborn
 import sys
 
+from matplotlib.ticker import FormatStrFormatter
+
 seaborn.set_palette("colorblind")
 seaborn.set_style('whitegrid', {"lines.linewidth": 1.0, "axes.linewidth": 1.0})
 seaborn.set_context("paper")
@@ -76,6 +78,11 @@ COMMON_COLOR = 'r'
 COMMON_MARKER = '*'
 COMMON_SIZE = 40
 
+# Inset placement (left, bottom, width, height) relative to subplot axis.
+INSET_RECT = (0.65, 0.8, 0.3, 0.15)
+
+YTICK_FORMAT = '%.3f'
+
 # Default (PDF) font sizes
 TICK_FONTSIZE = 18
 TITLE_FONT_SIZE = 20
@@ -97,7 +104,7 @@ DPI = 300
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, mean=False, sigma=False,
-         one_page=False):
+         inset_xlimit=None, one_page=False):
     """Determine which plots to put on each page of output.
     Plot all data.
     """
@@ -171,7 +178,8 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                      all_unique[index],
                                      all_common[index],
                                      mean,
-                                     sigma)
+                                     sigma,
+                                     inset_xlimit)
         if not is_interactive:
             fig.set_size_inches(*export_size)
             pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
@@ -231,6 +239,21 @@ def _clamp_window_size(index, data_size, window_size=200):
     return (lh_index, rh_index)
 
 
+def add_inset_to_axis(axis, rect):
+    """Adds a new axis to an existing axis, located at rect.
+    rect should be a 4-tuple of (left, bottom, width, height) all relative
+    to the axis.
+    """
+    fig = axis.figure
+    left, bottom, width, height = rect
+    def transform(coord):
+        return fig.transFigure.inverted().transform(
+            axis.transAxes.transform(coord))
+    fig_left, fig_bottom = transform((left, bottom))
+    fig_width, fig_height = transform([width, height]) - transform([0, 0])
+    return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
+
+
 def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
                  unique, common, mean, sigma):
     data_narray = numpy.array(data)
@@ -284,11 +307,10 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
     minor_yticks = compute_grid_offsets(
         y_range[0], y_range[1], GRID_MINOR_Y_DIVS)
 
-    style_axis(axis, major_xticks, minor_xticks,
-                          major_yticks, minor_yticks)
+    style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks)
 
     # Format y-ticks to 3 decimal places.
-    axis.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.3f'))
+    axis.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
 
     # Set title, axis labels and legend.
     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
@@ -301,7 +323,7 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
 
 
 def draw_page(is_interactive, executions, titles, window_size, xlimits,
-              outliers, unique, common, mean, sigma):
+              outliers, unique, common, mean, sigma, inset_xlimit=100):
     """Plot a page of benchmarks.
     """
 
@@ -356,6 +378,26 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
     fig.subplots_adjust(**SUBPLOT_PARAMS)
+
+    # Draw an inset, if required. This MUST be done after adjusting subplots,
+    # so that we can calculate the correct bounding box for the inset.
+    if inset_xlimit is not None:
+        index, row, col = 0, 0, 0
+        while index < n_execs:
+            axis = axes[row, col]
+            inset = add_inset_to_axis(axis, INSET_RECT)
+            inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
+            inset.grid(False)  # Too many lines and y-ticks looks very messy.
+            inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
+            inset.yaxis.set_major_formatter(FormatStrFormatter(YTICK_FORMAT))
+            inset.plot(range(*inset_xlimit),  # Plot subset of the data.
+                       executions[index][inset_xlimit[0]:inset_xlimit[1]],
+                       color=LINE_COLOUR)
+            col += 1
+            if col == MAX_SUBPLOTS_PER_ROW:
+                col = 0
+                row += 1
+            index = row * MAX_SUBPLOTS_PER_ROW + col
 
     if sigma:  # Add sigma to legend.
         fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
@@ -632,15 +674,6 @@ def create_cli_parser():
                              'VM, as measured on machine mc1. '
                              'This switch can be used repeatedly to chart '
                              'a number of benchmarks.')
-    parser.add_argument('--xlimits', '-x',
-                        action='store',
-                        dest='xlimits',
-                        default=None,
-                        type=str,
-                        help="Specify X-axis limits as a comma separated pair "
-                             "'start,end'. Samples start from 0. e.g. "
-                             "'-x 100,130' will show samples in the range "
-                             "100 to 130.")
     parser.add_argument('--one-page',
                         action='store_true',
                         dest='one_page',
@@ -663,6 +696,27 @@ def create_cli_parser():
                         dest='sigma',
                         default=False,
                         help='Draw 5-sigma interval around the rolling mean.')
+    parser.add_argument('--xlimits', '-x',
+                        action='store',
+                        dest='xlimits',
+                        default=None,
+                        type=str,
+                        help="Specify X-axis limits as a comma separated pair "
+                             "'start,end'. Samples start from 0. e.g. "
+                             "'-x 100,130' will show samples in the range "
+                             "100 to 130.")
+    parser.add_argument('--inset-xlimits',
+                        action='store',
+                        dest='inset_xlimits',
+                        default=None,
+                        type=str,
+                        metavar='LIMIT',
+                        help='Place a small chart plotting a small number of '
+                             'values in an inset inside each plot. This is '
+                             'intended to make it easier to see detail during '
+                             'the warm-up phase of each benchmark. LIMIT '
+                             'should be a 2-tuple, e.g. 0,100 would show '
+                             'the fist 100 iterations in the inset.')
     parser.add_argument('--with-outliers',
                         action='store_true',
                         dest='outliers',
@@ -719,6 +773,11 @@ if __name__ == '__main__':
                                               options.outliers,
                                               options.unique_outliers)
 
+    inset_xlimits = None
+    if options.inset_xlimits is not None:
+        inset_xlimits = (int(options.inset_xlimits.split(',')[0]),
+                         int(options.inset_xlimits.split(',')[1]))
+
     main(options.interactive,
          data,
          plot_titles,
@@ -729,4 +788,5 @@ if __name__ == '__main__':
          options.unique_outliers,
          mean=options.mean,
          sigma=options.sigma,
+         inset_xlimit=inset_xlimits,
          one_page=options.one_page)
