@@ -288,6 +288,9 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
     style_axis(axis, major_xticks, minor_xticks,
                           major_yticks, minor_yticks)
 
+    # Format y-ticks to 3 decimal places.
+    axis.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.3f'))
+
     # Set title, axis labels and legend.
     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
     axis.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
