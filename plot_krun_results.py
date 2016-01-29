@@ -119,22 +119,22 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     if one_page:
         page, subplot_titles = list(), list()
         page_common, page_unique, page_outlier = list(), list(), list()
-        for machine in data_dcts['data']:
-            for key in data_dcts['data'][machine]:
-                for index, run_seq in enumerate(data_dcts['data'][machine][key]):
+        for key in sorted(data_dcts['data']):
+            for machine in sorted(data_dcts['data'][key]):
+                for index, run_seq in enumerate(data_dcts['data'][key][machine]):
                     page.append(run_seq)
-                    subplot_titles.append(plot_titles[machine][key][index])
+                    subplot_titles.append(plot_titles[key][machine][index])
                     # Collect outliers, if the user wishes to annotate them on
                     # the plots. The draw_page() and draw_subplot() functions
                     # expect either lists of outliers or None (if outliers are
                     # not to be annotated).
                     if with_outliers:
-                        page_outlier.append(data_dcts['all_outliers'][machine][key][index])
+                        page_outlier.append(data_dcts['all_outliers'][key][machine][index])
                     else:
                         page_outlier.append(None)
                     if unique_outliers:
-                        page_common.append(data_dcts['common_outliers'][machine][key][index])
-                        page_unique.append(data_dcts['unique_outliers'][machine][key][index])
+                        page_common.append(data_dcts['common_outliers'][key][machine][index])
+                        page_unique.append(data_dcts['unique_outliers'][key][machine][index])
                     else:
                         page_common.append(None)
                         page_unique.append(None)
@@ -144,18 +144,17 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         all_common.append(page_common)
         all_unique.append(page_unique)
     else:  # Create multiple pages.
-        for machine in data_dcts['data']:
-            keys = sorted(data_dcts['data'][machine].keys())
-            for key in keys:
-                pages.append(data_dcts['data'][machine][key])
-                all_subplot_titles.append(plot_titles[machine][key])
+        for key in sorted(data_dcts['data']):
+            for machine in sorted(data_dcts['data'][key]):
+                pages.append(data_dcts['data'][key][machine])
+                all_subplot_titles.append(plot_titles[key][machine])
                 if with_outliers:
-                    all_outliers.append(data_dcts['all_outliers'][machine][key])
+                    all_outliers.append(data_dcts['all_outliers'][key][machine])
                 else:
                     all_outliers.append(None)
                 if unique_outliers:
-                    all_common.append(data_dcts['common_outliers'][machine][key])
-                    all_unique.append(data_dcts['unique_outliers'][machine][key])
+                    all_common.append(data_dcts['common_outliers'][key][machine])
+                    all_unique.append(data_dcts['unique_outliers'][key][machine])
                 else:
                     all_common.append(None)
                     all_unique.append(None)
@@ -424,7 +423,7 @@ def read_krun_results_file(results_file):
 def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                           unique_outliers=False):
     """Read a list of BZipped JSON files and return their contents as a
-    dictionaries of machine name -> JSON values.
+    dictionaries of key -> machine name -> results.
 
     This function returns ONLY the data that the user has requested on the
     command line. Therefore, we check carefully that all data can be found
@@ -440,6 +439,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
     plot_titles = dict()  # All subplot titles.
 
     # Find out what data the user requested.
+    # In bmark key -> machine  -> proces execs format.
     requested_data = dict()
     if benchmarks != []:
         for quintuplet in benchmarks:
@@ -450,14 +450,11 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                             'format is: machine:benchmark:vm:variant:pexec '
                             'e.g. mc.example.com:fasta:PyPy:default-python:0')
             key = ':'.join([bmark, vm, variant])
-            if machine in requested_data:
-                if key in requested_data[machine]:
-                    requested_data[machine][key].append(int(pexec))
-                else:
-                    requested_data[machine][key] = [int(pexec)]
-            else:
-                requested_data[machine] = dict()
-                requested_data[machine][key] = [int(pexec)]
+            if key not in requested_data:
+                requested_data[key] = dict()
+            if machine not in requested_data[key]:
+                requested_data[key][machine] = list()
+            requested_data[key][machine].append(int(pexec))
 
     # Collect the requested data from Krun results files.
     for filename in json_files:
@@ -465,7 +462,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
             fatal_error('File %s does not exist.' % filename)
         print('Loading: %s' % filename)
 
-        # All benchmarking data from one machine.
+        # All benchmarking data from one Krun results file.
         data = read_krun_results_file(filename)
 
         # Get machine name from Krun results file.
@@ -478,9 +475,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
             machine_name = machine
 
         # Collect any results requested from this file.
-        selected_data = dict()
         if benchmarks == []:  # Chart all available data from this file.
-            selected_data = dict()
             for key in data['data']:
                 if len(data['data'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
@@ -489,41 +484,43 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     print('WARNING: Skipping: %s from %s (benchmark crashed)' %
                           (key, machine))
                 else:
-                    selected_data[key] = data['data'][key]
+                    if key not in data_dictionary['data']:
+                        data_dictionary['data'][key] = dict()
+                    data_dictionary['data'][key][machine] = data['data'][key]
             # Construct plot titles for all data in this file.
-            plot_titles[machine] = dict()
-            for key in selected_data:
-                plot_titles[machine][key] = list()
+            for key in data_dictionary['data']:
+                if key not in plot_titles:
+                    plot_titles[key] = dict()
+                if machine not in plot_titles[key]:
+                    plot_titles[key][machine] = list()
                 benchmark_name = key.split(':')[0]
                 if benchmark_name in BENCHMARKS:
                     benchmark_name = BENCHMARKS[benchmark_name]
                 else:
                     benchmark_name = benchmark_name.title()
-                for p_exec in xrange(len(selected_data[key])):
+                for p_exec in xrange(len(data_dictionary['data'][key][machine])):
                     title = '%s, %s, %s, Process execution #%d' % \
                             (benchmark_name,
                              key.split(':')[1],
                              machine_name,
                              p_exec + 1)
-                    plot_titles[machine][key].append(title)
+                    plot_titles[key][machine].append(title)
         else:  # Chart only the data specified on command line.
-            if requested_data is not None and machine not in requested_data:
-                continue
-            # Scaffold dictionaries.
-            if machine not in selected_data:
-                selected_data = dict()
-            if machine not in plot_titles:
-                plot_titles[machine] = dict()
-            # Collect requested data.
-            for key in requested_data[machine]:
-                if key not in selected_data:
-                    selected_data[key] = list()
-                if key not in plot_titles[machine]:
-                    plot_titles[machine][key] = list()
-                if not key in data['data']:
+            for key in requested_data:
+                if machine not in requested_data[key]:
+                    continue
+                if key not in data['data']:
                     # Hope the key appears in another file, checked below.
                     continue
-                elif len(data['data'][key]) == 0:
+                if key not in data_dictionary['data']:
+                    data_dictionary['data'][key] = dict()
+                if machine not in data_dictionary['data'][key]:
+                    data_dictionary['data'][key][machine] = list()
+                if key not in plot_titles:
+                    plot_titles[key] = dict()
+                if machine not in plot_titles[key]:
+                    plot_titles[key][machine] = list()
+                if len(data['data'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))
                 elif len(data['data'][key][0]) == 0:
@@ -535,7 +532,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                         benchmark_name = BENCHMARKS[benchmark_name]
                     else:
                         benchmark_name = benchmark_name.title()
-                    for p_exec in requested_data[machine][key]:
+                    for p_exec in requested_data[key][machine]:
                         if p_exec >= len(data['data'][key][p_exec]):
                             fatal_error('You requested that process '
                                         'execution %g for benchmark %s '
@@ -547,18 +544,16 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                                          key,
                                          machine,
                                          len(data['data'][key][p_exec])))
-                        # Add run sequence to selected data.
-                        selected_data[key].append(data['data'][key][p_exec])
+                        # Add run sequence to data dictionary.
+                        print 'Adding run sequence to ', key, machine
+                        data_dictionary['data'][key][machine].append(data['data'][key][p_exec])
                         # Construct plot title.
                         title = '%s, %s, %s, Process execution #%d' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
                                  p_exec + 1)
-                        plot_titles[machine][key].append(title)
-
-        # Add data from this machine to the full data set.
-        data_dictionary['data'][machine] = selected_data
+                        plot_titles[key][machine].append(title)
 
         # Collect outliers, if requested.
         if unique_outliers or outliers:
@@ -570,35 +565,26 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                             'contain the relevant keys. Please run the '
                             'mark_outliers_in_json.py script before '
                             'proceeding.' % filename)
-            all_outliers = dict()
-            common_outliers = dict()
-            unique_outliers = dict()
-            for key in selected_data:
-                all_outliers[key] = list()
-                common_outliers[key] = list()
-                unique_outliers[key] = list()
-                for p_exec in xrange(len(selected_data[key])):
-                    all_outliers[key].append(data['all_outliers'][key][p_exec])
-                    common_outliers[key].append(data['common_outliers'][key][p_exec])
-                    unique_outliers[key].append(data['unique_outliers'][key][p_exec])
-            data_dictionary['all_outliers'][machine] = all_outliers
-            data_dictionary['common_outliers'][machine] = common_outliers
-            data_dictionary['unique_outliers'][machine] = unique_outliers
+            for key in data_dictionary['data']:
+                if key not in data_dictionary['all_outliers']:
+                    data_dictionary['all_outliers'][key] = dict()
+                    data_dictionary['common_outliers'][key] = dict()
+                    data_dictionary['unique_outliers'][key] = dict()
+                for p_exec in xrange(len(data_dictionary['data'][key])):
+                    data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
+                    data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
+                    data_dictionary['unique_outliers'][key][machine] = data['unique_outliers'][key]
 
     # Check that every benchmark that was requested has been found in the
     # given Krun results files.
-    for machine in requested_data:
-        if machine not in data_dictionary['data']:
-            fatal_error('You requested that plots for data from machine %s '
-                        'but no data from that machine was found in the '
-                        'Krun results files.' % machine)
-    for machine in requested_data:
-        for benchmark in requested_data[machine]:
-            if benchmark not in data_dictionary['data'][machine].keys():
+    for key in requested_data:
+        for machine in requested_data[key]:
+            if (key not in data_dictionary['data'] or
+                machine not in data_dictionary['data'][key]):
                 fatal_error('You requested that plots for benchmark %s from '
                             'machine %s be produced, but no such data was '
                             'found in the Krun results files.' %
-                            (benchmark, machine))
+                            (key, machine))
 
     return data_dictionary, plot_titles
 
