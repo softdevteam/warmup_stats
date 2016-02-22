@@ -1,7 +1,8 @@
 diff --git a/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java b/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java
 index 356a478..b8ba1cd 100644
---- a/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java
-+++ b/truffle/src/main/java/org/jruby/truffle/nodes/core/TrufflePrimitiveNodes.java
+--- a/truffle/src/main/java/org/jruby/truffle/extra/TrufflePrimitiveNodes.java
++++ b/truffle/src/main/java/org/jruby/truffle/extra/TrufflePrimitiveNodes.java
+
 @@ -539,4 +539,19 @@ public abstract class TrufflePrimitiveNodes {
          }
      }
@@ -26,7 +27,7 @@ diff --git a/truffle/src/main/java/org/jruby/truffle/runtime/ClockGetTimeMonoton
 new file mode 100644
 index 0000000..6472d63
 --- /dev/null
-+++ b/truffle/src/main/java/org/jruby/truffle/runtime/ClockGetTimeMonotonic.java
++++ b/truffle/src/main/java/org/jruby/truffle/ClockGetTimeMonotonic.java
 @@ -0,0 +1,16 @@
 +/*
 + * Copyright (c) 2015 Oracle and/or its affiliates. All rights reserved. This
@@ -37,42 +38,52 @@ index 0000000..6472d63
 + * GNU General Public License version 2
 + * GNU Lesser General Public License version 2.1
 + */
-+package org.jruby.truffle.runtime;
++package org.jruby.truffle;
 +
 +public interface ClockGetTimeMonotonic {
 +
 +    double clock_gettime_monotonic();
 +
 +}
-diff --git a/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java b/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java
-index a0b7082..06941f4 100644
---- a/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java
-+++ b/truffle/src/main/java/org/jruby/truffle/runtime/RubyContext.java
-@@ -87,6 +87,7 @@ public class RubyContext extends ExecutionContext implements TruffleContextInter
+diff --git a/truffle/src/main/java/org/jruby/truffle/RubyContext.java b/truffle/src/main/java/org/jruby/truffle/RubyContext.java
+index 5eb7988..880e3c7 100644
+--- a/truffle/src/main/java/org/jruby/truffle/RubyContext.java
++++ b/truffle/src/main/java/org/jruby/truffle/RubyContext.java
+@@ -53,6 +53,8 @@ import java.io.PrintStream;
+ import java.io.UnsupportedEncodingException;
+ import java.nio.charset.StandardCharsets;
  
-     private final POSIX posix;
-     private final NativeSockets nativeSockets;
++import jnr.ffi.LibraryLoader;
++
+ public class RubyContext extends ExecutionContext {
+ 
+     private static volatile RubyContext latestInstance;
+@@ -87,6 +89,7 @@ public class RubyContext extends ExecutionContext {
+     private final CallGraph callGraph;
+     private final PrintStream debugStandardOut;
+ 
 +    private final ClockGetTimeMonotonic monotonicClock;
+     private org.jruby.ast.RootNode initialJRubyRootNode;
  
-     private final CoreLibrary coreLibrary;
-     private final FeatureManager featureManager;
-@@ -156,6 +157,10 @@ public class RubyContext extends ExecutionContext implements TruffleContextInter
-         loader.library("c");
-         nativeSockets = loader.load();
+     public RubyContext(Ruby jrubyRuntime, TruffleLanguage.Env env) {
+@@ -154,6 +157,10 @@ public class RubyContext extends ExecutionContext {
+         final PrintStream configStandardOut = jrubyRuntime.getInstanceConfig().getOutput();
+         debugStandardOut = (configStandardOut == System.out) ? null : configStandardOut;
  
 +        final LibraryLoader<ClockGetTimeMonotonic> clockLoader = LibraryLoader.create(ClockGetTimeMonotonic.class);
 +        clockLoader.library("kruntime");
 +        monotonicClock = clockLoader.load();
 +
-         warnings = new Warnings(this);
- 
-         // Object space manager needs to come early before we create any objects
-@@ -668,4 +673,8 @@ public class RubyContext extends ExecutionContext implements TruffleContextInter
- 
-         return env.importSymbol(name.toString());
+         if (options.INSTRUMENTATION_SERVER_PORT != 0) {
+             instrumentationServerManager = new InstrumentationServerManager(this, options.INSTRUMENTATION_SERVER_PORT);
+             instrumentationServerManager.start();
+@@ -316,4 +323,8 @@ public class RubyContext extends ExecutionContext {
+     public CallStackManager getCallStack() {
+         return callStack;
      }
 +
 +    public ClockGetTimeMonotonic getMonotonicClock() {
 +        return monotonicClock;
 +    }
  }
+
