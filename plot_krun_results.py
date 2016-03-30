@@ -540,20 +540,13 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     benchmark_name = BENCHMARKS[benchmark_name]
                 else:
                     benchmark_name = benchmark_name.title()
-
-                # Add one title for each process execution
-                try:
-                    num_p_execs = len(data_dictionary['data'][key][machine])
-                except KeyError:
-                    pass  # no data for this
-                else:
-                    for p_exec in xrange(num_p_execs):
-                        title = '%s, %s, %s, Process execution #%d' % \
-                                (benchmark_name,
-                                 key.split(':')[1],
-                                 machine_name,
-                                 p_exec + 1)
-                        plot_titles[key][machine].append(title)
+                for p_exec in xrange(len(data_dictionary['data'][key][machine])):
+                    title = '%s, %s, %s, Process execution #%d' % \
+                            (benchmark_name,
+                             key.split(':')[1],
+                             machine_name,
+                             p_exec + 1)
+                    plot_titles[key][machine].append(title)
         else:  # Chart only the data specified on command line.
             for key in requested_data:
                 if machine not in requested_data[key]:
