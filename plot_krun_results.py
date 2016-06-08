@@ -81,7 +81,7 @@ COMMON_SIZE = 40
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_RECT = (0.65, 0.8, 0.3, 0.15)
 
-YTICK_FORMAT = '%.3f'
+YTICK_FORMAT = '%.4f'
 
 # Default (PDF) font sizes
 TICK_FONTSIZE = 18
