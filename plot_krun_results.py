@@ -79,7 +79,8 @@ COMMON_MARKER = '*'
 COMMON_SIZE = 40
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
-INSET_RECT = (0.65, 0.8, 0.3, 0.15)
+INSET_RECT = (0.65, 0.82, 0.3, 0.15)
+INSET_TICK_FONTSIZE = 13
 
 YTICK_FORMAT = '%.4f'
 
@@ -390,6 +391,8 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
             inset.grid(False)  # Too many lines and y-ticks looks very messy.
             inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
             inset.yaxis.set_major_formatter(FormatStrFormatter(YTICK_FORMAT))
+            inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
+            inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.plot(range(*inset_xlimit),  # Plot subset of the data.
                        executions[index][inset_xlimit[0]:inset_xlimit[1]],
                        color=LINE_COLOUR)
