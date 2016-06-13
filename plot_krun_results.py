@@ -79,8 +79,8 @@ COMMON_MARKER = '*'
 COMMON_SIZE = 40
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
-INSET_RECT = (0.65, 0.82, 0.3, 0.15)
-INSET_TICK_FONTSIZE = 13
+INSET_RECT = (0.675, 0.82, 0.3, 0.15)
+INSET_TICK_FONTSIZE = 14
 
 YTICK_FORMAT = '%.4f'
 
