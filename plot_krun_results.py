@@ -646,10 +646,11 @@ def create_cli_parser():
     """
     script = os.path.basename(__file__)
     description = (('Plot data from Krun results file(s).'
-                    '\nExample usage:\n\n$ python %s -f results1.json.bz2\n'
-                    '$ python %s -i -f results1.json.bz2 -f results2.json.bz2'
-                    ' --window 250 --mean --sigma --with-outliers\n'
-                    '$ python %s -b  binarytrees:Hotspot:default-java') %
+                    '\n\nExample usage:\n\t$ python %s results1.json.bz2\n'
+                    '\t$ python %s -i --window 250 --mean --sigma '
+                    '--with-outliers results1.json.bz2 results2.json.bz2\n'
+                    '\t$ python %s -b binarytrees:Hotspot:default-java'
+                    ' results.json.bz2\n') %
                    (script, script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('--interactive', '-i',
@@ -657,14 +658,12 @@ def create_cli_parser():
                         dest='interactive',
                         default=False,
                         help='Display graphs (rather than writing to a file)')
-    parser.add_argument('--filename', '-f',
+    parser.add_argument('json_files',
+                        nargs='+',
                         action='append',
-                        dest='json_files',
                         default=[],
                         type=str,
-                        help='Krun results file. This switch can be used '
-                             'repeatedly to chart data from a number of '
-                             'results files.')
+                        help='One or more Krun result files.')
     parser.add_argument('--outfile', '-o',
                         action='store',
                         dest='outfile',
@@ -778,7 +777,7 @@ if __name__ == '__main__':
         AXIS_FONTSIZE = 14
         BASE_FONTSIZE = 13
 
-    data, plot_titles = get_data_dictionaries(options.json_files,
+    data, plot_titles = get_data_dictionaries(options.json_files[0],
                                               options.benchmarks,
                                               options.outliers,
                                               options.unique_outliers)

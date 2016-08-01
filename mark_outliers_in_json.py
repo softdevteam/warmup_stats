@@ -6,15 +6,16 @@ greater than 5 sigma above from a rolling mean.
 usage: Write lists of outliers into Krun results file(s).
 Example usage:
 
-$ python mark_outliers_in_json.py -f results1.json.bz2
-$ python mark_outliers_in_json.py -f results1.json.bz2 -f results2.json.bz2 --window 250
-       [-h] [--filename JSON_FILES] [--window WINDOW_SIZE]
+$ python mark_outliers_in_json.py results1.json.bz2
+$ python mark_outliers_in_json.py ---window 250 results1.json.bz2 results2.json.bz2
+        [-h] [--window WINDOW_SIZE] [--threshold THRESHOLD] json_files
+
+
+positional arguments:
+  json_files            One or more Krun result files.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --filename JSON_FILES, -f JSON_FILES
-                        Krun results file. This switch can be used repeatedly
-                        to chart data from a number of results files.
   --window WINDOW_SIZE, -w WINDOW_SIZE
                         Size of the sliding window used to draw percentiles.
 """
@@ -136,25 +137,23 @@ def create_cli_parser():
     """
     script = os.path.basename(__file__)
     description = ('Write lists of outliers into Krun results file(s). '
-                   'This script does not alter your original Krun results '
-                   'file. Instead it writes out a new file whose name '
+                   'This script does not\nalter your original Krun results '
+                   'file. Instead it writes out a new file whose\nname '
                    'indicates the size of the sliding window used to '
-                   'detect outliers. For example, if the input file is'
-                   'results.json.bz2 and the window size is 200, the '
-                   'output of this script will be stored in file'
+                   'detect outliers. For\nexample, if the input file is'
+                   'results.json.bz2 and the window size is 200,\nthe '
+                   'output of this script will be stored in file:\n'
                    'results_outliers_w200.json.bz2.'
-                   '\nExample usage:\n\n$ python %s -f results1.json.bz2\n'
-                   '$ python %s -f results1.json.bz2 -f results2.json.bz2'
-                   ' --window 250' % (script, script))
+                   '\n\nExample usage:\n\n\t$ python %s results1.json.bz2\n'
+                   '\t$ python %s  --window 250 results1.json.bz2 '
+                   'results2.json.bz2\n' % (script, script))
     parser = argparse.ArgumentParser(description)
-    parser.add_argument('--filename', '-f',
+    parser.add_argument('json_files',
+                        nargs='+',
                         action='append',
-                        dest='json_files',
                         default=[],
                         type=str,
-                        help='Krun results file. This switch can be used '
-                             'repeatedly to chart data from a number of '
-                             'results files.')
+                        help='One or more Krun result files.')
     parser.add_argument('--window', '-w',
                         action='store',
                         dest='window_size',
@@ -179,4 +178,4 @@ if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
     print 'Marking outliers with sliding window size: %d' % options.window_size
-    main(options.json_files, options.window_size, options.threshold)
+    main(options.json_files[0], options.window_size, options.threshold)

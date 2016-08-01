@@ -1,20 +1,19 @@
 #!/usr/bin/env python2.7
 """
-usage: outlier_summaries.py [-h] --filename JSON_FILES
-                            [--latexfile LATEX_FILE]
+usage: outlier_summaries.py [-h] [--latexfile LATEX_FILE] json_files
 
 Summarise outlier information stored within a Krun results file.
 
 Example usage:
 
-    $ python outlier_summaries.py -f bencher_results.json.bz2
-    $ python outlier_summaries.py -f results.json.bz2
- -l summary.tex
+    $ python outlier_summaries.py bencher_results.json.bz2
+    $ python outlier_summaries.py results.json.bz2 -l summary.tex
+
+positional arguments:
+  json_files            One or more Krun result files.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --filename JSON_FILES, -f JSON_FILES
-                        Krun results file. This switch can be used repeatedly to chart data from a number of results files.
   --latexfile LATEX_FILE, -l LATEX_FILE
                         Name of the LaTeX file to write to.
 """
@@ -200,20 +199,17 @@ def create_cli_parser():
     description = (('Summarise outlier information stored within a Krun ' +
                     'results file.' +
                     '\n\nExample usage:\n\n' +
-                    '\t$ python %s -f bencher_results.json.bz2\n' +
-                    '\t$ python %s -f results.json.bz2\n -l summary.tex')
+                    '\t$ python %s results.json.bz2\n' +
+                    '\t$ python %s -l summary.tex results.json.bz2')
                    % (script, script))
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--filename', '-f',
+    parser.add_argument('json_files',
                         action='append',
-                        dest='json_files',
+                        nargs='+',
                         default=[],
                         type=str,
-                        required=True,
-                        help=('Krun results file. This switch can be used ' +
-                              'repeatedly to chart data from a number of ' +
-                              'results files.'))
+                        help='One or more Krun result files.')
     parser.add_argument('--latexfile', '-l',
                         action='store',
                         dest='latex_file',
@@ -226,5 +222,5 @@ def create_cli_parser():
 if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
-    window_size, data_dcts = get_data_dictionaries(options.json_files)
+    window_size, data_dcts = get_data_dictionaries(options.json_files[0])
     main(data_dcts, window_size, options.latex_file)
