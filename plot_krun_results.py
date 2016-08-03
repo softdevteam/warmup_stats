@@ -70,13 +70,13 @@ FILL_ALPHA = 0.2
 
 OUTLIER_MARKER = 'o'
 OUTLIER_COLOR = 'r'
-OUTLIER_SIZE = 20
+OUTLIER_SIZE = 80
 UNIQUE_COLOR = 'g'
 UNIQUE_MARKER = 'o'
-UNIQUE_SIZE = 20
+UNIQUE_SIZE = 80
 COMMON_COLOR = 'r'
 COMMON_MARKER = '*'
-COMMON_SIZE = 40
+COMMON_SIZE = 80
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_RECT = (0.675, 0.82, 0.3, 0.15)
