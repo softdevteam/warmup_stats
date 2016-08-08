@@ -323,6 +323,20 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
     return handles, labels
 
 
+def add_margin_to_axes(axis, x=0.01, y=0.01):
+    """Seaborn-friendly way to add margins to axes (default 1% margin).
+    """
+
+    if x > .0:
+        xlim = axis.get_xlim()
+        xmargin = (xlim[1] - xlim[0]) * x
+        axis.set_xlim(xlim[0] - xmargin, xlim[1] + xmargin)
+    if y > .0:
+        ylim = axis.get_ylim()
+        ymargin = (ylim[1] - ylim[0]) * y
+        axis.set_ylim(ylim[0] - ymargin, ylim[1] + ymargin)
+
+
 def draw_page(is_interactive, executions, titles, window_size, xlimits,
               outliers, unique, common, mean, sigma, inset_xlimit=100):
     """Plot a page of benchmarks.
@@ -401,6 +415,18 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
                 col = 0
                 row += 1
             index = row * MAX_SUBPLOTS_PER_ROW + col
+
+    # Add margin to x-axis. Must be done *after* setting xlim and ylim
+    # and calling subplots_adjust().
+    index, row, col = 0, 0, 0
+    while index < n_execs:
+        axis = axes[row, col]
+        add_margin_to_axes(axis, x=0.02, y=0)
+        col += 1
+        if col == MAX_SUBPLOTS_PER_ROW:
+            col = 0
+            row += 1
+        index = row * MAX_SUBPLOTS_PER_ROW + col
 
     if sigma:  # Add sigma to legend.
         fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
