@@ -1,8 +1,8 @@
 diff --git a/src/d8.cc b/src/d8.cc
-index b73ab0b..daaebcb 100644
+index 0688380..9c26907 100644
 --- a/src/d8.cc
 +++ b/src/d8.cc
-@@ -2,6 +2,21 @@
+@@ -2,6 +2,20 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
@@ -20,11 +20,10 @@ index b73ab0b..daaebcb 100644
 +#else
 +#define ACTUAL_CLOCK_MONOTONIC    CLOCK_MONOTONIC
 +#endif
-+
  
  // Defined when linking against shared lib on Windows.
  #if defined(USING_V8_SHARED) && !defined(V8_SHARED)
-@@ -584,6 +599,24 @@ void Shell::Print(const v8::FunctionCallbackInfo<v8::Value>& args) {
+@@ -627,6 +641,39 @@ void Shell::Print(const v8::FunctionCallbackInfo<v8::Value>& args) {
    fflush(stdout);
  }
  
@@ -46,10 +45,25 @@ index b73ab0b..daaebcb 100644
 +  result = ts.tv_sec + ts.tv_nsec * pow(10, -9);
 +  args.GetReturnValue().Set(result);
 +}
++
++/*
++ * Derived from:
++ * $OpenBSD: pctr.h,v 1.5 2014/03/29 18:09:28 guenther Exp$
++ */
++void Shell::ReadTSReg(const v8::FunctionCallbackInfo<v8::Value>& args) {
++    u_int32_t hi, lo;
++    u_int64_t result;
++
++    __asm volatile("rdtsc" : "=d" (hi), "=a" (lo));
++    result = ((u_int64_t) hi << 32) | (u_int64_t) lo;
++
++    // the cast is not ideal
++    args.GetReturnValue().Set((double) result);
++}
  
  void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
    for (int i = 0; i < args.Length(); i++) {
-@@ -611,6 +644,33 @@ void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
+@@ -658,6 +705,33 @@ void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
    }
  }
  
@@ -83,7 +97,7 @@ index b73ab0b..daaebcb 100644
  
  void Shell::Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
    String::Utf8Value file(args[0]);
-@@ -1058,10 +1118,22 @@ Local<ObjectTemplate> Shell::CreateGlobalTemplate(Isolate* isolate) {
+@@ -1082,10 +1156,26 @@ Local<ObjectTemplate> Shell::CreateGlobalTemplate(Isolate* isolate) {
            .ToLocalChecked(),
        FunctionTemplate::New(isolate, Print));
    global_template->Set(
@@ -94,6 +108,10 @@ index b73ab0b..daaebcb 100644
 +      String::NewFromUtf8(isolate, "clock_gettime_monotonic", NewStringType::kNormal)
 +          .ToLocalChecked(),
 +      FunctionTemplate::New(isolate, ClockGettimeMonotonic));
++  global_template->Set(
++      String::NewFromUtf8(isolate, "read_ts_reg", NewStringType::kNormal)
++          .ToLocalChecked(),
++      FunctionTemplate::New(isolate, ReadTSReg));
 +  global_template->Set(
        String::NewFromUtf8(isolate, "write", NewStringType::kNormal)
            .ToLocalChecked(),
@@ -107,15 +125,16 @@ index b73ab0b..daaebcb 100644
            .ToLocalChecked(),
        FunctionTemplate::New(isolate, Read));
 diff --git a/src/d8.h b/src/d8.h
-index 16f612c..33fd78f 100644
+index 321d9c1..64e1c94 100644
 --- a/src/d8.h
 +++ b/src/d8.h
-@@ -385,7 +385,10 @@ class Shell : public i::AllStatic {
+@@ -385,7 +385,11 @@ class Shell : public i::AllStatic {
                               const  PropertyCallbackInfo<void>& info);
  
    static void Print(const v8::FunctionCallbackInfo<v8::Value>& args);
 +  static void PrintErr(const v8::FunctionCallbackInfo<v8::Value>& args);
 +  static void ClockGettimeMonotonic(const v8::FunctionCallbackInfo<v8::Value>& args);
++  static void ReadTSReg(const v8::FunctionCallbackInfo<v8::Value>& args);
    static void Write(const v8::FunctionCallbackInfo<v8::Value>& args);
 +  static void WriteErr(const v8::FunctionCallbackInfo<v8::Value>& args);
    static void QuitOnce(v8::FunctionCallbackInfo<v8::Value>* args);

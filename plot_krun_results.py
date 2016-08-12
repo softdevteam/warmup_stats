@@ -36,7 +36,7 @@ SUBPLOT_PARAMS = {
     'left': 0.07,
     'right': 0.98,
     'top': 0.88,
-    'wspace': 0.20,
+    'wspace': 0.30,
 }
 
 # Display names that can't be formatted with .title()
@@ -86,8 +86,9 @@ YTICK_FORMAT = '%.4f'
 
 # Default (PDF) font sizes
 TICK_FONTSIZE = 18
+TSR_TICK_FONTSIZE = 14
 TITLE_FONT_SIZE = 20
-AXIS_FONTSIZE = 20
+AXIS_FONTSIZE = 16
 BASE_FONTSIZE = 20
 LEGEND_FONTSIZE = 17
 
@@ -117,7 +118,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         set_pdf_metadata(pdf)
 
     # Run sequences, outliers and subplot titles for each page we need to plot.
-    pages, all_subplot_titles = list(), list()
+    pages, tsr_pages, all_subplot_titles = list(), list(), list()
     all_outliers, all_common, all_unique = list(), list(), list()
 
     # By default, each benchmark from each machine is placed on a separate
@@ -125,12 +126,14 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # all plots on a single page. In which case, we need to construct
     # a flat list of all run sequences.
     if one_page:
-        page, subplot_titles = list(), list()
+        # XXX revise this
+        page, tsr_page, subplot_titles = list(), list(), list()
         page_common, page_unique, page_outlier = list(), list(), list()
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
                 for index, run_seq in enumerate(data_dcts['data'][key][machine]):
                     page.append(run_seq)
+                    tsr_page.append(data_dcts['tsr_data'][key][machine][index])
                     subplot_titles.append(plot_titles[key][machine][index])
                     # Collect outliers, if the user wishes to annotate them on
                     # the plots. The draw_page() and draw_subplot() functions
@@ -147,6 +150,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                         page_common.append(None)
                         page_unique.append(None)
         pages.append(page)
+        tsr_pages.append(tsr_page)
         all_subplot_titles.append(subplot_titles)
         all_outliers.append(page_outlier)
         all_common.append(page_common)
@@ -155,6 +159,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
                 pages.append(data_dcts['data'][key][machine])
+                tsr_pages.append(data_dcts['tsr_data'][key][machine])
                 all_subplot_titles.append(plot_titles[key][machine])
                 if with_outliers:
                     all_outliers.append(data_dcts['all_outliers'][key][machine])
@@ -172,6 +177,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         print 'Plotting page %g.' % (index + 1),
         fig, export_size = draw_page(is_interactive,
                                      page,
+                                     tsr_pages[index],
                                      all_subplot_titles[index],
                                      window_size,
                                      xlimits,
@@ -255,9 +261,11 @@ def add_inset_to_axis(axis, rect):
     return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
 
 
-def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
+def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, outliers,
                  unique, common, mean, sigma):
+
     data_narray = numpy.array(data)
+    tsr_data_narray = numpy.array(tsr_data)
 
     # Plot the original measurements.
     axis.plot(data_narray, label='Measurement', color=LINE_COLOUR)
@@ -319,6 +327,13 @@ def draw_subplot(axis, data, title, x_range, y_range, window_size, outliers,
     axis.set_ylabel('Time(s)', fontsize=AXIS_FONTSIZE)
     axis.set_ylim(y_range)
 
+    # Add TSR data on a different Y-axis
+    axis2 = axis.twinx()
+    axis2.plot(tsr_data_narray, color="black", linestyle="--")
+    y_ax2 = axis2.get_yaxis()
+    y_ax2.set_tick_params(labelsize=TSR_TICK_FONTSIZE)
+    axis2.set_ylabel('TSR Delta (Cycles)', fontsize=AXIS_FONTSIZE)
+
     handles, labels = axis.get_legend_handles_labels()
     return handles, labels
 
@@ -337,7 +352,7 @@ def add_margin_to_axes(axis, x=0.01, y=0.01):
         axis.set_ylim(ylim[0] - ymargin, ylim[1] + ymargin)
 
 
-def draw_page(is_interactive, executions, titles, window_size, xlimits,
+def draw_page(is_interactive, executions, tsr_executions, titles, window_size, xlimits,
               outliers, unique, common, mean, sigma, inset_xlimit=100):
     """Plot a page of benchmarks.
     """
@@ -375,6 +390,7 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
     index, row, col = 0, 0, 0
     while index < n_execs:
         data = executions[index]
+        tsr_data = tsr_executions[index]
         outliers_exec = outliers[index] if outliers is not None else None
         unique_exec = unique[index] if unique is not None else None
         common_exec = common[index] if common is not None else None
@@ -383,7 +399,7 @@ def draw_page(is_interactive, executions, titles, window_size, xlimits,
         axis.ticklabel_format(useOffset=False)
         x_bounds = [xlimits_start, xlimits_stop]
         axis.set_xlim(x_bounds)
-        handles, labels = draw_subplot(axis, data, titles[index], x_bounds,
+        handles, labels = draw_subplot(axis, data, tsr_data, titles[index], x_bounds,
                                [y_min, y_max], window_size, outliers_exec,
                                unique_exec, common_exec, mean, sigma)
         col += 1
@@ -503,6 +519,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
     """
 
     data_dictionary = {'data': dict(), # Measurement data to be plotted.
+                       'tsr_data': dict(), # TSR measurements
                        'all_outliers': dict(),
                        'common_outliers': dict(),
                        'unique_outliers': dict(),
@@ -557,7 +574,9 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                 else:
                     if key not in data_dictionary['data']:
                         data_dictionary['data'][key] = dict()
+                        data_dictionary['tsr_data'][key] = dict()
                     data_dictionary['data'][key][machine] = data['data'][key]
+                    data_dictionary['tsr_data'][key][machine] = data['tsr_data'][key]
             # Construct plot titles for all data in this file.
             for key in data_dictionary['data']:
                 if key not in plot_titles:
@@ -577,7 +596,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     pass  # no data for this
                 else:
                     for p_exec in xrange(num_p_execs):
-                        title = '%s, %s, %s, Process execution #%d' % \
+                        title = '%s, %s, %s\nProcess execution #%d' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,

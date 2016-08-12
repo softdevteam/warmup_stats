@@ -1,27 +1,34 @@
 diff --git a/hphp/runtime/ext/std/ext_std_misc.cpp b/hphp/runtime/ext/std/ext_std_misc.cpp
-index 6e94fa9..26a8a35 100644
+index 8b08cec..2c82348 100644
 --- a/hphp/runtime/ext/std/ext_std_misc.cpp
 +++ b/hphp/runtime/ext/std/ext_std_misc.cpp
-@@ -37,6 +37,8 @@
+@@ -44,10 +44,14 @@
+ #include "hphp/util/current-executable.h"
  #include "hphp/util/logger.h"
+ 
++#include <inttypes.h>
++
+ #ifndef _MSC_VER
  #include <sys/param.h> // MAXPATHLEN is here
+ #endif
  
 +#include <time.h>
 +
  namespace HPHP {
  
  IMPLEMENT_THREAD_LOCAL(std::string, s_misc_highlight_default_string);
-@@ -146,6 +148,7 @@ void StandardExtension::initMisc() {
+@@ -192,6 +196,8 @@ void StandardExtension::initMisc() {
      HHVM_FE(sys_getloadavg);
      HHVM_FE(token_get_all);
      HHVM_FE(token_name);
 +    HHVM_FE(clock_gettime_monotonic);
++    HHVM_FE(read_ts_reg);
      HHVM_FE(hphp_to_string);
-     Native::registerConstant<KindOfDouble>(makeStaticString("INF"), k_INF);
-     Native::registerConstant<KindOfDouble>(makeStaticString("NAN"), k_NAN);
-@@ -737,6 +740,29 @@ String HHVM_FUNCTION(hphp_to_string, const Variant& v) {
-   return v.toString();
- }
+     HHVM_FALIAS(__SystemLib\\max2, SystemLib_max2);
+     HHVM_FALIAS(__SystemLib\\min2, SystemLib_min2);
+@@ -966,5 +972,46 @@ Variant HHVM_FUNCTION(SystemLib_min2, const Variant& value1,
+ #undef YYTOKEN_MAP
+ #undef YYTOKEN
  
 +/*
 + * Access to monotonic clock added by soft-dev for benchmarking.
@@ -46,32 +53,55 @@ index 6e94fa9..26a8a35 100644
 +	return (result);
 +}
 +
++/*
++ * Derived from:
++ * $OpenBSD: pctr.h,v 1.5 2014/03/29 18:09:28 guenther Exp$
++ *
++ * PHP has no way to represent a unsigned 64-bit integer. We return a signed
++ * 64. Any app-level code using this must know that this is really a unsigned
++ * value.
++ */
++double HHVM_FUNCTION(read_ts_reg) {
++    u_int32_t hi, lo;
++    u_int64_t val;
++
++    __asm volatile("rdtsc" : "=d" (hi), "=a" (lo));
++    val = ((u_int64_t) hi << 32) | (u_int64_t) lo;
++
++    return (double) val;
++}
++
  ///////////////////////////////////////////////////////////////////////////////
  }
- 
 diff --git a/hphp/runtime/ext/std/ext_std_misc.h b/hphp/runtime/ext/std/ext_std_misc.h
-index 5696eee..3b4ab87 100644
+index 49db8a5..a6d693a 100644
 --- a/hphp/runtime/ext/std/ext_std_misc.h
 +++ b/hphp/runtime/ext/std/ext_std_misc.h
-@@ -43,6 +43,7 @@ Variant HHVM_FUNCTION(unpack, const String& format, const String& data);
+@@ -48,6 +48,8 @@ Variant HHVM_FUNCTION(unpack, const String& format, const String& data);
  Array HHVM_FUNCTION(sys_getloadavg);
  Array HHVM_FUNCTION(token_get_all, const String& source);
  String HHVM_FUNCTION(token_name, int64_t token);
 +double HHVM_FUNCTION(clock_gettime_monotonic);
++double HHVM_FUNCTION(read_ts_reg);
  String HHVM_FUNCTION(hphp_to_string, const Variant& v);
- extern const double k_INF;
- extern const double k_NAN;
+ Variant HHVM_FUNCTION(SystemLib_max2, const Variant& arg1, const Variant& arg2);
+ Variant HHVM_FUNCTION(SystemLib_min2, const Variant& arg1, const Variant& arg2);
 diff --git a/hphp/runtime/ext/std/ext_std_misc.php b/hphp/runtime/ext/std/ext_std_misc.php
-index 9fa788a..b658f59 100644
+index da36140..40a36a1 100644
 --- a/hphp/runtime/ext/std/ext_std_misc.php
 +++ b/hphp/runtime/ext/std/ext_std_misc.php
-@@ -214,6 +214,9 @@ function token_get_all(string $source): array;
+@@ -214,6 +214,14 @@ function token_get_all(string $source): array;
  <<__ParamCoerceModeFalse, __Native>>
  function token_name(int $token): string;
  
 +/* Returns the monotonic clock value in seconds.  */
 +<<__Native>>
 +function clock_gettime_monotonic(): double;
++
++/* Returns the value of the timestamp register */
++<<__Native>>
++function read_ts_reg(): double;
++
  /* Casts a given value to a string.
   * @param mixed $v - The value being casted to a string.
   * @return string - The result of the string cast.

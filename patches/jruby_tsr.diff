@@ -1,0 +1,75 @@
+diff --git a/truffle/src/main/java/org/jruby/truffle/RubyContext.java b/truffle/src/main/java/org/jruby/truffle/RubyContext.java
+index b0cbb23..481778f 100644
+--- a/truffle/src/main/java/org/jruby/truffle/RubyContext.java
++++ b/truffle/src/main/java/org/jruby/truffle/RubyContext.java
+@@ -56,6 +56,8 @@ import java.io.PrintStream;
+ import java.io.UnsupportedEncodingException;
+ import java.nio.charset.StandardCharsets;
+ 
++import jnr.ffi.LibraryLoader;
++
+ public class RubyContext extends ExecutionContext {
+ 
+     private static volatile RubyContext latestInstance;
+@@ -92,6 +94,8 @@ public class RubyContext extends ExecutionContext {
+     private final PrintStream debugStandardOut;
+     private final CoverageManager coverageManager;
+ 
++    private final ReadTSReg readTSReg;
++
+     private final Object classVariableDefinitionLock = new Object();
+ 
+     private final AttachmentsManager attachmentsManager;
+@@ -161,6 +165,10 @@ public class RubyContext extends ExecutionContext {
+         final PrintStream configStandardOut = jrubyRuntime.getInstanceConfig().getOutput();
+         debugStandardOut = (configStandardOut == System.out) ? null : configStandardOut;
+ 
++        final LibraryLoader<ReadTSReg> readTSRegLoader = LibraryLoader.create(ReadTSReg.class);
++        readTSRegLoader.library("kruntime");
++        readTSReg = readTSRegLoader.load();
++
+         if (options.INSTRUMENTATION_SERVER_PORT != 0) {
+             instrumentationServerManager = new InstrumentationServerManager(this, options.INSTRUMENTATION_SERVER_PORT);
+             instrumentationServerManager.start();
+@@ -348,4 +356,7 @@ public class RubyContext extends ExecutionContext {
+         return coreExceptions;
+     }
+ 
++    public ReadTSReg readTSReg() {
++        return readTSReg;
++    }
+ }
+diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
+index 50a155d..f183bdc 100644
+--- a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
++++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
+@@ -1985,4 +1985,18 @@ public abstract class KernelNodes {
+ 
+     }
+ 
++    @CoreMethod(names = "read_ts_reg", needsSelf=false)
++    public abstract static class ReadTSRegNode extends CoreMethodArrayArgumentsNode {
++
++        public ReadTSRegNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public long ReadTSReg() {
++            return getContext().readTSReg().read_ts_reg();
++        }
++
++    }
+ }
+diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/ReadTSReg.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/ReadTSReg.java
+new file mode 100644
+index 0000000..b94a4c8
+--- /dev/null
++++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/ReadTSReg.java
+@@ -0,0 +1,5 @@
++package org.jruby.truffle;
++
++public interface ReadTSReg {
++    long read_ts_reg();
++}
