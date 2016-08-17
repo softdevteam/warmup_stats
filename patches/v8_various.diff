@@ -1,30 +1,17 @@
 diff --git a/src/d8.cc b/src/d8.cc
-index 0688380..edd637d 100644
+index 0688380..953762a 100644
 --- a/src/d8.cc
 +++ b/src/d8.cc
-@@ -2,6 +2,21 @@
+@@ -2,6 +2,8 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
-+/*
-+ * Stuff for clock_gettime_monotonic()
-+ */
-+#include <time.h>
-+#include <stdlib.h>
-+#include <math.h>
-+#include <errno.h>
 +#include <stdio.h>
 +#include <libkruntime.h>
-+
-+#if defined(__linux__)
-+#define ACTUAL_CLOCK_MONOTONIC    CLOCK_MONOTONIC_RAW
-+#else
-+#define ACTUAL_CLOCK_MONOTONIC    CLOCK_MONOTONIC
-+#endif
  
  // Defined when linking against shared lib on Windows.
  #if defined(USING_V8_SHARED) && !defined(V8_SHARED)
-@@ -627,6 +642,32 @@ void Shell::Print(const v8::FunctionCallbackInfo<v8::Value>& args) {
+@@ -627,6 +629,23 @@ void Shell::Print(const v8::FunctionCallbackInfo<v8::Value>& args) {
    fflush(stdout);
  }
  
@@ -35,16 +22,7 @@ index 0688380..edd637d 100644
 +}
 +
 +void Shell::ClockGettimeMonotonic(const v8::FunctionCallbackInfo<v8::Value>& args) {
-+  struct timespec         ts;
-+  double                  result;
-+
-+  if ((clock_gettime(ACTUAL_CLOCK_MONOTONIC, &ts)) < 0) {
-+    perror("clock_gettime");
-+    exit(1);
-+  }
-+
-+  result = ts.tv_sec + ts.tv_nsec * pow(10, -9);
-+  args.GetReturnValue().Set(result);
++  args.GetReturnValue().Set(clock_gettime_monotonic());
 +}
 +
 +void Shell::ReadTSRegStartDouble(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -57,7 +35,7 @@ index 0688380..edd637d 100644
  
  void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
    for (int i = 0; i < args.Length(); i++) {
-@@ -658,6 +699,33 @@ void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
+@@ -658,6 +677,33 @@ void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
    }
  }
  
@@ -91,7 +69,7 @@ index 0688380..edd637d 100644
  
  void Shell::Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
    String::Utf8Value file(args[0]);
-@@ -1082,10 +1150,30 @@ Local<ObjectTemplate> Shell::CreateGlobalTemplate(Isolate* isolate) {
+@@ -1082,10 +1128,30 @@ Local<ObjectTemplate> Shell::CreateGlobalTemplate(Isolate* isolate) {
            .ToLocalChecked(),
        FunctionTemplate::New(isolate, Print));
    global_template->Set(
