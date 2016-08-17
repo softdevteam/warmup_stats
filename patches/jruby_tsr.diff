@@ -1,5 +1,5 @@
 diff --git a/truffle/src/main/java/org/jruby/truffle/RubyContext.java b/truffle/src/main/java/org/jruby/truffle/RubyContext.java
-index b0cbb23..481778f 100644
+index b0cbb23..d0691aa 100644
 --- a/truffle/src/main/java/org/jruby/truffle/RubyContext.java
 +++ b/truffle/src/main/java/org/jruby/truffle/RubyContext.java
 @@ -56,6 +56,8 @@ import java.io.PrintStream;
@@ -15,7 +15,7 @@ index b0cbb23..481778f 100644
      private final PrintStream debugStandardOut;
      private final CoverageManager coverageManager;
  
-+    private final ReadTSReg readTSReg;
++    private final LibKrunTime libKrunTime;
 +
      private final Object classVariableDefinitionLock = new Object();
  
@@ -24,9 +24,9 @@ index b0cbb23..481778f 100644
          final PrintStream configStandardOut = jrubyRuntime.getInstanceConfig().getOutput();
          debugStandardOut = (configStandardOut == System.out) ? null : configStandardOut;
  
-+        final LibraryLoader<ReadTSReg> readTSRegLoader = LibraryLoader.create(ReadTSReg.class);
-+        readTSRegLoader.library("kruntime");
-+        readTSReg = readTSRegLoader.load();
++        final LibraryLoader<LibKrunTime> libKrunTimeLoader = LibraryLoader.create(LibKrunTime.class);
++        libKrunTimeLoader.library("kruntime");
++        libKrunTime = libKrunTimeLoader.load();
 +
          if (options.INSTRUMENTATION_SERVER_PORT != 0) {
              instrumentationServerManager = new InstrumentationServerManager(this, options.INSTRUMENTATION_SERVER_PORT);
@@ -35,41 +35,82 @@ index b0cbb23..481778f 100644
          return coreExceptions;
      }
  
-+    public ReadTSReg readTSReg() {
-+        return readTSReg;
++    public LibKrunTime getLibKrunTime() {
++        return libKrunTime;
 +    }
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
-index 50a155d..f183bdc 100644
+index 50a155d..0234ef7 100644
 --- a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
-@@ -1985,4 +1985,18 @@ public abstract class KernelNodes {
+@@ -141,6 +141,7 @@ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.List;
+ import java.util.Map;
++import java.math.BigInteger;
+ 
+ @CoreClass("Kernel")
+ public abstract class KernelNodes {
+@@ -1985,4 +1986,49 @@ public abstract class KernelNodes {
  
      }
  
-+    @CoreMethod(names = "read_ts_reg", needsSelf=false)
-+    public abstract static class ReadTSRegNode extends CoreMethodArrayArgumentsNode {
++    @CoreMethod(names = "read_ts_reg_start", needsSelf=false)
++    public abstract static class ReadTSRegStartNode extends CoreMethodArrayArgumentsNode {
 +
-+        public ReadTSRegNode(RubyContext context, SourceSection sourceSection) {
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public ReadTSRegStartNode(RubyContext context, SourceSection sourceSection) {
 +            super(context, sourceSection);
 +        }
 +
 +        @TruffleBoundary
 +        @Specialization
-+        public long ReadTSReg() {
-+            return getContext().readTSReg().read_ts_reg();
++        public DynamicObject readTSRegStart() {
++            final long u64_in_s64 = getContext().getLibKrunTime().read_ts_reg_start();
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(ReadTSRegStartNode.negAdjust);
++            }
++
++            return createBignum(bi);
++        }
++    }
++
++    @CoreMethod(names = "read_ts_reg_stop", needsSelf=false)
++    public abstract static class ReadTSRegStopNode extends CoreMethodArrayArgumentsNode {
++
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public ReadTSRegStopNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
 +        }
 +
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject readTSRegStop() {
++            final long u64_in_s64 = getContext().getLibKrunTime().read_ts_reg_stop();
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(ReadTSRegStopNode.negAdjust);
++            }
++
++            return createBignum(bi);
++        }
 +    }
  }
-diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/ReadTSReg.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/ReadTSReg.java
+diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
 new file mode 100644
-index 0000000..b94a4c8
+index 0000000..3aa02af
 --- /dev/null
-+++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/ReadTSReg.java
-@@ -0,0 +1,5 @@
++++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
+@@ -0,0 +1,7 @@
 +package org.jruby.truffle;
 +
-+public interface ReadTSReg {
-+    long read_ts_reg();
++public interface LibKrunTime {
++    // these actually return u_int64_t
++    long read_ts_reg_start();
++    long read_ts_reg_stop();
 +}
