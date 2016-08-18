@@ -13,10 +13,10 @@ index 1d0822d..ad3e69b 100644
  # See https://github.com/facebook/hhvm/issues/5217
  INCLUDE(CheckCXXSourceCompiles)
 diff --git a/hphp/runtime/ext/std/ext_std_misc.cpp b/hphp/runtime/ext/std/ext_std_misc.cpp
-index 8b08cec..f098a32 100644
+index 8b08cec..8e79e52 100644
 --- a/hphp/runtime/ext/std/ext_std_misc.cpp
 +++ b/hphp/runtime/ext/std/ext_std_misc.cpp
-@@ -44,10 +44,15 @@
+@@ -44,10 +44,14 @@
  #include "hphp/util/current-executable.h"
  #include "hphp/util/logger.h"
  
@@ -26,13 +26,12 @@ index 8b08cec..f098a32 100644
  #include <sys/param.h> // MAXPATHLEN is here
  #endif
  
-+#include <time.h>
 +#include <libkruntime.h>
 +
  namespace HPHP {
  
  IMPLEMENT_THREAD_LOCAL(std::string, s_misc_highlight_default_string);
-@@ -192,6 +197,9 @@ void StandardExtension::initMisc() {
+@@ -192,6 +196,9 @@ void StandardExtension::initMisc() {
      HHVM_FE(sys_getloadavg);
      HHVM_FE(token_get_all);
      HHVM_FE(token_name);
@@ -42,31 +41,12 @@ index 8b08cec..f098a32 100644
      HHVM_FE(hphp_to_string);
      HHVM_FALIAS(__SystemLib\\max2, SystemLib_max2);
      HHVM_FALIAS(__SystemLib\\min2, SystemLib_min2);
-@@ -966,5 +974,36 @@ Variant HHVM_FUNCTION(SystemLib_min2, const Variant& value1,
+@@ -966,5 +973,17 @@ Variant HHVM_FUNCTION(SystemLib_min2, const Variant& value1,
  #undef YYTOKEN_MAP
  #undef YYTOKEN
  
-+/*
-+ * Access to monotonic clock added by soft-dev for benchmarking.
-+ * Not intended for general inclusion in HHVM
-+ */
-+#ifdef __linux__
-+#define ACTUAL_MONOTONIC_CLOCK CLOCK_MONOTONIC_RAW
-+#else
-+#define ACTUAL_MONOTONIC_CLOCK CLOCK_MONOTONIC
-+#endif
-+
 +double HHVM_FUNCTION(clock_gettime_monotonic) {
-+	struct timespec		ts;
-+	double			result;
-+
-+	if ((clock_gettime(ACTUAL_MONOTONIC_CLOCK, &ts)) < 0) {
-+		perror("clock_gettime");
-+		exit(1);
-+	}
-+
-+	result = ts.tv_sec + ts.tv_nsec * pow(10, -9);
-+	return (result);
++	return clock_gettime_monotonic();
 +}
 +
 +double HHVM_FUNCTION(read_ts_reg_start_double) {
