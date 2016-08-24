@@ -225,16 +225,23 @@ def get_outliers(all_outliers, window_size, threshold=1):
     return common, unique
 
 
-def get_all_outliers(data, window_size):
+def _tuckey_all_outliers(data, window_size):
+    # Ignore windows that do not have a full set of data.
     all_outliers = list()
     for index, datum in enumerate(data):
         l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
+        if l_slice == 0 and r_slice < window_size:
+            continue
         window = data[l_slice:r_slice]
-        mean = numpy.mean(window)
-        five_sigma = 5 * numpy.std(window)
-        if datum > (mean + five_sigma) or datum < (mean - five_sigma):
+        median = numpy.median(window)
+        pc_band = 3 * (numpy.percentile(window, 90.0) - numpy.percentile(window, 10.0))
+        if datum > (median + pc_band) or datum < (median - pc_band):
             all_outliers.append(index)
     return all_outliers
+
+
+def get_all_outliers(data, window_size):
+    return _tuckey_all_outliers(data, window_size)
 
 
 def _clamp_window_size(index, data_size, window_size=200):
