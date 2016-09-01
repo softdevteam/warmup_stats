@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import FormatStrFormatter, FuncFormatter, MaxNLocator
 import numpy
 import os
 import os.path
@@ -38,7 +39,6 @@ GRID_MAJOR_X_DIVS = 10
 GRID_MINOR_Y_DIVS = 12
 GRID_MAJOR_Y_DIVS = 6
 
-XTICK_FORMAT = '%d'
 YTICK_FORMAT = '%d'
 YLIM_ADJUST = 250
 
@@ -92,7 +92,7 @@ def plot_results(outliers_per_thresh, filename):
         window = WINDOWS[index]
         axis = axes[row, col]
         axis.ticklabel_format(useOffset=False)
-        x_bounds = (1, len(outliers_per_thresh[window].keys()))
+        x_bounds = (0, len(outliers_per_thresh[window].keys()))
         axis.set_xlim(x_bounds)
         axis.set_ylim(y_bounds)
         # Keep hold of handles / labels for legend.
@@ -106,25 +106,26 @@ def plot_results(outliers_per_thresh, filename):
     fig.subplots_adjust(**SUBPLOT_PARAMS)
     # Add margin to x-axis. Must be done *after* setting xlim and ylim
     # and calling subplots_adjust().
+    index, row, col = 0, 0, 0
     while index < num_windows:
         window = WINDOWS[index]
         axis = axes[row, col]
-        add_margin_to_axes(axis, x=0.02, y=0.02)
+        add_margin_to_axes(axis, x=0.02, y=0.00)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
     fig.legend(handles, labels, loc='upper center', fontsize=LEGEND_FONTSIZE, ncol=10,)
-    pdf.savefig(fig, dpi=fig.dpi, orientation='portait', bbox_inches='tight')
+    pdf.savefig(fig, dpi=fig.dpi, orientation='portrait', bbox_inches='tight')
     pdf.close()
     print('Saved: %s' % filename)
 
 
 def draw_subplot(axis, data, x_range, y_range, window_size):
-    all_ = [0]
-    common = [0]
-    unique = [0]
+    all_ = []
+    common = []
+    unique = []
     for threshold in data:
         all_.append(data[threshold]['all_outliers'])
         common.append(data[threshold]['common_outliers'])
@@ -150,9 +151,9 @@ def draw_subplot(axis, data, x_range, y_range, window_size):
     axis.set_ylabel('Number of outliers', fontsize=AXIS_FONTSIZE)
     axis.set_ylim(y_range)
     # Format ticks.
-    axis.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-    axis.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(XTICK_FORMAT))
-    axis.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
+    axis.xaxis.set_major_locator(MaxNLocator(integer=True, steps=xrange(11)))
+    axis.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: str(int(x + 1))))
+    axis.yaxis.set_major_formatter(FormatStrFormatter(YTICK_FORMAT))
     # Return artists needed for legend.
     handles, labels = axis.get_legend_handles_labels()
     return handles, labels
