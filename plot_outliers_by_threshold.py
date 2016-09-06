@@ -9,12 +9,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import FormatStrFormatter, FuncFormatter, MaxNLocator
-import numpy
 import os
 import os.path
 import seaborn
 
-WINDOWS = [25, 50, 100, 200, 300, 400]
+from calculate_outliers_by_threshold import WINDOWS
+
 PDF_FILENAME = 'outliers_per_threshold.pdf'
 
 SUBPLOT_PARAMS = {
@@ -59,13 +59,6 @@ seaborn.set_context("paper")
 plt.figure(tight_layout=True)
 
 
-def sum_outliers(data):
-    num_outliers = 0
-    for outliers in data:
-        num_outliers += len(outliers)
-    return num_outliers
-
-
 def plot_results(outliers_per_thresh, filename):
     """Plot a page of benchmarks.
     """
@@ -76,6 +69,7 @@ def plot_results(outliers_per_thresh, filename):
     index, row, col = 0, 0, 0
     pdf = PdfPages(filename)
     # Calculate ymin / ymax
+    print outliers_per_thresh.keys()
     ymin = outliers_per_thresh[WINDOWS[0]][1]['all_outliers']
     ymax = ymin
     for window in outliers_per_thresh:
@@ -130,11 +124,11 @@ def draw_subplot(axis, data, x_range, y_range, window_size):
         all_.append(data[threshold]['all_outliers'])
         common.append(data[threshold]['common_outliers'])
         unique.append(data[threshold]['unique_outliers'])
-    axis.plot(numpy.array(all_), marker='o', linestyle='-',
+    axis.plot(all_, marker='o', linestyle='-',
               label='All outliers', markevery=1, markersize=MARKERSIZE)
-    axis.plot(numpy.array(common), marker='o', linestyle='-',
+    axis.plot(common, marker='o', linestyle='-',
               label='Common outliers', markevery=1, markersize=MARKERSIZE)
-    axis.plot(numpy.array(unique), marker='o', linestyle='-',
+    axis.plot(unique, marker='o', linestyle='-',
               label='Unique outliers', markevery=1, markersize=MARKERSIZE)
     # Re-style the chart.
     major_xticks = compute_grid_offsets(
@@ -206,116 +200,48 @@ def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks):
     ax.frameon = False
 
 
-def get_outliers(all_outliers, window_size, threshold=1):
-    common, unique = list(), list()
-    for index, outliers in enumerate(all_outliers):
-        common_exec = list()
-        unique_exec = list()
-        for outlier in outliers:
-            other_execs = all_outliers[:index] + all_outliers[(index + 1):]
-            sum_ = 0
-            for execution in other_execs:
-                if outlier in execution:
-                    sum_ += 1
-            if sum_ >= threshold:
-                common_exec.append(outlier)
-            else:
-                unique_exec.append(outlier)
-        common.append(common_exec)
-        unique.append(unique_exec)
-    return common, unique
-
-
-def _tuckey_all_outliers(data, window_size):
-    # Ignore windows that do not have a full set of data.
-    all_outliers = list()
-    for index, datum in enumerate(data):
-        l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
-        if l_slice == 0 and r_slice < window_size:
-            continue
-        window = data[l_slice:r_slice]
-        median = numpy.median(window)
-        pc_band = 3 * (numpy.percentile(window, 90.0) - numpy.percentile(window, 10.0))
-        if datum > (median + pc_band) or datum < (median - pc_band):
-            all_outliers.append(index)
-    return all_outliers
-
-
-def get_all_outliers(data, window_size):
-    return _tuckey_all_outliers(data, window_size)
-
-
-def _clamp_window_size(index, data_size, window_size=200):
-    """Return the window of data which should be used to calculate a moving
-    window percentile or average. Clamped to the 0th and (len-1)th indices
-    of the sequence.
-
-    E.g.
-    _clamp_window_size(50, 1000, 200)  == (0,   150)
-    _clamp_window_size(300, 1000, 200) == (200, 400)
-    _clamp_window_size(950, 1000, 200) == (850, 1000)
+def _map_json_keys_to_ints(json_object):
+    """Some dictionary keys in outlier JSON files are integers. These will
+    be converted to unicode by json.dump and need to be parsed.
     """
-    half_window = window_size / 2
-    lh_index = 0 if (index - half_window) < 0 else index - half_window
-    rh_index = data_size if (index + half_window) > data_size else index + half_window
-    return (lh_index, rh_index)
+    if isinstance(json_object, dict):
+        try:
+            return {int(key): value for key, value in json_object.items()}
+        except ValueError:
+            return json_object
+    return json_object
 
 
-def read_krun_results_file(results_file):
+def read_outliers_per_threshold_file(outliers_file):
     """Return the JSON data stored in a Krun results file.
     """
     results = None
-    with bz2.BZ2File(results_file, 'rb') as file_:
-        results = json.loads(file_.read())
-        return results
-    return None
+    with bz2.BZ2File(outliers_file, 'rb') as file_:
+        results = json.loads(file_.read(), encoding='utf-8',
+                             object_hook=_map_json_keys_to_ints)
+    return results
 
 
 def create_cli_parser():
     """Create a parser to deal with command line switches.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('json_files', nargs='+', action='append', default=[],
-                        type=str, help='One or more Krun result files.')
+    parser.add_argument('json_file', action='store',
+                        type=str, help=('Outlier per threshold file. This file '
+                                        'should have been generated by the '
+                                        'calculate_outliers_by_threshold '
+                                        'script.'))
     return parser
 
 
-def main(in_files):
-    krun_data = dict()
-    for filename in in_files:
-        assert os.path.exists(filename), 'File %s does not exist.' % filename
-        print('Loading: %s' % filename)
-        krun_data[filename] = read_krun_results_file(filename)
-    # Get number of executions per benchmark, must be the same for all files!
-    bench_1 = krun_data[filename]['data'].keys()[0]  # Name of first benchmark.
-    n_execs = len(krun_data[filename]['data'][bench_1])
-    print ('ASSUMING %d process executions per vm:benchmark:variant '
-           'in ALL files.' % n_execs)
-    # Scaffold results dictionary.
-    outliers_per_thresh = dict()
-    for window in WINDOWS:
-        outliers_per_thresh[window] = dict()
-        for threshold in xrange(1, n_execs):
-            outliers_per_thresh[window][threshold] = {'all_outliers': 0,
-                              'common_outliers': 0, 'unique_outliers': 0}
-    # Calculate numbers of outliers for each window / threshold.
-    for filename in in_files:
-        for window in outliers_per_thresh:
-            for thresh in outliers_per_thresh[window]:
-                print 'Window %d, threshold %d, file %s' % (window, thresh, filename)
-                outliers_per_key = dict()  # All executions for a vm:bench:variant
-                for key in krun_data[filename]['data']:
-                    outliers_per_key[key] = list()  # Outliers for each execution
-                    for p_exec in krun_data[filename]['data'][key]:
-                        outliers_per_key[key].append(get_all_outliers(p_exec, window))
-                    common, unique = get_outliers(outliers_per_key[key], window, thresh)
-                    outliers_per_thresh[window][thresh]['all_outliers'] += sum_outliers(outliers_per_key[key])
-                    outliers_per_thresh[window][thresh]['common_outliers'] += sum_outliers(common)
-                    outliers_per_thresh[window][thresh]['unique_outliers'] += sum_outliers(unique)
+def main(filename):
+    assert os.path.exists(filename), 'File %s does not exist.' % filename
+    print('Loading: %s' % filename)
+    outliers_per_thresh = read_outliers_per_threshold_file(filename)
     plot_results(outliers_per_thresh, PDF_FILENAME)
 
 
 if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
-    main(options.json_files[0])
+    main(options.json_file)
