@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env pypy
 """
 Determine which iterations in Krun data are outliers, where an outlier is
-greater than 6 sigmas above / below a rolling mean.
+greater than 3 * (90 percentile - 10 percentile) above / below a rolling median.
 
 usage: Write lists of outliers into Krun results file(s).
 Example usage:
