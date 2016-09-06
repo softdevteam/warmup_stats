@@ -105,7 +105,7 @@ DPI = 300
 
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
-         xlimits, with_outliers, unique_outliers, mean=False, sigma=False,
+         xlimits, with_outliers, unique_outliers, median=False, tukey=False,
          inset_xlimit=None, one_page=False):
     """Determine which plots to put on each page of output.
     Plot all data.
@@ -184,8 +184,8 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                      all_outliers[index],
                                      all_unique[index],
                                      all_common[index],
-                                     mean,
-                                     sigma,
+                                     median,
+                                     tukey,
                                      inset_xlimit)
         if not is_interactive:
             fig.set_size_inches(*export_size)
@@ -261,9 +261,21 @@ def add_inset_to_axis(axis, rect):
     return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
 
 
-def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, outliers,
-                 unique, common, mean, sigma):
+def _no_first_window_get_window(index, window_size, data):
+    # Ignore windows that do not have a full set of data.
+    l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
+    if l_slice == 0 and r_slice < window_size:
+        return []
+    window = data[l_slice:r_slice]
+    return window
 
+
+def _get_window(index, window_size, data):
+    return _no_first_window_get_window(index, window_size, data)
+
+
+def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, outliers,
+                 unique, common, median, tukey):
     data_narray = numpy.array(data)
     tsr_data_narray = numpy.array(tsr_data)
 
@@ -272,10 +284,10 @@ def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, out
 
     # If there are outliers, highlight them.
     if outliers is not None:
-        axis.scatter(outliers, data_narray[outliers], color=OUTLIER_COLOR,
+        axis.scatter(outliers, data_narray, color=OUTLIER_COLOR,
                      marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers')
     if unique is not None:
-        pc_unique = float(len(unique)) / float(len(data_narray)) * 100.0
+        pc_unique = float(len(unique) - window_size) / float(len(data_narray)) * 100.0
         axis.scatter(unique, data_narray[unique], c=UNIQUE_COLOR,
                      marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
                      label=('Unique outliers (${%.2f}\\%%$)' % pc_unique))
@@ -285,25 +297,31 @@ def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, out
                      marker=COMMON_MARKER, s=COMMON_SIZE,
                      label=('Common outliers (${%.2f}\\%%$)' % pc_common))
 
-    # Draw a rolling mean (optionally).
-    if mean or sigma:
-        means = list()
-        sigmas = (list(), list())
+    # Draw a rolling median (optionally).
+    if median or tukey:
+        medians = list()
+        pc_bands = (list(), list())
         for index, datum in enumerate(data):
-            l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
-            window = data[l_slice:r_slice]
-            means.append(numpy.mean(window))
-            if sigma:
-                five_sigma = 5 * numpy.std(window)
-                sigmas[0].append(means[index] - five_sigma)
-                sigmas[1].append(means[index] + five_sigma)
-        if mean:  # Plot the mean.
-            axis.plot(means, label='Mean')
-        if sigma:  # Fill between 5-sigmas.
+            window = _get_window(index, window_size, data)
+            if not window:
+                medians.append(numpy.nan)
+            else:
+                medians.append(numpy.median(window))
+            if tukey and not window:
+                pc_bands[0].append(numpy.nan)
+                pc_bands[1].append(numpy.nan)
+            elif tukey and window:
+                band = (3 * (numpy.percentile(window, 90.0) -
+                             numpy.percentile(window, 10.0)))
+                pc_bands[0].append(medians[index] - band)
+                pc_bands[1].append(medians[index] + band)
+        if median:  # Plot the median.
+            axis.plot(medians, label='Median')
+        if tukey:  # Fill between the Tuckey band.
             iterations = numpy.array(list(xrange(len(data))))
-            axis.fill_between(iterations, sigmas[0], means, alpha=FILL_ALPHA,
+            axis.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
-            axis.fill_between(iterations, means, sigmas[1], alpha=FILL_ALPHA,
+            axis.fill_between(iterations, medians, pc_bands[1], alpha=FILL_ALPHA,
                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
 
     # Re-style the chart.
@@ -353,7 +371,7 @@ def add_margin_to_axes(axis, x=0.01, y=0.01):
 
 
 def draw_page(is_interactive, executions, tsr_executions, titles, window_size, xlimits,
-              outliers, unique, common, mean, sigma, inset_xlimit=100):
+              outliers, unique, common, median, tukey, inset_xlimit=100):
     """Plot a page of benchmarks.
     """
 
@@ -401,7 +419,7 @@ def draw_page(is_interactive, executions, tsr_executions, titles, window_size, x
         axis.set_xlim(x_bounds)
         handles, labels = draw_subplot(axis, data, tsr_data, titles[index], x_bounds,
                                [y_min, y_max], window_size, outliers_exec,
-                               unique_exec, common_exec, mean, sigma)
+                               unique_exec, common_exec, median, tukey)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -444,12 +462,11 @@ def draw_page(is_interactive, executions, tsr_executions, titles, window_size, x
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
-    if sigma:  # Add sigma to legend.
+    if tukey:  # Add Tukey band to legend.
         fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
-                                              alpha=FILL_ALPHA,
-                                              label='5$\sigma$')
+                                              alpha=FILL_ALPHA)
         handles.append(fill_patch)
-        labels.append('5$\sigma$')
+        labels.append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
 
     outliers_plotted = False
     if isinstance(outliers, list):
@@ -465,7 +482,7 @@ def draw_page(is_interactive, executions, tsr_executions, titles, window_size, x
     elif unique is not None:
         unique_plotted = True
 
-    if mean or sigma or outliers_plotted or unique_plotted:
+    if median or tukey or outliers_plotted or unique_plotted:
         fig.legend(handles, labels, loc='upper center',
                    fontsize=LEGEND_FONTSIZE, ncol=10,)
 
@@ -692,7 +709,7 @@ def create_cli_parser():
     script = os.path.basename(__file__)
     description = (('Plot data from Krun results file(s).'
                     '\n\nExample usage:\n\t$ python %s results1.json.bz2\n'
-                    '\t$ python %s -i --window 250 --mean --sigma '
+                    '\t$ python %s -i --window 250 --median --tukey '
                     '--with-outliers results1.json.bz2 results2.json.bz2\n'
                     '\t$ python %s -b binarytrees:Hotspot:default-java'
                     ' results.json.bz2\n') %
@@ -739,17 +756,19 @@ def create_cli_parser():
                         default=200,
                         type=int,
                         help='Size of the sliding window used to draw a '
-                             'rolling mean and/or 5-sigma.')
-    parser.add_argument('--mean', '-m',
+                             'rolling median and/or Tukey interval.')
+    parser.add_argument('--median', '-m',
                         action='store_true',
-                        dest='mean',
+                        dest='median',
                         default=False,
-                        help='Draw a rolling mean.')
-    parser.add_argument('--sigma', '-s',
+                        help='Draw a rolling median.')
+    parser.add_argument('--tukey', '-t',
                         action='store_true',
-                        dest='sigma',
+                        dest='tukey',
                         default=False,
-                        help='Draw 5-sigma interval around the rolling mean.')
+                        help=('Draw an interval around the rolling median '
+                              'which indicates the limits of "valid" data '
+                              'points (i.e. data not identified as outliers).'))
     parser.add_argument('--xlimits', '-x',
                         action='store',
                         dest='xlimits',
@@ -840,7 +859,7 @@ if __name__ == '__main__':
          options.xlimits,
          options.outliers,
          options.unique_outliers,
-         mean=options.mean,
-         sigma=options.sigma,
+         median=options.median,
+         tukey=options.tukey,
          inset_xlimit=inset_xlimits,
          one_page=options.one_page)
