@@ -21,11 +21,13 @@ optional arguments:
 """
 
 import argparse
-import bz2
-import json
-import numpy
 import os
 import os.path
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'warmup'))
+from warmup.krun_results import read_krun_results_file, write_krun_results_file
+from warmup.outliers import get_all_outliers, get_outliers
 
 
 def main(in_files, window_size, threshold):
@@ -54,79 +56,6 @@ def main(in_files, window_size, threshold):
         new_filename = create_output_filename(filename, window_size)
         print('Writing out: %s' % new_filename)
         write_krun_results_file(krun_data[filename], new_filename)
-
-
-def get_outliers(all_outliers, window_size, threshold=1):
-    common, unique = list(), list()
-    for index, outliers in enumerate(all_outliers):
-        common_exec = list()
-        unique_exec = list()
-        for outlier in outliers:
-            other_execs = all_outliers[:index] + all_outliers[(index + 1):]
-            sum_ = 0
-            for execution in other_execs:
-                if outlier in execution:
-                    sum_ += 1
-            if sum_ >= threshold:
-                common_exec.append(outlier)
-            else:
-                unique_exec.append(outlier)
-        common.append(common_exec)
-        unique.append(unique_exec)
-    return common, unique
-
-
-def _tuckey_all_outliers(data, window_size):
-    # Ignore windows that do not have a full set of data.
-    all_outliers = list()
-    for index, datum in enumerate(data):
-        l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
-        if l_slice == 0 and r_slice < window_size:
-            continue
-        window = data[l_slice:r_slice]
-        median = numpy.median(window)
-        pc_band = (3 * (numpy.percentile(window, 90.0, interpolation='nearest')
-                        - numpy.percentile(window, 10.0, interpolation='nearest')))
-        if datum > (median + pc_band) or datum < (median - pc_band):
-            all_outliers.append(index)
-    return all_outliers
-
-
-def get_all_outliers(data, window_size):
-    return _tuckey_all_outliers(data, window_size)
-
-
-def _clamp_window_size(index, data_size, window_size=200):
-    """Return the window of data which should be used to calculate a moving
-    window percentile or average. Clamped to the 0th and (len-1)th indices
-    of the sequence.
-
-    E.g.
-    _clamp_window_size(50, 1000, 200)  == (0,   150)
-    _clamp_window_size(300, 1000, 200) == (200, 400)
-    _clamp_window_size(950, 1000, 200) == (850, 1000)
-    """
-    half_window = window_size / 2
-    lh_index = 0 if (index - half_window) < 0 else index - half_window
-    rh_index = data_size if (index + half_window) > data_size else index + half_window
-    return (lh_index, rh_index)
-
-
-def read_krun_results_file(results_file):
-    """Return the JSON data stored in a Krun results file.
-    """
-    results = None
-    with bz2.BZ2File(results_file, 'rb') as file_:
-        results = json.loads(file_.read())
-        return results
-    return None
-
-
-def write_krun_results_file(results, filename):
-    """Write a Krun results file to disk.
-    """
-    with bz2.BZ2File(filename, 'wb') as file_:
-        file_.write(json.dumps(results))
 
 
 def create_output_filename(in_file_name, window_size):

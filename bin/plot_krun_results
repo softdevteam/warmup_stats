@@ -4,9 +4,7 @@ Plot data from Krun results file(s).
 """
 
 import argparse
-import bz2
 import datetime
-import json
 import math
 import matplotlib
 matplotlib.use('Agg')
@@ -18,11 +16,15 @@ import os.path
 import seaborn
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'warmup'))
+from warmup.krun_results import read_krun_results_file
+from warmup.outliers import get_window
+from warmup.plotting import add_margin_to_axes, compute_grid_offsets, style_axis
 from matplotlib.ticker import FormatStrFormatter
 
-seaborn.set_palette("colorblind")
-seaborn.set_style('whitegrid', {"lines.linewidth": 1.0, "axes.linewidth": 1.0})
-seaborn.set_context("paper")
+seaborn.set_palette('colorblind')
+seaborn.set_style('whitegrid', {'lines.linewidth': 1.0, 'axes.linewidth': 1.0})
+seaborn.set_context('paper')
 
 plt.figure(tight_layout=True)
 
@@ -60,9 +62,6 @@ GRID_MAJOR_X_DIVS = 10
 
 GRID_MINOR_Y_DIVS = 12
 GRID_MAJOR_Y_DIVS = 6
-
-SPINE_LINESTYLE = "solid"
-SPINE_LINEWIDTH = 1
 
 LINE_COLOUR = 'k'
 LINE_WIDTH = 1
@@ -197,55 +196,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         print('Saved: %s' % outfile)
 
 
-def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks):
-    ax.set_xticks(major_xticks)
-    ax.set_xticks(minor_xticks, minor=True)
-    ax.set_yticks(major_yticks)
-    ax.set_yticks(minor_yticks, minor=True)
-
-    x_ax = ax.get_xaxis()
-    y_ax = ax.get_yaxis()
-
-    x_ax.set_ticks_position('none')
-    y_ax.set_ticks_position('none')
-    x_ax.set_tick_params(labelsize=TICK_FONTSIZE)
-    y_ax.set_tick_params(labelsize=TICK_FONTSIZE)
-
-    ax.grid(which='minor', alpha=0.4)
-    ax.grid(which='major', alpha=0.8)
-
-    for i in ["top", "bottom"]:
-        ax.spines[i].set_linestyle(SPINE_LINESTYLE)
-        ax.spines[i].set_linewidth(SPINE_LINEWIDTH)
-
-    for i in ["right", "left"]:
-        ax.spines[i].set_visible(False)
-
-    ax.frameon = False
-
-
-def compute_grid_offsets(d_min, d_max, num):
-    rng = float(d_max) - d_min
-    freq =  rng / num
-    return [d_min + i * freq for i in xrange(num + 1)]
-
-
-def _clamp_window_size(index, data_size, window_size=200):
-    """Return the window of data which should be used to calculate a moving
-    window percentile or average. Clamped to the 0th and (len-1)th indices
-    of the sequence.
-
-    E.g.
-    _clamp_window_size(50, 1000, 200)  == (0,   150)
-    _clamp_window_size(300, 1000, 200) == (200, 400)
-    _clamp_window_size(950, 1000, 200) == (850, 1000)
-    """
-    half_window = window_size / 2
-    lh_index = 0 if (index - half_window) < 0 else index - half_window
-    rh_index = data_size if (index + half_window) > data_size else index + half_window
-    return (lh_index, rh_index)
-
-
 def add_inset_to_axis(axis, rect):
     """Adds a new axis to an existing axis, located at rect.
     rect should be a 4-tuple of (left, bottom, width, height) all relative
@@ -259,19 +209,6 @@ def add_inset_to_axis(axis, rect):
     fig_left, fig_bottom = transform((left, bottom))
     fig_width, fig_height = transform([width, height]) - transform([0, 0])
     return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
-
-
-def _no_first_window_get_window(index, window_size, data):
-    # Ignore windows that do not have a full set of data.
-    l_slice, r_slice = _clamp_window_size(index, len(data), window_size)
-    if l_slice == 0 and r_slice < window_size:
-        return []
-    window = data[l_slice:r_slice]
-    return window
-
-
-def _get_window(index, window_size, data):
-    return _no_first_window_get_window(index, window_size, data)
 
 
 def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, outliers,
@@ -302,7 +239,7 @@ def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, out
         medians = list()
         pc_bands = (list(), list())
         for index, datum in enumerate(data):
-            window = _get_window(index, window_size, data)
+            window = get_window(index, window_size, data)
             if not window:
                 medians.append(numpy.nan)
             else:
@@ -317,7 +254,7 @@ def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, out
                 pc_bands[1].append(medians[index] + band)
         if median:  # Plot the median.
             axis.plot(medians, label='Median')
-        if tukey:  # Fill between the Tuckey band.
+        if tukey:  # Fill between the Tukey band.
             iterations = numpy.array(list(xrange(len(data))))
             axis.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
@@ -334,7 +271,7 @@ def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, out
     minor_yticks = compute_grid_offsets(
         y_range[0], y_range[1], GRID_MINOR_Y_DIVS)
 
-    style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks)
+    style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
 
     # Format y-ticks to 3 decimal places.
     axis.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
@@ -354,20 +291,6 @@ def draw_subplot(axis, data, tsr_data, title, x_range, y_range, window_size, out
 
     handles, labels = axis.get_legend_handles_labels()
     return handles, labels
-
-
-def add_margin_to_axes(axis, x=0.01, y=0.01):
-    """Seaborn-friendly way to add margins to axes (default 1% margin).
-    """
-
-    if x > .0:
-        xlim = axis.get_xlim()
-        xmargin = (xlim[1] - xlim[0]) * x
-        axis.set_xlim(xlim[0] - xmargin, xlim[1] + xmargin)
-    if y > .0:
-        ylim = axis.get_ylim()
-        ymargin = (ylim[1] - ylim[0]) * y
-        axis.set_ylim(ylim[0] - ymargin, ylim[1] + ymargin)
 
 
 def draw_page(is_interactive, executions, tsr_executions, titles, window_size, xlimits,
@@ -512,16 +435,6 @@ def set_pdf_metadata(pdf_document):
                             'software virtual machine')
     info_dict['CreationDate'] = datetime.datetime.today()
     info_dict['ModDate'] = datetime.datetime.today()
-
-
-def read_krun_results_file(results_file):
-    """Return the JSON data stored in a Krun results file.
-    """
-    results = None
-    with bz2.BZ2File(results_file, 'rb') as file_:
-        results = json.loads(file_.read())
-        return results
-    return None
 
 
 def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
