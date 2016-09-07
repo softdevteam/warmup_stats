@@ -40,7 +40,7 @@ index b0cbb23..d0691aa 100644
 +    }
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
-index 50a155d..0234ef7 100644
+index 50a155d..5d29054 100644
 --- a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 @@ -141,6 +141,7 @@ import java.util.ArrayList;
@@ -51,66 +51,73 @@ index 50a155d..0234ef7 100644
  
  @CoreClass("Kernel")
  public abstract class KernelNodes {
-@@ -1985,4 +1986,49 @@ public abstract class KernelNodes {
+@@ -1985,4 +1986,56 @@ public abstract class KernelNodes {
  
      }
  
-+    @CoreMethod(names = "read_ts_reg_start", needsSelf=false)
-+    public abstract static class ReadTSRegStartNode extends CoreMethodArrayArgumentsNode {
++    @CoreMethod(names = "read_core_cycles", needsSelf=false)
++    public abstract static class ReadCoreCyclesNode extends CoreMethodArrayArgumentsNode {
 +
 +        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
 +
-+        public ReadTSRegStartNode(RubyContext context, SourceSection sourceSection) {
++        public ReadCoreCyclesNode(RubyContext context, SourceSection sourceSection) {
 +            super(context, sourceSection);
 +        }
 +
 +        @TruffleBoundary
 +        @Specialization
-+        public DynamicObject readTSRegStart() {
-+            final long u64_in_s64 = getContext().getLibKrunTime().read_ts_reg_start();
++        public DynamicObject readCoreCycles() {
++            final long u64_in_s64 = getContext().getLibKrunTime().read_core_cycles();
 +
 +            BigInteger bi = BigInteger.valueOf(u64_in_s64);
 +            if (u64_in_s64 < 0) {
-+                bi = bi.add(ReadTSRegStartNode.negAdjust);
++                bi = bi.add(ReadCoreCyclesNode.negAdjust);
 +            }
 +
 +            return createBignum(bi);
 +        }
 +    }
 +
-+    @CoreMethod(names = "read_ts_reg_stop", needsSelf=false)
-+    public abstract static class ReadTSRegStopNode extends CoreMethodArrayArgumentsNode {
++    @CoreMethod(names = "libkruntime_init", needsSelf=false)
++    public abstract static class LibKruntimeInitNode extends CoreMethodArrayArgumentsNode {
 +
-+        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
-+
-+        public ReadTSRegStopNode(RubyContext context, SourceSection sourceSection) {
++        public LibKruntimeInitNode(RubyContext context, SourceSection sourceSection) {
 +            super(context, sourceSection);
 +        }
 +
 +        @TruffleBoundary
 +        @Specialization
-+        public DynamicObject readTSRegStop() {
-+            final long u64_in_s64 = getContext().getLibKrunTime().read_ts_reg_stop();
++        public DynamicObject libKruntimeInit() {
++            getContext().getLibKrunTime().libkruntime_init();
++            return nil();
++        }
++    }
 +
-+            BigInteger bi = BigInteger.valueOf(u64_in_s64);
-+            if (u64_in_s64 < 0) {
-+                bi = bi.add(ReadTSRegStopNode.negAdjust);
-+            }
++    @CoreMethod(names = "libkruntime_done", needsSelf=false)
++    public abstract static class LibKruntimeDoneNode extends CoreMethodArrayArgumentsNode {
 +
-+            return createBignum(bi);
++        public LibKruntimeDoneNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject libKruntimeDone() {
++            getContext().getLibKrunTime().libkruntime_done();
++            return nil();
 +        }
 +    }
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
 new file mode 100644
-index 0000000..3aa02af
+index 0000000..432f040
 --- /dev/null
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
 @@ -0,0 +1,7 @@
 +package org.jruby.truffle;
 +
 +public interface LibKrunTime {
-+    // these actually return u_int64_t
-+    long read_ts_reg_start();
-+    long read_ts_reg_stop();
++    void libkruntime_init();
++    void libkruntime_done();
++    long read_core_cycles();
 +}

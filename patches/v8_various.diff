@@ -1,17 +1,18 @@
 diff --git a/src/d8.cc b/src/d8.cc
-index 0688380..953762a 100644
+index 0688380..ded492e 100644
 --- a/src/d8.cc
 +++ b/src/d8.cc
-@@ -2,6 +2,8 @@
+@@ -2,6 +2,9 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
 +#include <stdio.h>
++#include <stdint.h>
 +#include <libkruntime.h>
  
  // Defined when linking against shared lib on Windows.
  #if defined(USING_V8_SHARED) && !defined(V8_SHARED)
-@@ -627,6 +629,23 @@ void Shell::Print(const v8::FunctionCallbackInfo<v8::Value>& args) {
+@@ -627,6 +630,27 @@ void Shell::Print(const v8::FunctionCallbackInfo<v8::Value>& args) {
    fflush(stdout);
  }
  
@@ -25,17 +26,21 @@ index 0688380..953762a 100644
 +  args.GetReturnValue().Set(clock_gettime_monotonic());
 +}
 +
-+void Shell::ReadTSRegStartDouble(const v8::FunctionCallbackInfo<v8::Value>& args) {
-+    args.GetReturnValue().Set(read_ts_reg_start_double());
++void Shell::ReadCoreCyclesDouble(const v8::FunctionCallbackInfo<v8::Value>& args) {
++    args.GetReturnValue().Set(read_core_cycles_double());
 +}
 +
-+void Shell::ReadTSRegStopDouble(const v8::FunctionCallbackInfo<v8::Value>& args) {
-+    args.GetReturnValue().Set(read_ts_reg_stop_double());
++void Shell::LibKruntimeInit(const v8::FunctionCallbackInfo<v8::Value>& args) {
++    libkruntime_init();
++}
++
++void Shell::LibKruntimeDone(const v8::FunctionCallbackInfo<v8::Value>& args) {
++    libkruntime_done();
 +}
  
  void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
    for (int i = 0; i < args.Length(); i++) {
-@@ -658,6 +677,33 @@ void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
+@@ -658,6 +682,33 @@ void Shell::Write(const v8::FunctionCallbackInfo<v8::Value>& args) {
    }
  }
  
@@ -69,7 +74,7 @@ index 0688380..953762a 100644
  
  void Shell::Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
    String::Utf8Value file(args[0]);
-@@ -1082,10 +1128,30 @@ Local<ObjectTemplate> Shell::CreateGlobalTemplate(Isolate* isolate) {
+@@ -1082,10 +1133,34 @@ Local<ObjectTemplate> Shell::CreateGlobalTemplate(Isolate* isolate) {
            .ToLocalChecked(),
        FunctionTemplate::New(isolate, Print));
    global_template->Set(
@@ -81,13 +86,17 @@ index 0688380..953762a 100644
 +          .ToLocalChecked(),
 +      FunctionTemplate::New(isolate, ClockGettimeMonotonic));
 +  global_template->Set(
-+      String::NewFromUtf8(isolate, "read_ts_reg_start_double", NewStringType::kNormal)
++      String::NewFromUtf8(isolate, "read_core_cycles_double", NewStringType::kNormal)
 +          .ToLocalChecked(),
-+      FunctionTemplate::New(isolate, ReadTSRegStartDouble));
++      FunctionTemplate::New(isolate, ReadCoreCyclesDouble));
 +  global_template->Set(
-+      String::NewFromUtf8(isolate, "read_ts_reg_stop_double", NewStringType::kNormal)
++      String::NewFromUtf8(isolate, "libkruntime_init", NewStringType::kNormal)
 +          .ToLocalChecked(),
-+      FunctionTemplate::New(isolate, ReadTSRegStopDouble));
++      FunctionTemplate::New(isolate, LibKruntimeInit));
++  global_template->Set(
++      String::NewFromUtf8(isolate, "libkruntime_done", NewStringType::kNormal)
++          .ToLocalChecked(),
++      FunctionTemplate::New(isolate, LibKruntimeDone));
 +  global_template->Set(
        String::NewFromUtf8(isolate, "write", NewStringType::kNormal)
            .ToLocalChecked(),
@@ -123,17 +132,18 @@ index f249a78..38a5003 100644
          'd8.h',
          'd8.cc',
 diff --git a/src/d8.h b/src/d8.h
-index 321d9c1..62cea9b 100644
+index 321d9c1..cbc8448 100644
 --- a/src/d8.h
 +++ b/src/d8.h
-@@ -385,7 +385,12 @@ class Shell : public i::AllStatic {
+@@ -385,7 +385,13 @@ class Shell : public i::AllStatic {
                               const  PropertyCallbackInfo<void>& info);
  
    static void Print(const v8::FunctionCallbackInfo<v8::Value>& args);
 +  static void PrintErr(const v8::FunctionCallbackInfo<v8::Value>& args);
 +  static void ClockGettimeMonotonic(const v8::FunctionCallbackInfo<v8::Value>& args);
-+  static void ReadTSRegStartDouble(const v8::FunctionCallbackInfo<v8::Value>& args);
-+  static void ReadTSRegStopDouble(const v8::FunctionCallbackInfo<v8::Value>& args);
++  static void ReadCoreCyclesDouble(const v8::FunctionCallbackInfo<v8::Value>& args);
++  static void LibKruntimeInit(const v8::FunctionCallbackInfo<v8::Value>& args);
++  static void LibKruntimeDone(const v8::FunctionCallbackInfo<v8::Value>& args);
    static void Write(const v8::FunctionCallbackInfo<v8::Value>& args);
 +  static void WriteErr(const v8::FunctionCallbackInfo<v8::Value>& args);
    static void QuitOnce(v8::FunctionCallbackInfo<v8::Value>* args);
