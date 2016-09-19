@@ -40,7 +40,7 @@ index b0cbb23..d0691aa 100644
 +    }
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
-index 50a155d..5d29054 100644
+index 50a155d..469c667 100644
 --- a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 @@ -141,6 +141,7 @@ import java.util.ArrayList;
@@ -51,7 +51,7 @@ index 50a155d..5d29054 100644
  
  @CoreClass("Kernel")
  public abstract class KernelNodes {
-@@ -1985,4 +1986,56 @@ public abstract class KernelNodes {
+@@ -1985,4 +1986,102 @@ public abstract class KernelNodes {
  
      }
  
@@ -72,6 +72,52 @@ index 50a155d..5d29054 100644
 +            BigInteger bi = BigInteger.valueOf(u64_in_s64);
 +            if (u64_in_s64 < 0) {
 +                bi = bi.add(ReadCoreCyclesNode.negAdjust);
++            }
++
++            return createBignum(bi);
++        }
++    }
++
++    @CoreMethod(names = "read_aperf", needsSelf=false)
++    public abstract static class ReadAperfNode extends CoreMethodArrayArgumentsNode {
++
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public ReadAperfNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject readAperf() {
++            final long u64_in_s64 = getContext().getLibKrunTime().read_aperf();
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(ReadAperfNode.negAdjust);
++            }
++
++            return createBignum(bi);
++        }
++    }
++
++    @CoreMethod(names = "read_mperf", needsSelf=false)
++    public abstract static class ReadMperfNode extends CoreMethodArrayArgumentsNode {
++
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public ReadMperfNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject readMperf() {
++            final long u64_in_s64 = getContext().getLibKrunTime().read_mperf();
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(ReadMperfNode.negAdjust);
 +            }
 +
 +            return createBignum(bi);
@@ -110,14 +156,16 @@ index 50a155d..5d29054 100644
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
 new file mode 100644
-index 0000000..432f040
+index 0000000..52b9713
 --- /dev/null
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,9 @@
 +package org.jruby.truffle;
 +
 +public interface LibKrunTime {
 +    void libkruntime_init();
 +    void libkruntime_done();
 +    long read_core_cycles();
++    long read_aperf();
++    long read_mperf();
 +}
