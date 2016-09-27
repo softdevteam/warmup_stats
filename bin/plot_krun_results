@@ -221,7 +221,7 @@ def draw_subplot(axis, data, cycles_data, title, x_range, y_range, window_size, 
 
     # If there are outliers, highlight them.
     if outliers is not None:
-        axis.scatter(outliers, data_narray, color=OUTLIER_COLOR,
+        axis.scatter(outliers, data_narray[outliers], color=OUTLIER_COLOR,
                      marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers')
     if unique is not None:
         pc_unique = float(len(unique) - window_size) / float(len(data_narray)) * 100.0
