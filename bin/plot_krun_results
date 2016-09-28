@@ -16,7 +16,7 @@ import os.path
 import seaborn
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_margin_to_axes, compute_grid_offsets, style_axis
