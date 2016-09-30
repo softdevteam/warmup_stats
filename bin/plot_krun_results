@@ -8,8 +8,8 @@ import datetime
 import math
 import matplotlib
 matplotlib.use('Agg')
-from matplotlib.collections import LineCollection
-import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as pyplot
 import numpy
 import numpy.random
 import os
@@ -17,6 +17,7 @@ import os.path
 import seaborn
 import sys
 
+from matplotlib.collections import LineCollection
 from matplotlib.ticker import FormatStrFormatter
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -28,7 +29,7 @@ seaborn.set_palette('colorblind')
 seaborn.set_style('whitegrid', {'lines.linewidth': 1.0, 'axes.linewidth': 1.0})
 seaborn.set_context('paper')
 
-plt.figure(tight_layout=True)
+pyplot.figure(tight_layout=True)
 
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
@@ -77,9 +78,9 @@ COMMON_COLOR = 'r'
 COMMON_MARKER = '*'
 COMMON_SIZE = 80
 CYCLES_COLOR = 'green'
-CYCLES_STYLE = '--'
+CYCLES_STYLE = '-'
 PERF_COLOR = 'blue'
-PERF_STYLE = ':'
+PERF_STYLE = '-'
 
 CHANGEPOINT_LINE_STYLE = '-'
 CHANGEPOINT_LINE_COLOR = 'r'
@@ -105,12 +106,12 @@ YTICK_FORMAT = '%.4f'
 PERF_YTICK_FORMAT = '%.1f'
 
 # Default (PDF) font sizes
-TICK_FONTSIZE = 18
+TICK_FONTSIZE = 14
 CYCLES_TICK_FONTSIZE = 14
 TITLE_FONT_SIZE = 20
-AXIS_FONTSIZE = 16
+AXIS_FONTSIZE = 14
 BASE_FONTSIZE = 20
-LEGEND_FONTSIZE = 17
+LEGEND_FONTSIZE = 16
 
 FONT = {
     'family': 'sans',
@@ -120,7 +121,7 @@ FONT = {
 matplotlib.rc('font', **FONT)
 
 MAX_SUBPLOTS_PER_ROW = 2
-EXPORT_SIZE_INCHES = 10, 8  # Based on 1 chart per page.
+EXPORT_SIZE_INCHES = 10, 16
 DPI = 300
 
 
@@ -239,7 +240,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             fig.set_size_inches(*export_size)
             pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
                         bbox_inches='tight')
-            plt.close()
+            pyplot.close()
     if not is_interactive:
         pdf.close()
         print('Saved: %s' % outfile)
@@ -260,39 +261,55 @@ def add_inset_to_axis(axis, rect):
     return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
 
 
-def draw_subplot(axis, data, cycles_data, aperf_data, mperf_data, title,
+def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, title,
                  x_range, y_range, window_size, outliers, unique, common,
-                  changepoints, changepoint_means, median, tukey):
+                 changepoints, changepoint_means, median, tukey):
+    # Marshal data into numpy arrays.
     data_narray = numpy.array(data)
-    cycles_data_narray = numpy.array(cycles_data)
-    perf_data_narray = numpy.array([float(aperf_data[i]) / float(mperf_data[i])
-                                    for i in xrange(len(aperf_data))])
-
-    # Plot the original measurements.
-    axis.plot(data_narray, label='Measurement', color=LINE_COLOUR,
-              zorder=ZORDER_DATA)
+    cycle_data_narrays = list()
+    for core in xrange(len(cycles_data)):
+        cycle_data_narrays.append(numpy.array(cycles_data[core]))
+    perf_data_narrays = list()
+    for core in xrange(len(aperf_data)):
+        perf_data_narrays.append(numpy.array([float(aperf_data[core][i]) / float(mperf_data[core][i])
+                                 for i in xrange(len(aperf_data[core]))]))
+    # Calculate the number of plots needed.
+    n_rows = 1
+    if cycles_data:
+        n_rows += len(cycle_data_narrays)
+    if aperf_data:
+        n_rows += len(perf_data_narrays)
+    inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell, hspace=0.2)
+    # Collect handles and labels, so that we can draw one legend per page.
+    handles_labels = [list(), list()]
+    # Plot wall clock times.
+    axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
+    axis1.plot(data_narray, label='Measurement', color=LINE_COLOUR,
+               zorder=ZORDER_DATA)
     # If there are outliers, highlight them.
     if outliers is not None:
-        axis.scatter(outliers, data_narray[outliers], color=OUTLIER_COLOR,
+        axis1.scatter(outliers, data_narray[outliers], color=OUTLIER_COLOR,
                      marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers',
                      zorder=ZORDER_MARKERS)
     if unique is not None:
         pc_unique = float(len(unique) - window_size) / float(len(data_narray)) * 100.0
-        axis.scatter(unique, data_narray[unique], c=UNIQUE_COLOR,
-                     marker=UNIQUE_MARKER, s=UNIQUE_SIZE, zorder=ZORDER_MARKERS,
-                     label=('Unique outliers (${%.2f}\\%%$)' % pc_unique))
+        axis1.scatter(unique, data_narray[unique], c=UNIQUE_COLOR,
+                     marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
+                     label=('Unique outliers (${%.2f}\\%%$)' % pc_unique),
+                     zorder=ZORDER_MARKERS)
     if common is not None:
         pc_common = float(len(common)) / float(len(data_narray)) * 100.0
-        axis.scatter(common, data_narray[common], c=COMMON_COLOR,
-                     marker=COMMON_MARKER, s=COMMON_SIZE, zorder=ZORDER_MARKERS,
-                     label=('Common outliers (${%.2f}\\%%$)' % pc_common))
+        axis1.scatter(common, data_narray[common], c=COMMON_COLOR,
+                     marker=COMMON_MARKER, s=COMMON_SIZE,
+                     label=('Common outliers (${%.2f}\\%%$)' % pc_common),
+                     zorder=ZORDER_MARKERS)
     # Draw change points and means between them, optionally.
     if changepoint_means:
         means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
         assert len(changepoints) == len(changepoint_means) - 1
         for index, x_location in enumerate(changepoints):
             # Draw changepoint.
-            axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
+            axis1.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
                          zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
                          linewidth=LINE_WIDTH)
             if index == 0:
@@ -313,7 +330,7 @@ def draw_subplot(axis, data, cycles_data, aperf_data, mperf_data, title,
         lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
                                zorder=ZORDER_CHANGEPOINTS,
                                linewidths=[LINE_WIDTH for _ in xrange(len(means))])
-        axis.add_collection(lines)
+        axis1.add_collection(lines)
     # Draw a rolling median (optionally).
     if median or tukey:
         medians = list()
@@ -333,16 +350,15 @@ def draw_subplot(axis, data, cycles_data, aperf_data, mperf_data, title,
                 pc_bands[0].append(medians[index] - band)
                 pc_bands[1].append(medians[index] + band)
         if median:  # Plot the median.
-            axis.plot(medians, label='Median', zorder=ZORDER_MEDIAN)
+            axis1.plot(medians, label='Median', zorder=ZORDER_MEDIAN)
         if tukey:  # Fill between the Tukey band.
             iterations = numpy.array(list(xrange(len(data))))
-            axis.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
-                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
-                              zorder=ZORDER_FILL_REGION)
-            axis.fill_between(iterations, medians, pc_bands[1], alpha=FILL_ALPHA,
-                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
-                              zorder=ZORDER_FILL_REGION)
-
+            axis1.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
+                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
+                               zorder=ZORDER_FILL_REGION)
+            axis1.fill_between(iterations, medians, pc_bands[1], alpha=FILL_ALPHA,
+                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
+                               zorder=ZORDER_FILL_REGION)
     # Re-style the chart.
     major_xticks = compute_grid_offsets(
         x_range[0], x_range[1], GRID_MAJOR_X_DIVS)
@@ -352,51 +368,74 @@ def draw_subplot(axis, data, cycles_data, aperf_data, mperf_data, title,
         y_range[0], y_range[1], GRID_MAJOR_Y_DIVS)
     minor_yticks = compute_grid_offsets(
         y_range[0], y_range[1], GRID_MINOR_Y_DIVS)
-
-    style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-
+    style_axis(axis1, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
     # Format y-ticks to 3 decimal places.
-    axis.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
-
-    # Set title, axis labels and legend.
-    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-    axis.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
-    axis.set_ylabel('Time(s)', fontsize=AXIS_FONTSIZE)
-    axis.set_ylim(y_range)
-    num_yticks = len(axis.get_yticks())
-
-    # Add core cycles data on a second y-axis.
-    axis2 = axis.twinx()
-    axis2.plot(cycles_data_narray, color=CYCLES_COLOR, linestyle=CYCLES_STYLE,
-               label='Core cycles')
-    y_ax2 = axis2.get_yaxis()
-    # Share grid lines with the measurement plot on axis.
-    axis2.set_yticks(numpy.linspace(axis2.get_yticks()[0], axis2.get_yticks()[-1],
-                                   num_yticks))
-    y_ax2.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-    axis2.set_ylabel('# Core Cycles', fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
-
-    # Add aperf/mperf data on a third y-axis.
-    axis3 = axis.twinx()
-    axis3.plot(perf_data_narray, color=PERF_COLOR, linestyle=PERF_STYLE,
-               label='aperf/mperf ratio', clip_on=False)
-    axis3.set_ylim(PERF_YRANGE)
-    y_ax3 = axis3.get_yaxis()
-    # Share grid lines with the measurement plot on axis.
-    axis3.set_yticks(numpy.linspace(axis3.get_yticks()[0], axis3.get_yticks()[-1],
-                                   num_yticks))
-    y_ax3.set_major_formatter(matplotlib.ticker.FormatStrFormatter(PERF_YTICK_FORMAT))
-    y_ax3.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE, colors=PERF_COLOR,
-                          right=True, direction='in', which='both', pad=1)
-    axis3.set_ylabel('aperf/mperf ratio', fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
-    # Move the third y-axis to the right, so that ticks and labels are visible.
-    axis3.spines['right'].set_position(('axes', TWINX_OFFSET))
-
+    axis1.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
+    # Plot title goes above the top subplot.
+    if not (cycles_data or aperf_data):
+        axis1.set_title(title, fontsize=TITLE_FONT_SIZE)
+    # Axis labels.
+    axis1.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
+    axis1.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE)
+    axis1.yaxis.set_label_position('right')
+    # Add all items to page legend.
+    handles, labels = axis1.get_legend_handles_labels()
+    handles_labels[0] += handles
+    handles_labels[1] += labels
+    # Add core cycles data on another set of charts.
+    if cycles_data:
+        for core in xrange(len(cycle_data_narrays)):
+            axis = pyplot.subplot(inner_grid[n_rows - 2 - core, 0], sharex=axis1)
+            pyplot.setp(axis.get_xticklabels(), visible=False)
+            axis.plot(cycle_data_narrays[core], linestyle=CYCLES_STYLE,
+                        color=CYCLES_COLOR, label=('Core %d cycles' % core))
+            y_ax = axis.get_yaxis()
+            y_ax.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
+            axis.set_ylabel('CC Core %d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
+            axis.yaxis.set_label_position('right')
+            ymin, ymax = axis.get_ylim()
+            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
+            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+            if core == 0:
+                # Add all items to page legend (only once).
+                handles, labels = axis.get_legend_handles_labels()
+                handles_labels[0] += handles
+                handles_labels[1].append('Number of Core cycles')
+                # Plot title goes above the top subplot (only once).
+                if not aperf_data:
+                    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
+    # Add aperf/mperf data on another set of charts.
+    if aperf_data:
+        for core in xrange(len(perf_data_narrays)):
+            axis = pyplot.subplot(inner_grid[core, 0], sharex=axis1)
+            axis.plot(perf_data_narrays[core], linestyle=PERF_STYLE, color=PERF_COLOR,
+                       label=('Core %d aperf/mperf ratio' % core), clip_on=False)
+            pyplot.setp(axis.get_xticklabels(), visible=False)
+            axis.set_ylim(PERF_YRANGE)
+            y_ax = axis.get_yaxis()
+            y_ax.set_major_formatter(matplotlib.ticker.FormatStrFormatter(PERF_YTICK_FORMAT))
+            y_ax.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE, colors=PERF_COLOR,
+                                  right=True, direction='in', which='both', pad=1)
+            axis.set_ylabel('AMR Core %d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
+            axis.yaxis.set_label_position('right')
+            ymin, ymax = axis.get_ylim()
+            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
+            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+            if core == 0:
+                # Add all items to page legend.
+                handles, labels = axis.get_legend_handles_labels()
+                handles_labels[0] += handles
+                handles_labels[1].append('aperf/mperf ratio')
+                # Plot title goes above the top subplot.
+                axis.set_title(title, fontsize=TITLE_FONT_SIZE)
+    # x-limits (shared with all axes) and y-limits.
+    # Margin MUST be adjusted after plotting is complete.
+    add_margin_to_axes(axis1, x=0.02, y=0.0)
+    axis1.set_ylim(y_range)
     # Return lines and labels so that we can draw a single legend for the page.
-    handles1, labels1 = axis.get_legend_handles_labels()
-    handles2, labels2 = axis2.get_legend_handles_labels()
-    handles3, labels3 = axis3.get_legend_handles_labels()
-    return handles1 + handles2 + handles3, labels1 + labels2 + labels3
+    return handles_labels
 
 
 def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
@@ -433,7 +472,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     y_min -= adj
     y_max += adj
 
-    fig, axes = plt.subplots(n_rows, n_cols, squeeze=False)
+    fig = pyplot.figure()
+    outer_grid = gridspec.GridSpec(n_rows, n_cols)
 
     index, row, col = 0, 0, 0
     while index < n_execs:
@@ -447,14 +487,13 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         changepoint_exec = changepoints[index] if changepoints is not None else None
         changepoint_mean_exec = changepoint_means[index] if changepoint_means is not None else None
         # Get axis and draw plot.
-        axis = axes[row, col]
-        axis.ticklabel_format(useOffset=False)
+        inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
-        axis.set_xlim(x_bounds)
-        handles, labels = draw_subplot(axis, data, cycles_data, aperf_data, mperf_data,
-                                       titles[index], x_bounds, [y_min, y_max],
-                                       window_size, outliers_exec, unique_exec,
-                                       common_exec, changepoint_exec, changepoint_mean_exec, median, tukey)
+        handles, labels = draw_process_exec(inner_grid, data, cycles_data,
+                              aperf_data, mperf_data, titles[index], x_bounds,
+                              [y_min, y_max], window_size, outliers_exec,
+                              unique_exec, common_exec, changepoint_exec, changepoint_mean_exec,
+                              median, tukey)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -468,7 +507,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     if inset_xlimit is not None:
         index, row, col = 0, 0, 0
         while index < n_execs:
-            axis = axes[row, col]
+            axis = outer_grid[row, col]
             inset = add_inset_to_axis(axis, INSET_RECT)
             inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
             inset.grid(False)  # Too many lines and y-ticks looks very messy.
@@ -485,18 +524,6 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
                 row += 1
             index = row * MAX_SUBPLOTS_PER_ROW + col
 
-    # Add margin to x-axis. Must be done *after* setting xlim and ylim
-    # and calling subplots_adjust().
-    index, row, col = 0, 0, 0
-    while index < n_execs:
-        axis = axes[row, col]
-        add_margin_to_axes(axis, x=0.02, y=0)
-        col += 1
-        if col == MAX_SUBPLOTS_PER_ROW:
-            col = 0
-            row += 1
-        index = row * MAX_SUBPLOTS_PER_ROW + col
-
     if tukey:  # Add Tukey band to legend.
         fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
                                               alpha=FILL_ALPHA)
@@ -508,14 +535,14 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
                fontsize=LEGEND_FONTSIZE, ncol=10,)
 
     if is_interactive:
-        mng = plt.get_current_fig_manager()
+        mng = pyplot.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
-        plt.show()
-        plt.close()
+        pyplot.show()
+        pyplot.close()
         return None, None
     else:
         # Return the figure to be saved in a multipage PDF.
-        # Caller MUST close plt.
+        # Caller MUST close pyplot.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
                        EXPORT_SIZE_INCHES[1] * n_rows)
         return fig, export_size
@@ -596,11 +623,11 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
 
         # Collect any results requested from this file.
         if benchmarks == []:  # Chart all available data from this file.
-            for key in data['data']:
-                if len(data['data'][key]) == 0:
+            for key in data['wallclock_times']:
+                if len(data['wallclock_times'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))
-                elif len(data['data'][key][0]) == 0:
+                elif len(data['wallclock_times'][key][0]) == 0:
                     print('WARNING: Skipping: %s from %s (benchmark crashed)' %
                           (key, machine))
                 else:
@@ -609,8 +636,10 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                         data_dictionary['cycles_data'][key] = dict()
                         data_dictionary['aperf_data'][key] = dict()
                         data_dictionary['mperf_data'][key] = dict()
-                    data_dictionary['data'][key][machine] = data['data'][key]
-                    data_dictionary['cycles_data'][key][machine] = data['core_cycles_data'][key]
+                    data_dictionary['data'][key][machine] = data['wallclock_times'][key]
+                    data_dictionary['cycles_data'][key][machine] = data['core_cycle_counts'][key]
+                    data_dictionary['aperf_data'][key][machine] = data['aperf_counts'][key]
+                    data_dictionary['mperf_data'][key][machine] = data['mperf_counts'][key]
             # Construct plot titles for all data in this file.
             for key in data_dictionary['data']:
                 if key not in plot_titles:
@@ -646,7 +675,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
             for key in requested_data:
                 if machine not in requested_data[key]:
                     continue
-                if key not in data['data']:
+                if key not in data['wallclock_times']:
                     # Hope the key appears in another file, checked below.
                     continue
                 # FIXME: Core cycles and aperf/mperf data needs to go here.
@@ -658,10 +687,10 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     plot_titles[key] = dict()
                 if machine not in plot_titles[key]:
                     plot_titles[key][machine] = list()
-                if len(data['data'][key]) == 0:
+                if len(data['wallclock_times'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))
-                elif len(data['data'][key][0]) == 0:
+                elif len(data['wallclock_times'][key][0]) == 0:
                     print('WARNING: Skipping: %s from %s (benchmark '
                           'crashed)' % (key, machine))
                 else:
@@ -671,7 +700,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     else:
                         benchmark_name = benchmark_name.title()
                     for p_exec in requested_data[key][machine]:
-                        if p_exec >= len(data['data'][key][p_exec]):
+                        if p_exec >= len(data['wallclock_times'][key][p_exec]):
                             fatal_error('You requested that process '
                                         'execution %g for benchmark %s '
                                         'from machine %s be plotted, but '
@@ -681,10 +710,10 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                                         (p_exec,
                                          key,
                                          machine,
-                                         len(data['data'][key][p_exec])))
+                                         len(data['wallclock_times'][key][p_exec])))
                         # Add run sequence to data dictionary.
                         print 'Adding run sequence to ', key, machine
-                        data_dictionary['data'][key][machine].append(data['data'][key][p_exec])
+                        data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
                         # Construct plot title.
                         title = '%s, %s, %s, Process execution #%d' % \
                                 (benchmark_name,
@@ -864,9 +893,8 @@ if __name__ == '__main__':
     if options.outliers and options.unique_outliers:
         fatal_error('Cannot use --with-outliers and --with-unique-outliers '
                     'together.')
-    plt.close()  # avoid extra blank window
     if options.outfile is None:
-        plt.switch_backend('TkAgg')
+        pyplot.switch_backend('TkAgg')
     else:
         from matplotlib.backends.backend_pdf import PdfPages
         print 'Saving results to: %s' % options.outfile
