@@ -262,17 +262,18 @@ def add_inset_to_axis(axis, rect):
 
 
 def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, title,
-                 x_range, y_range, window_size, outliers, unique, common,
+                 x_bounds, y_range, window_size, outliers, unique, common,
                  changepoints, changepoint_means, median, tukey):
+    iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
     # Marshal data into numpy arrays.
-    data_narray = numpy.array(data)
+    data_narray = numpy.array(data[x_bounds[0]:x_bounds[1]])
     cycle_data_narrays = list()
-    for core in xrange(len(cycles_data)):
-        cycle_data_narrays.append(numpy.array(cycles_data[core]))
+    for core in xrange(len(cycles_data)):  # For each core.
+        cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
     perf_data_narrays = list()
-    for core in xrange(len(aperf_data)):
+    for core in xrange(len(aperf_data)):  # For each core.
         perf_data_narrays.append(numpy.array([float(aperf_data[core][i]) / float(mperf_data[core][i])
-                                 for i in xrange(len(aperf_data[core]))]))
+                                 for i in xrange(x_bounds[0], x_bounds[1])]))
     # Calculate the number of plots needed.
     n_rows = 1
     if cycles_data:
@@ -284,22 +285,27 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, titl
     handles_labels = [list(), list()]
     # Plot wall clock times.
     axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
-    axis1.plot(data_narray, label='Measurement', color=LINE_COLOUR,
+    axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
                zorder=ZORDER_DATA)
     # If there are outliers, highlight them.
     if outliers is not None:
-        axis1.scatter(outliers, data_narray[outliers], color=OUTLIER_COLOR,
-                     marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers',
-                     zorder=ZORDER_MARKERS)
+        outliers_x = [val for val in outliers if val >= x_bounds[0] and val < x_bounds[1]]
+        outliers_y = [val - x_bounds[0] for val in outliers if val >= x_bounds[0] and val < x_bounds[1]]
+        axis1.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
+                     marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers', zorder=ZORDER_MARKERS)
     if unique is not None:
-        pc_unique = float(len(unique) - window_size) / float(len(data_narray)) * 100.0
-        axis1.scatter(unique, data_narray[unique], c=UNIQUE_COLOR,
+        unique_x = [val for val in unique if val >= x_bounds[0] and val < x_bounds[1]]
+        unique_y = [val - x_bounds[0] for val in unique if val >= x_bounds[0] and val < x_bounds[1]]
+        pc_unique = float(len(unique_y) - window_size) / float(len(data_narray)) * 100.0
+        axis1.scatter(unique_x, data_narray[unique_y], c=UNIQUE_COLOR,
                      marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
                      label=('Unique outliers (${%.2f}\\%%$)' % pc_unique),
                      zorder=ZORDER_MARKERS)
     if common is not None:
-        pc_common = float(len(common)) / float(len(data_narray)) * 100.0
-        axis1.scatter(common, data_narray[common], c=COMMON_COLOR,
+        common_x = [val for val in common if val >= x_bounds[0] and val < x_bounds[1]]
+        common_y = [val - x_bounds[0] for val in common if val >= x_bounds[0] and val < x_bounds[1]]
+        pc_common = float(len(common_y)) / float(len(data_narray)) * 100.0
+        axis1.scatter(common_x, data_narray[common_y], c=COMMON_COLOR,
                      marker=COMMON_MARKER, s=COMMON_SIZE,
                      label=('Common outliers (${%.2f}\\%%$)' % pc_common),
                      zorder=ZORDER_MARKERS)
@@ -335,8 +341,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, titl
     if median or tukey:
         medians = list()
         pc_bands = (list(), list())
-        for index, datum in enumerate(data):
-            window = get_window(index, window_size, data)
+        for index, datum in enumerate(data[x_bounds[0]:x_bounds[1]]):
+            window = get_window(index, window_size, data[x_bounds[0]:x_bounds[1]])
             if not window:
                 medians.append(numpy.nan)
             else:
@@ -350,9 +356,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, titl
                 pc_bands[0].append(medians[index] - band)
                 pc_bands[1].append(medians[index] + band)
         if median:  # Plot the median.
-            axis1.plot(medians, label='Median', zorder=ZORDER_MEDIAN)
+            axis1.plot(iterations, medians, label='Median', zorder=ZORDER_MEDIAN)
         if tukey:  # Fill between the Tukey band.
-            iterations = numpy.array(list(xrange(len(data))))
             axis1.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
                                facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
                                zorder=ZORDER_FILL_REGION)
@@ -361,9 +366,9 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, titl
                                zorder=ZORDER_FILL_REGION)
     # Re-style the chart.
     major_xticks = compute_grid_offsets(
-        x_range[0], x_range[1], GRID_MAJOR_X_DIVS)
+        x_bounds[0], x_bounds[1], GRID_MAJOR_X_DIVS)
     minor_xticks = compute_grid_offsets(
-        x_range[0],x_range[1], GRID_MINOR_X_DIVS)
+        x_bounds[0],x_bounds[1], GRID_MINOR_X_DIVS)
     major_yticks = compute_grid_offsets(
         y_range[0], y_range[1], GRID_MAJOR_Y_DIVS)
     minor_yticks = compute_grid_offsets(
@@ -387,7 +392,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, titl
         for core in xrange(len(cycle_data_narrays)):
             axis = pyplot.subplot(inner_grid[n_rows - 2 - core, 0], sharex=axis1)
             pyplot.setp(axis.get_xticklabels(), visible=False)
-            axis.plot(cycle_data_narrays[core], linestyle=CYCLES_STYLE,
+            axis.plot(iterations, cycle_data_narrays[core], linestyle=CYCLES_STYLE,
                         color=CYCLES_COLOR, label=('Core %d cycles' % core))
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
@@ -409,8 +414,9 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data, titl
     if aperf_data:
         for core in xrange(len(perf_data_narrays)):
             axis = pyplot.subplot(inner_grid[core, 0], sharex=axis1)
-            axis.plot(perf_data_narrays[core], linestyle=PERF_STYLE, color=PERF_COLOR,
-                       label=('Core %d aperf/mperf ratio' % core), clip_on=False)
+            axis.plot(iterations, perf_data_narrays[core], linestyle=PERF_STYLE,
+                       color=PERF_COLOR, clip_on=False,
+                       label=('Core %d aperf/mperf ratio' % core))
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(PERF_YRANGE)
             y_ax = axis.get_yaxis()
