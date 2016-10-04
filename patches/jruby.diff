@@ -40,7 +40,7 @@ index b0cbb23..d0691aa 100644
 +    }
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
-index 50a155d..469c667 100644
+index 50a155d..634fe90 100644
 --- a/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/KernelNodes.java
 @@ -141,6 +141,7 @@ import java.util.ArrayList;
@@ -51,121 +51,167 @@ index 50a155d..469c667 100644
  
  @CoreClass("Kernel")
  public abstract class KernelNodes {
-@@ -1985,4 +1986,102 @@ public abstract class KernelNodes {
+@@ -1985,4 +1986,145 @@ public abstract class KernelNodes {
  
      }
  
-+    @CoreMethod(names = "read_core_cycles", needsSelf=false)
-+    public abstract static class ReadCoreCyclesNode extends CoreMethodArrayArgumentsNode {
++    @CoreMethod(names = "krun_init", needsSelf=false)
++    public abstract static class KrunInitNode extends CoreMethodArrayArgumentsNode {
 +
-+        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
-+
-+        public ReadCoreCyclesNode(RubyContext context, SourceSection sourceSection) {
++        public KrunInitNode(RubyContext context, SourceSection sourceSection) {
 +            super(context, sourceSection);
 +        }
 +
 +        @TruffleBoundary
 +        @Specialization
-+        public DynamicObject readCoreCycles() {
-+            final long u64_in_s64 = getContext().getLibKrunTime().read_core_cycles();
-+
-+            BigInteger bi = BigInteger.valueOf(u64_in_s64);
-+            if (u64_in_s64 < 0) {
-+                bi = bi.add(ReadCoreCyclesNode.negAdjust);
-+            }
-+
-+            return createBignum(bi);
-+        }
-+    }
-+
-+    @CoreMethod(names = "read_aperf", needsSelf=false)
-+    public abstract static class ReadAperfNode extends CoreMethodArrayArgumentsNode {
-+
-+        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
-+
-+        public ReadAperfNode(RubyContext context, SourceSection sourceSection) {
-+            super(context, sourceSection);
-+        }
-+
-+        @TruffleBoundary
-+        @Specialization
-+        public DynamicObject readAperf() {
-+            final long u64_in_s64 = getContext().getLibKrunTime().read_aperf();
-+
-+            BigInteger bi = BigInteger.valueOf(u64_in_s64);
-+            if (u64_in_s64 < 0) {
-+                bi = bi.add(ReadAperfNode.negAdjust);
-+            }
-+
-+            return createBignum(bi);
-+        }
-+    }
-+
-+    @CoreMethod(names = "read_mperf", needsSelf=false)
-+    public abstract static class ReadMperfNode extends CoreMethodArrayArgumentsNode {
-+
-+        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
-+
-+        public ReadMperfNode(RubyContext context, SourceSection sourceSection) {
-+            super(context, sourceSection);
-+        }
-+
-+        @TruffleBoundary
-+        @Specialization
-+        public DynamicObject readMperf() {
-+            final long u64_in_s64 = getContext().getLibKrunTime().read_mperf();
-+
-+            BigInteger bi = BigInteger.valueOf(u64_in_s64);
-+            if (u64_in_s64 < 0) {
-+                bi = bi.add(ReadMperfNode.negAdjust);
-+            }
-+
-+            return createBignum(bi);
-+        }
-+    }
-+
-+    @CoreMethod(names = "libkruntime_init", needsSelf=false)
-+    public abstract static class LibKruntimeInitNode extends CoreMethodArrayArgumentsNode {
-+
-+        public LibKruntimeInitNode(RubyContext context, SourceSection sourceSection) {
-+            super(context, sourceSection);
-+        }
-+
-+        @TruffleBoundary
-+        @Specialization
-+        public DynamicObject libKruntimeInit() {
-+            getContext().getLibKrunTime().libkruntime_init();
++        public DynamicObject krunInit() {
++            getContext().getLibKrunTime().krun_init();
 +            return nil();
 +        }
 +    }
 +
-+    @CoreMethod(names = "libkruntime_done", needsSelf=false)
-+    public abstract static class LibKruntimeDoneNode extends CoreMethodArrayArgumentsNode {
++    @CoreMethod(names = "krun_done", needsSelf=false)
++    public abstract static class KrunDoneNode extends CoreMethodArrayArgumentsNode {
 +
-+        public LibKruntimeDoneNode(RubyContext context, SourceSection sourceSection) {
++        public KrunDoneNode(RubyContext context, SourceSection sourceSection) {
 +            super(context, sourceSection);
 +        }
 +
 +        @TruffleBoundary
 +        @Specialization
-+        public DynamicObject libKruntimeDone() {
-+            getContext().getLibKrunTime().libkruntime_done();
++        public DynamicObject krunDone() {
++            getContext().getLibKrunTime().krun_done();
 +            return nil();
++        }
++    }
++
++    @CoreMethod(names = "krun_measure", required=1, needsSelf=false)
++    public abstract static class KrunMeasureNode extends CoreMethodArrayArgumentsNode {
++
++        public KrunMeasureNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject krunMeasure(int mdata_index) {
++            getContext().getLibKrunTime().krun_measure(mdata_index);
++            return nil();
++        }
++    }
++
++    @CoreMethod(names = "krun_get_wallclock", required=1, needsSelf=false)
++    public abstract static class KrunGetWallclockNode extends CoreMethodArrayArgumentsNode {
++
++        public KrunGetWallclockNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public double krunGetWallclock(int mdata_index) {
++            return getContext().getLibKrunTime().krun_get_wallclock(mdata_index);
++        }
++    }
++
++    @CoreMethod(names = "krun_get_num_cores", needsSelf=false)
++    public abstract static class KrunGetNumCoresNode extends CoreMethodArrayArgumentsNode {
++
++        public KrunGetNumCoresNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public double krunGetNumCores() {
++            return getContext().getLibKrunTime().krun_get_num_cores();
++        }
++    }
++
++    @CoreMethod(names = "krun_get_core_cycles", required=2, needsSelf=false)
++    public abstract static class KrunGetCoreCyclesNode extends CoreMethodArrayArgumentsNode {
++
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public KrunGetCoreCyclesNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject krunGetCoreCycles(int mdata_index, int core) {
++            final long u64_in_s64 = getContext().getLibKrunTime().krun_get_core_cycles(mdata_index, core);
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(KrunGetCoreCyclesNode.negAdjust);
++            }
++
++            return createBignum(bi);
++        }
++    }
++
++    @CoreMethod(names = "krun_get_aperf", required=2, needsSelf=false)
++    public abstract static class KrunGetAperfNode extends CoreMethodArrayArgumentsNode {
++
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public KrunGetAperfNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject krunGetAperf(int mdata_index, int core) {
++            final long u64_in_s64 = getContext().getLibKrunTime().krun_get_aperf(mdata_index, core);
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(KrunGetAperfNode.negAdjust);
++            }
++
++            return createBignum(bi);
++        }
++    }
++
++    @CoreMethod(names = "krun_get_mperf", required=2, needsSelf=false)
++    public abstract static class KrunGetMperfNode extends CoreMethodArrayArgumentsNode {
++
++        private static final BigInteger negAdjust = BigInteger.ONE.shiftLeft(64); // 2^64
++
++        public KrunGetMperfNode(RubyContext context, SourceSection sourceSection) {
++            super(context, sourceSection);
++        }
++
++        @TruffleBoundary
++        @Specialization
++        public DynamicObject krunGetMperf(int mdata_index, int core) {
++            final long u64_in_s64 = getContext().getLibKrunTime().krun_get_mperf(mdata_index, core);
++
++            BigInteger bi = BigInteger.valueOf(u64_in_s64);
++            if (u64_in_s64 < 0) {
++                bi = bi.add(KrunGetMperfNode.negAdjust);
++            }
++
++            return createBignum(bi);
 +        }
 +    }
  }
 diff --git a/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
 new file mode 100644
-index 0000000..52b9713
+index 0000000..810b54a
 --- /dev/null
 +++ b/truffle/src/main/java/org/jruby/truffle/core/kernel/LibKrunTime.java
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,12 @@
 +package org.jruby.truffle;
 +
 +public interface LibKrunTime {
-+    void libkruntime_init();
-+    void libkruntime_done();
-+    long read_core_cycles();
-+    long read_aperf();
-+    long read_mperf();
++    void krun_init();
++    void krun_done();
++    void krun_measure(int mdata_index);
++    int krun_get_num_cores();
++    double krun_get_wallclock(int mdata_index);
++    long krun_get_core_cycles(int mdata_index, int core);
++    long krun_get_aperf(int mdata_index, int core);
++    long krun_get_mperf(int mdata_index, int core);
 +}
