@@ -8,6 +8,7 @@ import datetime
 import math
 import matplotlib
 matplotlib.use('Agg')
+from matplotlib.collections import LineCollection
 import matplotlib.pyplot as plt
 import numpy
 import numpy.random
@@ -77,6 +78,16 @@ COMMON_COLOR = 'r'
 COMMON_MARKER = '*'
 COMMON_SIZE = 80
 
+CHANGEPOINT_LINE_STYLE = '-'
+CHANGEPOINT_LINE_COLOR = 'r'
+
+ZORDER_GRID = 1
+ZORDER_DATA = 5
+ZORDER_FILL_REGION = 7
+ZORDER_MEDIAN = 8
+ZORDER_CHANGEPOINTS = 10
+ZORDER_MARKERS = 20
+
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_RECT = (0.675, 0.82, 0.3, 0.15)
 INSET_TICK_FONTSIZE = 14
@@ -104,8 +115,8 @@ DPI = 300
 
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
-         xlimits, with_outliers, unique_outliers, median=False, tukey=False,
-         inset_xlimit=None, one_page=False):
+         xlimits, with_outliers, unique_outliers, changepoints, median=False,
+         tukey=False, inset_xlimit=None, one_page=False):
     """Determine which plots to put on each page of output.
     Plot all data.
     """
@@ -119,6 +130,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # Run sequences, outliers and subplot titles for each page we need to plot.
     pages, cycles_pages, all_subplot_titles = list(), list(), list()
     all_outliers, all_common, all_unique = list(), list(), list()
+    all_changepoints, all_changepoint_means = list(), list()
 
     # By default, each benchmark from each machine is placed on a separate
     # page. If the --one-page switch has been passed in, then we place
@@ -128,6 +140,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         # XXX revise this
         page, cycles_page, subplot_titles = list(), list(), list()
         page_common, page_unique, page_outlier = list(), list(), list()
+        page_changepoints, page_changepoint_means = list(), list()
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
                 for index, run_seq in enumerate(data_dcts['data'][key][machine]):
@@ -148,12 +161,20 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     else:
                         page_common.append(None)
                         page_unique.append(None)
+                    if changepoints:
+                        page_changepoints.append(data_dcts['changepoints'][key][machine][index])
+                        page_changepoint_means.append(data_dcts['changepoint_means'][key][machine][index])
+                    else:
+                        page_changepoints.append(None)
+                        page_changepoint_means.append(None)
         pages.append(page)
         cycles_pages.append(cycles_page)
         all_subplot_titles.append(subplot_titles)
         all_outliers.append(page_outlier)
         all_common.append(page_common)
         all_unique.append(page_unique)
+        all_changepoints.append(page_changepoints)
+        all_changepoint_means.append(page_changepoint_means)
     else:  # Create multiple pages.
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
@@ -170,6 +191,12 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 else:
                     all_common.append(None)
                     all_unique.append(None)
+                if changepoints:
+                    all_changepoints.append(data_dcts['changepoints'][key][machine])
+                    all_changepoint_means.append(data_dcts['changepoint_means'][key][machine])
+                else:
+                    all_changepoints.append(None)
+                    all_changepoint_means.append(None)
 
     # Draw each page and display (interactive mode) or save to disk.
     for index, page in enumerate(pages):
@@ -183,6 +210,8 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                      all_outliers[index],
                                      all_unique[index],
                                      all_common[index],
+                                     all_changepoints[index],
+                                     all_changepoint_means[index],
                                      median,
                                      tukey,
                                      inset_xlimit)
@@ -212,28 +241,56 @@ def add_inset_to_axis(axis, rect):
 
 
 def draw_subplot(axis, data, cycles_data, title, x_range, y_range, window_size, outliers,
-                 unique, common, median, tukey):
+                 unique, common, changepoints, changepoint_means, median, tukey):
     data_narray = numpy.array(data)
     cycles_data_narray = numpy.array(cycles_data)
 
     # Plot the original measurements.
-    axis.plot(data_narray, label='Measurement', color=LINE_COLOUR)
-
-    # If there are outliers, highlight them.
-    if outliers is not None:
+    axis.plot(data_narray, label='Measurement', color=LINE_COLOUR,
+              zorder=ZORDER_DATA)
+    # Mark outliers, optionally.
+    if outliers:
         axis.scatter(outliers, data_narray[outliers], color=OUTLIER_COLOR,
-                     marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers')
-    if unique is not None:
+                     marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers',
+                     zorder=ZORDER_MARKERS)
+    if unique:
         pc_unique = float(len(unique) - window_size) / float(len(data_narray)) * 100.0
         axis.scatter(unique, data_narray[unique], c=UNIQUE_COLOR,
-                     marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
+                     marker=UNIQUE_MARKER, s=UNIQUE_SIZE, zorder=ZORDER_MARKERS,
                      label=('Unique outliers (${%.2f}\\%%$)' % pc_unique))
-    if common is not None:
+    if common:
         pc_common = float(len(common)) / float(len(data_narray)) * 100.0
         axis.scatter(common, data_narray[common], c=COMMON_COLOR,
-                     marker=COMMON_MARKER, s=COMMON_SIZE,
+                     marker=COMMON_MARKER, s=COMMON_SIZE, zorder=ZORDER_MARKERS,
                      label=('Common outliers (${%.2f}\\%%$)' % pc_common))
-
+    # Draw change points and means between them, optionally.
+    if changepoint_means:
+        means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
+        assert len(changepoints) == len(changepoint_means) - 1
+        for index, x_location in enumerate(changepoints):
+            # Draw changepoint.
+            axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
+                         zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
+                         linewidth=LINE_WIDTH)
+            if index == 0:
+                means.append([(0, changepoint_means[0]),
+                             (x_location, changepoint_means[0])])
+            else:
+                means.append([(changepoints[index - 1], changepoint_means[index]),
+                             (x_location, changepoint_means[index])])
+        if len(changepoints) == 0:
+            # No changepoints in this execution, but we want to draw the mean.
+            means.append([(0, changepoint_means[-1]),
+                         (len(data_narray), changepoint_means[-1])])
+        else:
+            means.append([(changepoints[-1], changepoint_means[-1]),
+                         (len(data_narray), changepoint_means[-1])])
+        # Add changepoint means to chart, on top of all other splines.
+        assert len(means) == len(changepoint_means)
+        lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
+                               zorder=ZORDER_CHANGEPOINTS,
+                               linewidths=[LINE_WIDTH for _ in xrange(len(means))])
+        axis.add_collection(lines)
     # Draw a rolling median (optionally).
     if median or tukey:
         medians = list()
@@ -253,13 +310,15 @@ def draw_subplot(axis, data, cycles_data, title, x_range, y_range, window_size, 
                 pc_bands[0].append(medians[index] - band)
                 pc_bands[1].append(medians[index] + band)
         if median:  # Plot the median.
-            axis.plot(medians, label='Median')
+            axis.plot(medians, label='Median', zorder=ZORDER_MEDIAN)
         if tukey:  # Fill between the Tukey band.
             iterations = numpy.array(list(xrange(len(data))))
             axis.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
-                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
+                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
+                              zorder=ZORDER_FILL_REGION)
             axis.fill_between(iterations, medians, pc_bands[1], alpha=FILL_ALPHA,
-                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR)
+                              facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
+                              zorder=ZORDER_FILL_REGION)
 
     # Re-style the chart.
     major_xticks = compute_grid_offsets(
@@ -284,17 +343,18 @@ def draw_subplot(axis, data, cycles_data, title, x_range, y_range, window_size, 
 
     # Add core cycles data on a different Y-axis
     axis2 = axis.twinx()
-    axis2.plot(cycles_data_narray, color="black", linestyle="--")
+    axis2.plot(cycles_data_narray, color="black", linestyle="--", zorder=ZORDER_DATA)
     y_ax2 = axis2.get_yaxis()
-    y_ax2.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE)
+    y_ax2.set_tick_params(labelsize=CYCLES_TICK_FONTSIZE, zorder=ZORDER_GRID)
     axis2.set_ylabel('# Core Cycles', fontsize=AXIS_FONTSIZE)
 
     handles, labels = axis.get_legend_handles_labels()
     return handles, labels
 
 
-def draw_page(is_interactive, executions, cycles_executions, titles, window_size, xlimits,
-              outliers, unique, common, median, tukey, inset_xlimit=100):
+def draw_page(is_interactive, executions, cycles_executions, titles, window_size,
+              xlimits, outliers, unique, common, changepoints, changepoint_means,
+              median, tukey, inset_xlimit=100):
     """Plot a page of benchmarks.
     """
 
@@ -335,6 +395,8 @@ def draw_page(is_interactive, executions, cycles_executions, titles, window_size
         outliers_exec = outliers[index] if outliers is not None else None
         unique_exec = unique[index] if unique is not None else None
         common_exec = common[index] if common is not None else None
+        changepoint_exec = changepoints[index] if changepoints is not None else None
+        changepoint_mean_exec = changepoint_means[index] if changepoint_means is not None else None
         # Get axis and draw plot.
         axis = axes[row, col]
         axis.ticklabel_format(useOffset=False)
@@ -342,7 +404,8 @@ def draw_page(is_interactive, executions, cycles_executions, titles, window_size
         axis.set_xlim(x_bounds)
         handles, labels = draw_subplot(axis, data, cycles_data, titles[index], x_bounds,
                                [y_min, y_max], window_size, outliers_exec,
-                               unique_exec, common_exec, median, tukey)
+                               unique_exec, common_exec, changepoint_exec,
+                               changepoint_mean_exec, median, tukey)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -438,7 +501,7 @@ def set_pdf_metadata(pdf_document):
 
 
 def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
-                          unique_outliers=False):
+                          unique_outliers=False, changepoints=False):
     """Read a list of BZipped JSON files and return their contents as a
     dictionaries of key -> machine name -> results.
 
@@ -453,6 +516,8 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                        'all_outliers': dict(),
                        'common_outliers': dict(),
                        'unique_outliers': dict(),
+                       'changepoints': dict(),
+                       'changepoint_means': dict(),
                       }
     plot_titles = dict()  # All subplot titles.
 
@@ -526,11 +591,17 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     pass  # no data for this
                 else:
                     for p_exec in xrange(num_p_execs):
-                        title = '%s, %s, %s\nProcess execution #%d' % \
+                        if changepoints:
+                            classification = ' (%s)' % \
+                                data['classifications'][key][p_exec]
+                        else:
+                            classification = ''
+                        title = '%s, %s, %s\nProcess execution #%d%s' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
-                                 p_exec + 1)
+                                 p_exec + 1,
+                                 classification)
                         plot_titles[key][machine].append(title)
         else:  # Chart only the data specified on command line.
             for key in requested_data:
@@ -601,6 +672,22 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
                     data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
                     data_dictionary['unique_outliers'][key][machine] = data['unique_outliers'][key]
+
+        # Collect changepoints, if requested.
+        if changepoints:
+            if 'changepoints' not in data:
+                fatal_error('You requested that changepoints be annotated '
+                            'on your plots, but file %s does not'
+                            'contain the relevant keys. Please run the '
+                            'mark_changepoints_in_json.py script before '
+                            'proceeding.' % filename)
+            for key in data_dictionary['data']:
+                if key not in data_dictionary['changepoints']:
+                    data_dictionary['changepoints'][key] = dict()
+                    data_dictionary['changepoint_means'][key] = dict()
+                for p_exec in xrange(len(data_dictionary['data'][key])):
+                    data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
+                    data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
 
     # Check that every benchmark that was requested has been found in the
     # given Krun results files.
@@ -718,6 +805,12 @@ def create_cli_parser():
                              'executions differently. Only use this if '
                              'your Krun results file contains outlier '
                              'information.')
+    parser.add_argument('--with-changepoints',
+                        action='store_true',
+                        dest='changepoints',
+                        default=False,
+                        help='Annotate changepoints. Only use this if your Krun '
+                             'results file contains changepoint information.')
     return parser
 
 
@@ -743,9 +836,10 @@ if __name__ == '__main__':
     else:
         from matplotlib.backends.backend_pdf import PdfPages
         print 'Saving results to: %s' % options.outfile
-    print (('Charting with sliding window size: %d, xlimits: %s') %
+    print('Using matplotlib version %s with backend %s' %
+            (matplotlib.__version__, matplotlib.get_backend()))
+    print(('Charting with sliding window size: %d, xlimits: %s') %
            (options.window_size, options.xlimits))
-    print ('Using matplotlib backend: %s' % matplotlib.get_backend())
 
     # Smaller fonts for on-screen plots.
     if options.interactive:
@@ -757,7 +851,8 @@ if __name__ == '__main__':
     data, plot_titles = get_data_dictionaries(options.json_files[0],
                                               options.benchmarks,
                                               options.outliers,
-                                              options.unique_outliers)
+                                              options.unique_outliers,
+                                              options.changepoints)
 
     inset_xlimits = None
     if options.inset_xlimits is not None:
@@ -772,6 +867,7 @@ if __name__ == '__main__':
          options.xlimits,
          options.outliers,
          options.unique_outliers,
+         options.changepoints,
          median=options.median,
          tukey=options.tukey,
          inset_xlimit=inset_xlimits,

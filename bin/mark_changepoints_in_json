@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+"""
+Write changepoint and classification information into JSON files.
+"""
+
+import argparse
+import copy
+import os
+import os.path
+import rpy2
+import rpy2.interactive.packages
+import rpy2.robjects
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from warmup.krun_results import read_krun_results_file, write_krun_results_file
+
+
+def main(in_files, window_size):
+    cpt = rpy2.interactive.packages.importr('changepoint')
+    print 'Using changepoint library version %s' % cpt.__version__
+    assert cpt.__version__ >= '0.2.2', 'Please update the changepoint library.'
+    krun_data = dict()
+    for filename in in_files:
+        assert os.path.exists(filename), 'File %s does not exist.' % filename
+        print 'Loading: %s' % filename
+        krun_data[filename] = read_krun_results_file(filename)
+    for filename in krun_data:
+        changepoints = dict()
+        classifications = dict()
+        changepoint_means = dict()
+        rm_outliers = 'all_outliers' in krun_data[filename]
+        if not rm_outliers:
+            print ('No all_outliers key in %s; please run '
+                   './bin/mark_outliers_in_json on your data if you want this '
+                   'analysis to exclude outliers.'% filename)
+        for bench in krun_data[filename]['data']:
+            changepoints[bench] = list()
+            classifications[bench] = list()
+            changepoint_means[bench] = list()
+            for index, p_exec in enumerate(krun_data[filename]['data'][bench]):
+                if rm_outliers:
+                    outliers = krun_data[filename]['all_outliers'][bench][index]
+                else:
+                    outliers = list()
+                c_points_all, means = get_changepoints(cpt, copy.copy(p_exec), outliers)
+                # The last datum is always a changepoint, so we ignore it.
+                c_points = c_points_all[:-1]
+                changepoints[bench].append(c_points)
+                changepoint_means[bench].append(means)
+                classifications[bench].append(get_classification(p_exec, c_points,
+                                                                 means, window_size))
+        krun_data[filename]['changepoints'] = changepoints
+        krun_data[filename]['classifications'] = classifications
+        krun_data[filename]['changepoint_means'] = changepoint_means
+        new_filename = create_output_filename(filename)
+        print 'Writing out: %s' % new_filename
+        write_krun_results_file(krun_data[filename], new_filename)
+
+
+def get_changepoints(cpt, p_exec, outliers):
+    indices = sorted(outliers, reverse=True)
+    for index in indices:
+        del p_exec[index]
+    measurements = rpy2.robjects.FloatVector(p_exec)
+    changepoints = cpt.cpt_meanvar(measurements, method='PELT')
+    # List indices in R start at 1.
+    c_points = [cpoint - 1 for cpoint in changepoints.slots['cpts']]
+    # If outliers were deleted, the index of each changepoint will have moved.
+    # Here, we adjust the indices to match the original data.
+    for outlier in outliers:
+        for index in xrange(len(c_points)):
+            if c_points[index] >= outlier:
+                c_points[index] += 1
+    # Means is a list of mean values for each data segment between changepoints.
+    means = [mean for mean in changepoints.slots['param.est'][0]]
+    return c_points, means
+
+
+def get_classification(p_exec, changepoints, means, window_size):
+    iterations = len(p_exec)
+    if len(changepoints) == 0:  # No change points.
+        return 'flat'
+    elif changepoints[-1] > (iterations - window_size):  # Change in last window.
+        return 'no steady state'
+    elif means[-1] == min(means):  # Last window is the smallest.
+        return 'warm-up'
+    return 'slow down'
+
+
+def create_output_filename(in_file_name):
+    directory = os.path.dirname(in_file_name)
+    basename = os.path.basename(in_file_name)
+    if basename.endswith('.json.bz2'):
+        root_name = basename[:-9]
+    else:
+        root_name = os.path.splitext(basename)[0]
+    base_out = root_name + '_changepoints.json.bz2'
+    return os.path.join(directory, base_out)
+
+
+def create_cli_parser():
+    """Create a parser to deal with command line switches.
+    """
+    script = os.path.basename(__file__)
+    description = ("""Write changepoints and classifications into Krun results
+file(s). This script does not alter your original Krun results file. Instead
+it writes out a new file. If you want outliers to be excluded from the
+changepoint calculations, you should first run your data through the
+./bin/mark_outliers_in_json script. You should use the same moving window size
+to calculate outliers and changepoints and this will be written into the name
+of the output file, for example if the input file is:
+
+    results_outliers_200.json.bz2
+
+and the window size is 200, the output of this script will be stored in file:
+
+    results_outliers_w200_changepoints.json.bz2.
+
+Example usage:
+    $ python %s results1.json.bz2
+    $ python %s  --window 250 results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    parser = argparse.ArgumentParser(description)
+    parser.add_argument('json_files', nargs='+', action='append', default=[],
+                        type=str, help='One or more Krun result files.')
+    parser.add_argument('--window', '-w', action='store', dest='window_size',
+                        default=200, type=int,
+                        help=('Size of the sliding window used by '
+                              'mark_outliers_in_json script. This is needed to '
+                              'classify process executions.'))
+    return parser
+
+
+if __name__ == '__main__':
+    parser = create_cli_parser()
+    options = parser.parse_args()
+    print ('Marking changepoints and classifications with sliding window size: %d' %
+           options.window_size)
+    main(options.json_files[0], options.window_size)

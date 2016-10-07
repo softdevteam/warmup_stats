@@ -1,6 +1,6 @@
 SPINE_LINESTYLE = "solid"
 SPINE_LINEWIDTH = 1
-
+ZORDER_GRID = 1
 
 def add_margin_to_axes(axis, x=0.01, y=0.01):
     """Seaborn-friendly way to add margins to axes (default 1% margin).
@@ -33,17 +33,18 @@ def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks, tick_
 
     x_ax.set_ticks_position('none')
     y_ax.set_ticks_position('none')
-    x_ax.set_tick_params(labelsize=tick_fontsize)
-    y_ax.set_tick_params(labelsize=tick_fontsize)
+    x_ax.set_tick_params(labelsize=tick_fontsize, zorder=ZORDER_GRID)
+    y_ax.set_tick_params(labelsize=tick_fontsize, zorder=ZORDER_GRID)
 
-    ax.grid(which='minor', alpha=0.4)
-    ax.grid(which='major', alpha=0.8)
+    # Grid should be drawn below all other splines.
+    ax.grid(which='minor', alpha=0.4, zorder=ZORDER_GRID)
+    ax.grid(which='major', alpha=0.8, zorder=ZORDER_GRID)
 
-    for i in ["top", "bottom"]:
+    for i in ['top', 'bottom']:
         ax.spines[i].set_linestyle(SPINE_LINESTYLE)
         ax.spines[i].set_linewidth(SPINE_LINEWIDTH)
 
-    for i in ["right", "left"]:
+    for i in ['right', 'left']:
         ax.spines[i].set_visible(False)
 
     ax.frameon = False
