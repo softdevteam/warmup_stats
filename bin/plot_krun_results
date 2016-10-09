@@ -29,8 +29,6 @@ seaborn.set_context('paper')
 
 plt.figure(tight_layout=True)
 
-PDF_FILENAME = 'krun_results.pdf'
-
 # Configures border and spacing of subplots.
 # Here we just make it more space efficient for the paper
 SUBPLOT_PARAMS = {
@@ -715,11 +713,6 @@ def create_cli_parser():
                     ' results.json.bz2\n') %
                    (script, script, script))
     parser = argparse.ArgumentParser(description)
-    parser.add_argument('--interactive', '-i',
-                        action='store_true',
-                        dest='interactive',
-                        default=False,
-                        help='Display graphs (rather than writing to a file)')
     parser.add_argument('json_files',
                         nargs='+',
                         action='append',
@@ -729,9 +722,11 @@ def create_cli_parser():
     parser.add_argument('--outfile', '-o',
                         action='store',
                         dest='outfile',
-                        default=PDF_FILENAME,
+                        default=None,
                         type=str,
-                        help='Name of the PDF file to write to.')
+                        help=('Name of the PDF file to write to. If no file is '
+                              'specified, charts will be displayed interactively '
+                              'and not written to disk.'))
     parser.add_argument('--benchmark', '-b',
                         action='append',
                         dest='benchmarks',
@@ -827,11 +822,8 @@ if __name__ == '__main__':
     if options.outliers and options.unique_outliers:
         fatal_error('Cannot use --with-outliers and --with-unique-outliers '
                     'together.')
-    if options.interactive and (options.outfile != PDF_FILENAME):
-        parser.print_help()
-        sys.exit(1)
     plt.close()  # avoid extra blank window
-    if options.interactive:
+    if options.outfile is None:
         plt.switch_backend('TkAgg')
     else:
         from matplotlib.backends.backend_pdf import PdfPages
@@ -842,7 +834,7 @@ if __name__ == '__main__':
            (options.window_size, options.xlimits))
 
     # Smaller fonts for on-screen plots.
-    if options.interactive:
+    if options.outfile is None:
         TICK_FONTSIZE = 12
         TITLE_FONT_SIZE = 17
         AXIS_FONTSIZE = 14
@@ -859,7 +851,7 @@ if __name__ == '__main__':
         inset_xlimits = (int(options.inset_xlimits.split(',')[0]),
                          int(options.inset_xlimits.split(',')[1]))
 
-    main(options.interactive,
+    main(options.outfile is None,
          data,
          plot_titles,
          options.window_size,
