@@ -275,12 +275,14 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     # Marshal data into numpy arrays.
     data_narray = numpy.array(data[x_bounds[0]:x_bounds[1]])
     cycle_data_narrays = list()
-    for core in xrange(len(cycles_data)):  # For each core.
-        cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
+    if cycles_data:
+        for core in xrange(len(cycles_data)):  # For each core.
+            cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
     perf_data_narrays = list()
-    for core in xrange(len(aperf_data)):  # For each core.
-        perf_data_narrays.append(numpy.array([float(aperf_data[core][i]) / float(mperf_data[core][i])
-                                 for i in xrange(x_bounds[0], x_bounds[1])]))
+    if aperf_data and mperf_data:
+        for core in xrange(len(aperf_data)):  # For each core.
+            perf_data_narrays.append(numpy.array([float(aperf_data[core][i]) / float(mperf_data[core][i])
+                                     for i in xrange(x_bounds[0], x_bounds[1])]))
     instr_data_narrays = list()
     if instr_data:
         for chart_data in instr_data:
@@ -526,9 +528,9 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     index, row, col = 0, 0, 0
     while index < n_execs:
         data = executions[index]
-        cycles_data = cycles_executions[index]
-        aperf_data = aperf_executions[index]
-        mperf_data = mperf_executions[index]
+        cycles_data = cycles_executions[index] if cycles_executions is not None else None
+        aperf_data = aperf_executions[index] if aperf_executions is not None else None
+        mperf_data = mperf_executions[index] if mperf_executions is not None else None
         instr_data = instr_executions[index] if instr_executions is not None else None
         outliers_exec = outliers[index] if outliers is not None else None
         unique_exec = unique[index] if unique is not None else None
@@ -611,8 +613,8 @@ def set_pdf_metadata(pdf_document):
     info_dict['ModDate'] = datetime.datetime.today()
 
 
-def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
-                          unique_outliers=False, changepoints=False):
+def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
+                          outliers=False, unique_outliers=False, changepoints=False):
     """Read a list of BZipped JSON files and return their contents as a
     dictionaries of key -> machine name -> results.
 
@@ -688,13 +690,18 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                         data_dictionary['mperf_data'][key] = dict()
                         data_dictionary['instr_data'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
-                    data_dictionary['cycles_data'][key][machine] = data['core_cycle_counts'][key]
-                    data_dictionary['aperf_data'][key][machine] = data['aperf_counts'][key]
-                    data_dictionary['mperf_data'][key][machine] = data['mperf_counts'][key]
+                    if wallclock_only:
+                        data_dictionary['cycles_data'][key][machine] = None
+                        data_dictionary['aperf_data'][key][machine] = None
+                        data_dictionary['mperf_data'][key][machine] = None
+                    else:
+                        data_dictionary['cycles_data'][key][machine] = data['core_cycle_counts'][key]
+                        data_dictionary['aperf_data'][key][machine] = data['aperf_counts'][key]
+                        data_dictionary['mperf_data'][key][machine] = data['mperf_counts'][key]
                     # If there is VM instrumentation data, and we have a parser
                     # for it, add it to the data dictionary.
                     _, vm, _ = key.split(':')
-                    if vm in INSTRUMENTATION_PARSERS:
+                    if vm in INSTRUMENTATION_PARSERS and not wallclock_only:
                         parser = INSTRUMENTATION_PARSERS[vm](data['instr_data'][key])
                         data_dictionary['instr_data'][key][machine] = parser.chart_data
                     else:
@@ -739,6 +746,7 @@ def get_data_dictionaries(json_files, benchmarks=[], outliers=False,
                     continue
                 # FIXME: Core cycles and aperf/mperf data needs to go here.
                 # FIXME: VM instrumentation data needs to go here.
+                # FIXME: Deal with wallclock_only.
                 if key not in data_dictionary['data']:
                     data_dictionary['data'][key] = dict()
                 if machine not in data_dictionary['data'][key]:
@@ -858,6 +866,11 @@ def create_cli_parser():
                         help=('Name of the PDF file to write to. If no file is '
                               'specified, charts will be displayed interactively '
                               'and not written to disk.'))
+    parser.add_argument('--wallclock-only',
+                        action='store_true',
+                        dest='wallclock',
+                        default=False,
+                        help='Only plot wallclock times.')
     parser.add_argument('--benchmark', '-b',
                         action='append',
                         dest='benchmarks',
@@ -972,6 +985,7 @@ if __name__ == '__main__':
 
     data, plot_titles = get_data_dictionaries(options.json_files[0],
                                               options.benchmarks,
+                                              options.wallclock,
                                               options.outliers,
                                               options.unique_outliers,
                                               options.changepoints)
