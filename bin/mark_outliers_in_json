@@ -41,9 +41,9 @@ def main(in_files, window_size, threshold):
         all_outliers = dict()
         unique_outliers = dict()
         common_outliers = dict()
-        for bench in krun_data[filename]['data']:
+        for bench in krun_data[filename]['wallclock_times']:
             all_outliers[bench] = list()
-            for p_exec in krun_data[filename]['data'][bench]:
+            for p_exec in krun_data[filename]['wallclock_times'][bench]:
                 all_outliers[bench].append(get_all_outliers(p_exec, window_size))
             common, unique = get_outliers(all_outliers[bench],
                                           window_size,

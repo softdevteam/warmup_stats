@@ -34,11 +34,11 @@ def main(in_files, window_size):
             print ('No all_outliers key in %s; please run '
                    './bin/mark_outliers_in_json on your data if you want this '
                    'analysis to exclude outliers.'% filename)
-        for bench in krun_data[filename]['data']:
+        for bench in krun_data[filename]['wallclock_times']:
             changepoints[bench] = list()
             classifications[bench] = list()
             changepoint_means[bench] = list()
-            for index, p_exec in enumerate(krun_data[filename]['data'][bench]):
+            for index, p_exec in enumerate(krun_data[filename]['wallclock_times'][bench]):
                 if rm_outliers:
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:

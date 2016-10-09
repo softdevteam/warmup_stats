@@ -16,7 +16,7 @@ from warmup.krun_results import write_krun_results_file
 
 def main(in_files, language, vm, uname):
     for filename in in_files:
-        data_dictionary = { 'data': dict(), # Measurement data.
+        data_dictionary = { 'wallclock_times': dict(), # Measurement data.
                    'core_cycles_data': dict(),
                    'aperf_data': dict(),
                    'mperf_data': dict(),
@@ -36,13 +36,13 @@ def main(in_files, language, vm, uname):
                 bench = row[1]
                 data = [float(datum) for datum in row[2:]]
                 key = '%s:%s:%s' % (language, bench, vm)
-                if key not in data_dictionary['data']:
-                    data_dictionary['data'][key] = list()
+                if key not in data_dictionary['wallclock_times']:
+                    data_dictionary['wallclock_times'][key] = list()
                     data_dictionary['core_cycles_data'][key] = list()
                     data_dictionary['aperf_data'][key] = list()
                     data_dictionary['mperf_data'][key] = list()
                     data_dictionary['instr_data'][key] = list()
-                data_dictionary['data'][key].append(data)
+                data_dictionary['wallclock_times'][key].append(data)
                 data_dictionary['core_cycles_data'][key].append(None)
                 data_dictionary['aperf_data'][key].append(None)
                 data_dictionary['mperf_data'][key].append(None)
