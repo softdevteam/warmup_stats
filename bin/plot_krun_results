@@ -8,8 +8,6 @@ import datetime
 import math
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as pyplot
 import numpy
 import numpy.random
 import os
@@ -17,6 +15,7 @@ import os.path
 import seaborn
 import sys
 
+from matplotlib import gridspec, pyplot
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import FormatStrFormatter
 
@@ -149,7 +148,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # all plots on a single page. In which case, we need to construct
     # a flat list of all run sequences.
     if one_page:
-        # XXX revise this
         page, subplot_titles = list(), list()
         cycles_page, aperf_page, mperf_page = list(), list(), list()
         instr_page = list()
@@ -226,23 +224,13 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # Draw each page and display (interactive mode) or save to disk.
     for index, page in enumerate(pages):
         print 'Plotting page %g.' % (index + 1),
-        fig, export_size = draw_page(is_interactive,
-                                     page,
-                                     cycles_pages[index],
-                                     aperf_pages[index],
-                                     mperf_pages[index],
-                                     instr_pages[index],
-                                     all_subplot_titles[index],
-                                     window_size,
-                                     xlimits,
-                                     all_outliers[index],
-                                     all_unique[index],
-                                     all_common[index],
-                                     all_changepoints[index],
-                                     all_changepoint_means[index],
-                                     median,
-                                     tukey,
-                                     inset_xlimit)
+        fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
+                                     aperf_pages[index], mperf_pages[index],
+                                     instr_pages[index], all_subplot_titles[index],
+                                     window_size, xlimits, all_outliers[index],
+                                     all_unique[index], all_common[index],
+                                     all_changepoints[index], all_changepoint_means[index],
+                                     median, tukey, inset_xlimit)
         if not is_interactive:
             fig.set_size_inches(*export_size)
             pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
@@ -268,16 +256,32 @@ def add_inset_to_axis(axis, rect):
     return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
 
 
+def _get_scatter_points_within_bounds(scatter, x_bounds):
+    """Given a set of x-locations to be plotted as a scatter plot, move the
+    marker locations to within x_bounds. This is needed when we have a set
+    of outliers to plot, but we only want to view a small section of the
+    whole chart.
+    """
+    x_vals = [val for val in scatter if val >= x_bounds[0] and val < x_bounds[1]]
+    y_vals = [val - x_bounds[0] for val in scatter if val >= x_bounds[0] and val < x_bounds[1]]
+    return x_vals, y_vals
+
+
 def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
-                 instr_data, title, x_bounds, y_range, window_size, outliers,
-                 unique, common, changepoints, changepoint_means, median, tukey):
+                 instr_data, title, x_bounds, y_range, window_size,
+                 outliers, unique, common, changepoints, changepoint_means,
+                 median, tukey):
     iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
     # Marshal data into numpy arrays.
     data_narray = numpy.array(data[x_bounds[0]:x_bounds[1]])
     cycle_data_narrays = list()
     if cycles_data:
+        cycles_min, cycles_max = float('inf'), float('-inf')
+        for core in xrange(len(cycles_data)):
+            cycles_min = min(min(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_min)
+            cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_max)
         for core in xrange(len(cycles_data)):  # For each core.
-            cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
+            cycle_data_narrays.append(numpy.array(cycles_data[core]))
     perf_data_narrays = list()
     if aperf_data and mperf_data:
         for core in xrange(len(aperf_data)):  # For each core.
@@ -304,21 +308,18 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                zorder=ZORDER_DATA)
     # If there are outliers, highlight them.
     if outliers is not None:
-        outliers_x = [val for val in outliers if val >= x_bounds[0] and val < x_bounds[1]]
-        outliers_y = [val - x_bounds[0] for val in outliers if val >= x_bounds[0] and val < x_bounds[1]]
+        outliers_x, outliers_y = _get_scatter_points_within_bounds(outliers, x_bounds)
         axis1.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
                      marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers', zorder=ZORDER_MARKERS)
     if unique is not None:
-        unique_x = [val for val in unique if val >= x_bounds[0] and val < x_bounds[1]]
-        unique_y = [val - x_bounds[0] for val in unique if val >= x_bounds[0] and val < x_bounds[1]]
+        unique_x, unique_y = _get_scatter_points_within_bounds(unique, x_bounds)
         pc_unique = float(len(unique_y) - window_size) / float(len(data_narray)) * 100.0
         axis1.scatter(unique_x, data_narray[unique_y], c=UNIQUE_COLOR,
                      marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
                      label=('Unique outliers (${%.2f}\\%%$)' % pc_unique),
                      zorder=ZORDER_MARKERS)
     if common is not None:
-        common_x = [val for val in common if val >= x_bounds[0] and val < x_bounds[1]]
-        common_y = [val - x_bounds[0] for val in common if val >= x_bounds[0] and val < x_bounds[1]]
+        common_x, common_y = _get_scatter_points_within_bounds(common, x_bounds)
         pc_common = float(len(common_y)) / float(len(data_narray)) * 100.0
         axis1.scatter(common_x, data_narray[common_y], c=COMMON_COLOR,
                      marker=COMMON_MARKER, s=COMMON_SIZE,
@@ -436,8 +437,10 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         for core in xrange(len(cycle_data_narrays)):
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             pyplot.setp(axis.get_xticklabels(), visible=False)
+            axis.set_ylim(cycles_min, cycles_max)
             axis.plot(iterations, cycle_data_narrays[core],
-                        color=CYCLES_COLOR, label=('Core %d cycles' % core))
+                      color=CYCLES_COLOR, label=('Core %d cycles' % core))
+            # Style axes and grid.
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
             axis.set_ylabel('CC Core %d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
@@ -450,7 +453,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 # Add all items to page legend (only once).
                 handles, labels = axis.get_legend_handles_labels()
                 handles_labels[0] += handles
-                handles_labels[1].append('Number of Core cycles')
+                handles_labels[1].append('Normalised core cycles')
                 # Plot title goes above the top subplot (only once).
                 if not aperf_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
@@ -526,17 +529,29 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
 
     index, row, col = 0, 0, 0
+    cycles_data, aperf_data, mperf_data, instr_data = None, None, None, None
+    outliers_exec, unique_exec, common_exec = None, None, None
+    changepoint_exec, changepoint_mean_exec = None, None
     while index < n_execs:
         data = executions[index]
-        cycles_data = cycles_executions[index] if cycles_executions is not None else None
-        aperf_data = aperf_executions[index] if aperf_executions is not None else None
-        mperf_data = mperf_executions[index] if mperf_executions is not None else None
-        instr_data = instr_executions[index] if instr_executions is not None else None
-        outliers_exec = outliers[index] if outliers is not None else None
-        unique_exec = unique[index] if unique is not None else None
-        common_exec = common[index] if common is not None else None
-        changepoint_exec = changepoints[index] if changepoints is not None else None
-        changepoint_mean_exec = changepoint_means[index] if changepoint_means is not None else None
+        if cycles_executions:
+            cycles_data = cycles_executions[index]
+        if aperf_executions:
+            aperf_data = aperf_executions[index]
+        if mperf_executions:
+            mperf_data = mperf_executions[index]
+        if instr_executions:
+            instr_data = instr_executions[index]
+        if outliers:
+            outliers_exec = outliers[index]
+        if unique:
+            unique_exec = unique[index]
+        if common:
+            common_exec = common[index]
+        if changepoints:
+            changepoint_exec = changepoints[index]
+        if changepoint_means:
+            changepoint_mean_exec = changepoint_means[index]
         # Get axis and draw plot.
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
