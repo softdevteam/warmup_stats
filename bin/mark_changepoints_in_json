@@ -4,7 +4,6 @@ Write changepoint and classification information into JSON files.
 """
 
 import argparse
-import copy
 import os
 import os.path
 import rpy2
@@ -12,14 +11,18 @@ import rpy2.interactive.packages
 import rpy2.robjects
 import sys
 
+from rpy2.rinterface import R_VERSION_BUILD
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import read_krun_results_file, write_krun_results_file
 
 
 def main(in_files, window_size):
     cpt = rpy2.interactive.packages.importr('changepoint')
-    print 'Using changepoint library version %s' % cpt.__version__
-    assert cpt.__version__ >= '0.2.2', 'Please update the changepoint library.'
+    r_version = '.'.join(R_VERSION_BUILD[:2])
+    print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
+    assert cpt.__version__ >= '2.2.2', 'Please update the changepoint library.'
+    assert r_version >= '3.3.1', 'Please update R from CRAN.'
     krun_data = dict()
     for filename in in_files:
         assert os.path.exists(filename), 'File %s does not exist.' % filename
@@ -43,7 +46,7 @@ def main(in_files, window_size):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                c_points_all, means = get_changepoints(cpt, copy.copy(p_exec), outliers)
+                c_points_all, means = get_changepoints(cpt, p_exec[:], outliers)
                 # The last datum is always a changepoint, so we ignore it.
                 c_points = c_points_all[:-1]
                 changepoints[bench].append(c_points)
