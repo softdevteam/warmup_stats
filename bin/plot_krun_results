@@ -157,9 +157,9 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             for machine in sorted(data_dcts['data'][key]):
                 for index, run_seq in enumerate(data_dcts['data'][key][machine]):
                     page.append(run_seq)
-                    cycles_page.append(data_dcts['cycles_data'][key][machine][index])
-                    aperf_page.append(data_dcts['aperf_data'][key][machine][index])
-                    mperf_page.append(data_dcts['mperf_data'][key][machine][index])
+                    cycles_page.append(data_dcts['cycles_counts'][key][machine][index])
+                    aperf_page.append(data_dcts['aperf_counts'][key][machine][index])
+                    mperf_page.append(data_dcts['mperf_counts'][key][machine][index])
                     if data_dcts['instr_data'][key][machine]:
                         instr_page.append(data_dcts['instr_data'][key][machine][index])
                     else:
@@ -199,9 +199,9 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
                 pages.append(data_dcts['data'][key][machine])
-                cycles_pages.append(data_dcts['cycles_data'][key][machine])
-                aperf_pages.append(data_dcts['aperf_data'][key][machine])
-                mperf_pages.append(data_dcts['mperf_data'][key][machine])
+                cycles_pages.append(data_dcts['cycles_counts'][key][machine])
+                aperf_pages.append(data_dcts['aperf_counts'][key][machine])
+                mperf_pages.append(data_dcts['mperf_counts'][key][machine])
                 instr_pages.append(data_dcts['instr_data'][key][machine])
                 all_subplot_titles.append(plot_titles[key][machine])
                 if with_outliers:
@@ -640,9 +640,9 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
     """
 
     data_dictionary = {'data': dict(), # Measurement data to be plotted.
-                       'cycles_data': dict(), # core cycles measurements
-                       'aperf_data': dict(),
-                       'mperf_data': dict(),
+                       'cycles_counts': dict(), # core cycles measurements
+                       'aperf_counts': dict(),
+                       'mperf_counts': dict(),
                        'instr_data': dict(),  # per-VM information.
                        'all_outliers': dict(),
                        'common_outliers': dict(),
@@ -700,19 +700,19 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                 else:
                     if key not in data_dictionary['data']:
                         data_dictionary['data'][key] = dict()
-                        data_dictionary['cycles_data'][key] = dict()
-                        data_dictionary['aperf_data'][key] = dict()
-                        data_dictionary['mperf_data'][key] = dict()
+                        data_dictionary['cycles_counts'][key] = dict()
+                        data_dictionary['aperf_counts'][key] = dict()
+                        data_dictionary['mperf_counts'][key] = dict()
                         data_dictionary['instr_data'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
                     if wallclock_only:
-                        data_dictionary['cycles_data'][key][machine] = None
-                        data_dictionary['aperf_data'][key][machine] = None
-                        data_dictionary['mperf_data'][key][machine] = None
+                        data_dictionary['cycles_counts'][key][machine] = None
+                        data_dictionary['aperf_counts'][key][machine] = None
+                        data_dictionary['mperf_counts'][key][machine] = None
                     else:
-                        data_dictionary['cycles_data'][key][machine] = data['core_cycle_counts'][key]
-                        data_dictionary['aperf_data'][key][machine] = data['aperf_counts'][key]
-                        data_dictionary['mperf_data'][key][machine] = data['mperf_counts'][key]
+                        data_dictionary['cycles_counts'][key][machine] = data['core_cycle_counts'][key]
+                        data_dictionary['aperf_counts'][key][machine] = data['aperf_counts'][key]
+                        data_dictionary['mperf_counts'][key][machine] = data['mperf_counts'][key]
                     # If there is VM instrumentation data, and we have a parser
                     # for it, add it to the data dictionary.
                     _, vm, _ = key.split(':')
