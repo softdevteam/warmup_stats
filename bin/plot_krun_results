@@ -215,23 +215,27 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     all_changepoint_means.append(None)
 
     # Draw each page and display (interactive mode) or save to disk.
-    for index, page in enumerate(pages):
-        print 'Plotting page %02d of %02d.' % (index + 1, len(pages)),
-        fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
-                                     aperf_pages[index], mperf_pages[index],
-                                     all_subplot_titles[index],
-                                     window_size, xlimits, all_outliers[index],
-                                     all_unique[index], all_common[index],
-                                     all_changepoints[index], all_changepoint_means[index],
-                                     median, tukey, inset_xlimit)
+    try:
+        for index, page in enumerate(pages):
+            print 'Plotting page %02d of %02d.' % (index + 1, len(pages)),
+            fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
+                                   aperf_pages[index], mperf_pages[index],
+                                   all_subplot_titles[index], window_size, xlimits,
+                                   all_outliers[index], all_unique[index],
+                                   all_common[index], all_changepoints[index],
+                                   all_changepoint_means[index], median, tukey,
+                                   inset_xlimit)
+            if not is_interactive:
+                fig.set_size_inches(*export_size)
+                pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
+                            bbox_inches='tight')
+                pyplot.close()
+    except KeyboardInterrupt:
+        pass  # Avoid printing a traceback.
+    finally:
         if not is_interactive:
-            fig.set_size_inches(*export_size)
-            pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
-                        bbox_inches='tight')
-            pyplot.close()
-    if not is_interactive:
-        pdf.close()
-        print('Saved: %s' % outfile)
+            pdf.close()
+            print('Saved: %s' % outfile)
 
 
 def add_inset_to_axis(axis, rect):
