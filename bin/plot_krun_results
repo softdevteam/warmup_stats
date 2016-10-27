@@ -37,8 +37,8 @@ SUBPLOT_PARAMS = {
     'hspace': 0.35,
     'bottom': 0.07,
     'left': 0.07,
-    'right': 0.98,
-    'top': 0.84,
+    'right': 0.93,
+    'top': 0.90,
     'wspace': 0.30,
 }
 
@@ -119,7 +119,7 @@ FONT = {
 matplotlib.rc('font', **FONT)
 
 MAX_SUBPLOTS_PER_ROW = 2
-EXPORT_SIZE_INCHES = 10, 16
+EXPORT_SIZE_INCHES = 12, 10
 DPI = 300
 
 
@@ -286,11 +286,21 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         n_rows += len(cycle_data_narrays)
     if aperf_data:
         n_rows += len(perf_data_narrays)
-    inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell, hspace=0.2)
+    if n_rows == 1:  # Only create another gridspec if we have to.
+        inner_grid = None
+    else:
+        heights = [.25] * (n_rows - 1)
+        heights.append(1)
+        inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell,
+                                                      height_ratios=heights,
+                                                      hspace=0.2)
     # Collect handles and labels, so that we can draw one legend per page.
     handles_labels = [list(), list()]
     # Plot wall clock times.
-    axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
+    if n_rows == 1:
+        axis1 = pyplot.subplot(grid_cell)
+    else:
+        axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
     axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
                zorder=ZORDER_DATA)
     # If there are outliers, highlight them.
@@ -362,10 +372,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         if median:  # Plot the median.
             axis1.plot(iterations, medians, label='Median', zorder=ZORDER_MEDIAN)
         if tukey:  # Fill between the Tukey band.
-            axis1.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
-                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
-                               zorder=ZORDER_FILL_REGION)
-            axis1.fill_between(iterations, medians, pc_bands[1], alpha=FILL_ALPHA,
+            axis1.fill_between(iterations, pc_bands[0], pc_bands[1], alpha=FILL_ALPHA,
                                facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
                                zorder=ZORDER_FILL_REGION)
     # Re-style the chart.
@@ -528,7 +535,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
-    fig.subplots_adjust(**SUBPLOT_PARAMS)
+    outer_grid.update(**SUBPLOT_PARAMS)
 
     # Draw an inset, if required. This MUST be done after adjusting subplots,
     # so that we can calculate the correct bounding box for the inset.
@@ -571,8 +578,14 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close pyplot.
+        multiplier = 1
+        if cycles_executions and any(cycles_executions):
+            multiplier += 1
+        if aperf_executions and any(aperf_executions) and mperf_executions:
+            multiplier += 1
+        # Add an extra inch for the legend.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
-                       EXPORT_SIZE_INCHES[1] * n_rows)
+                       EXPORT_SIZE_INCHES[1] * n_rows * multiplier + 1)
         return fig, export_size
 
 
