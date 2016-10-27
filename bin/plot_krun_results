@@ -216,7 +216,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
 
     # Draw each page and display (interactive mode) or save to disk.
     for index, page in enumerate(pages):
-        print 'Plotting page %g.' % (index + 1),
+        print 'Plotting page %02d of %02d.' % (index + 1, len(pages)),
         fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
                                      aperf_pages[index], mperf_pages[index],
                                      all_subplot_titles[index],
@@ -638,6 +638,12 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
 
         # All benchmarking data from one Krun results file.
         data = read_krun_results_file(filename)
+
+        if not wallclock_only and not ('core_cycle_counts' in data and
+           'aperf_counts' in data and 'mperf_counts' in data):
+                fatal_error('Core cycle counts / perf data not stored in %s. '
+                            'Consider running this script with --wallclock-only.'
+                            % filename)
 
         # Get machine name from Krun results file.
         machine = data['audit']['uname'].split(' ')[1]
