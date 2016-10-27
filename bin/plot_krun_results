@@ -294,6 +294,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
                zorder=ZORDER_DATA)
     # If there are outliers, highlight them.
+    axis1.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
     if outliers is not None:
         outliers_x, outliers_y = _get_scatter_points_within_bounds(outliers, x_bounds)
         axis1.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
