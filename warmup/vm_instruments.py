@@ -3,6 +3,15 @@
 import abc
 
 
+def merge_instr_data(file_data):
+    """Merge data from one or more instr_data JSON dictionaries.
+    """
+    instr_data = {'raw_vm_events': list()}
+    for dict_ in file_data:
+        instr_data['raw_vm_events'].append(dict_['raw_vm_events'])
+    return instr_data
+
+
 class ChartData(object):
     """Class to hold data needed by the plotting script.
     Each VM parser may parse a number of different events which need to be
