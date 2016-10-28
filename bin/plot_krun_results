@@ -37,8 +37,8 @@ SUBPLOT_PARAMS = {
     'hspace': 0.35,
     'bottom': 0.07,
     'left': 0.07,
-    'right': 0.98,
-    'top': 0.84,
+    'right': 0.93,
+    'top': 0.90,
     'wspace': 0.30,
 }
 
@@ -119,7 +119,7 @@ FONT = {
 matplotlib.rc('font', **FONT)
 
 MAX_SUBPLOTS_PER_ROW = 2
-EXPORT_SIZE_INCHES = 10, 16
+EXPORT_SIZE_INCHES = 12, 10
 DPI = 300
 
 
@@ -139,7 +139,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # Run sequences, outliers and subplot titles for each page we need to plot.
     pages, all_subplot_titles = list(), list()
     cycles_pages, aperf_pages, mperf_pages = list(), list(), list()
-    instr_pages = list()
     all_outliers, all_common, all_unique = list(), list(), list()
     all_changepoints, all_changepoint_means = list(), list()
 
@@ -150,7 +149,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     if one_page:
         page, subplot_titles = list(), list()
         cycles_page, aperf_page, mperf_page = list(), list(), list()
-        instr_page = list()
         page_common, page_unique, page_outlier = list(), list(), list()
         page_changepoints, page_changepoint_means = list(), list()
         for key in sorted(data_dcts['data']):
@@ -160,10 +158,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     cycles_page.append(data_dcts['cycles_counts'][key][machine][index])
                     aperf_page.append(data_dcts['aperf_counts'][key][machine][index])
                     mperf_page.append(data_dcts['mperf_counts'][key][machine][index])
-                    if data_dcts['instr_data'][key][machine]:
-                        instr_page.append(data_dcts['instr_data'][key][machine][index])
-                    else:
-                        instr_page.append(None)
                     subplot_titles.append(plot_titles[key][machine][index])
                     # Collect outliers, if the user wishes to annotate them on
                     # the plots. The draw_page() and draw_subplot() functions
@@ -202,7 +196,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 cycles_pages.append(data_dcts['cycles_counts'][key][machine])
                 aperf_pages.append(data_dcts['aperf_counts'][key][machine])
                 mperf_pages.append(data_dcts['mperf_counts'][key][machine])
-                instr_pages.append(data_dcts['instr_data'][key][machine])
                 all_subplot_titles.append(plot_titles[key][machine])
                 if with_outliers:
                     all_outliers.append(data_dcts['all_outliers'][key][machine])
@@ -222,23 +215,27 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     all_changepoint_means.append(None)
 
     # Draw each page and display (interactive mode) or save to disk.
-    for index, page in enumerate(pages):
-        print 'Plotting page %g.' % (index + 1),
-        fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
-                                     aperf_pages[index], mperf_pages[index],
-                                     instr_pages[index], all_subplot_titles[index],
-                                     window_size, xlimits, all_outliers[index],
-                                     all_unique[index], all_common[index],
-                                     all_changepoints[index], all_changepoint_means[index],
-                                     median, tukey, inset_xlimit)
+    try:
+        for index, page in enumerate(pages):
+            print 'Plotting page %02d of %02d.' % (index + 1, len(pages)),
+            fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
+                                   aperf_pages[index], mperf_pages[index],
+                                   all_subplot_titles[index], window_size, xlimits,
+                                   all_outliers[index], all_unique[index],
+                                   all_common[index], all_changepoints[index],
+                                   all_changepoint_means[index], median, tukey,
+                                   inset_xlimit)
+            if not is_interactive:
+                fig.set_size_inches(*export_size)
+                pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
+                            bbox_inches='tight')
+                pyplot.close()
+    except KeyboardInterrupt:
+        pass  # Avoid printing a traceback.
+    finally:
         if not is_interactive:
-            fig.set_size_inches(*export_size)
-            pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
-                        bbox_inches='tight')
-            pyplot.close()
-    if not is_interactive:
-        pdf.close()
-        print('Saved: %s' % outfile)
+            pdf.close()
+            print('Saved: %s' % outfile)
 
 
 def add_inset_to_axis(axis, rect):
@@ -268,7 +265,7 @@ def _get_scatter_points_within_bounds(scatter, x_bounds):
 
 
 def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
-                 instr_data, title, x_bounds, y_range, window_size,
+                 title, x_bounds, y_range, window_size,
                  outliers, unique, common, changepoints, changepoint_means,
                  median, tukey):
     iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
@@ -287,26 +284,31 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         for core in xrange(len(aperf_data)):  # For each core.
             perf_data_narrays.append(numpy.array([float(aperf_data[core][i]) / float(mperf_data[core][i])
                                      for i in xrange(x_bounds[0], x_bounds[1])]))
-    instr_data_narrays = list()
-    if instr_data:
-        for chart_data in instr_data:
-            instr_data_narrays.append(numpy.array(chart_data.data))
     # Calculate the number of plots needed.
     n_rows = 1
     if cycles_data:
         n_rows += len(cycle_data_narrays)
     if aperf_data:
         n_rows += len(perf_data_narrays)
-    if instr_data:
-        n_rows += len(instr_data_narrays)
-    inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell, hspace=0.2)
+    if n_rows == 1:  # Only create another gridspec if we have to.
+        inner_grid = None
+    else:
+        heights = [.25] * (n_rows - 1)
+        heights.append(1)
+        inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell,
+                                                      height_ratios=heights,
+                                                      hspace=0.2)
     # Collect handles and labels, so that we can draw one legend per page.
     handles_labels = [list(), list()]
     # Plot wall clock times.
-    axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
+    if n_rows == 1:
+        axis1 = pyplot.subplot(grid_cell)
+    else:
+        axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
     axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
                zorder=ZORDER_DATA)
     # If there are outliers, highlight them.
+    axis1.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
     if outliers is not None:
         outliers_x, outliers_y = _get_scatter_points_within_bounds(outliers, x_bounds)
         axis1.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
@@ -374,10 +376,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         if median:  # Plot the median.
             axis1.plot(iterations, medians, label='Median', zorder=ZORDER_MEDIAN)
         if tukey:  # Fill between the Tukey band.
-            axis1.fill_between(iterations, pc_bands[0], medians, alpha=FILL_ALPHA,
-                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
-                               zorder=ZORDER_FILL_REGION)
-            axis1.fill_between(iterations, medians, pc_bands[1], alpha=FILL_ALPHA,
+            axis1.fill_between(iterations, pc_bands[0], pc_bands[1], alpha=FILL_ALPHA,
                                facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
                                zorder=ZORDER_FILL_REGION)
     # Re-style the chart.
@@ -458,30 +457,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 if not aperf_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
-    # Add any VM instrumentation data on another set of charts.
-    if instr_data:
-        for index in xrange(len(instr_data_narrays)):
-            axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
-            pyplot.setp(axis.get_xticklabels(), visible=False)
-            axis.plot(iterations, instr_data_narrays[index],
-                        color=INSTR_COLOR, label=(instr_data[index].title))
-            y_ax = axis.get_yaxis()
-            y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
-            axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
-            axis.yaxis.set_label_position('right')
-            ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
-            style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-            if index == 0:
-                # Add all items to page legend (only once).
-                handles, labels = axis.get_legend_handles_labels()
-                handles_labels[0] += handles
-                handles_labels[1].append(instr_data[index].legend_text)
-                # Plot title goes above the top subplot (only once).
-                if not aperf_data and not cycles_data:
-                    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-            row += 1
     # x-limits (shared with all axes) and y-limits.
     # Margin MUST be adjusted after plotting is complete.
     add_margin_to_axes(axis1, x=0.02, y=0.0)
@@ -491,7 +466,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
 
 
 def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
-              mperf_executions, instr_executions, titles, window_size, xlimits,
+              mperf_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means, median,
               tukey, inset_xlimit=100):
     """Plot a page of benchmarks.
@@ -529,7 +504,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
 
     index, row, col = 0, 0, 0
-    cycles_data, aperf_data, mperf_data, instr_data = None, None, None, None
+    cycles_data, aperf_data, mperf_data = None, None, None
     outliers_exec, unique_exec, common_exec = None, None, None
     changepoint_exec, changepoint_mean_exec = None, None
     while index < n_execs:
@@ -540,8 +515,6 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             aperf_data = aperf_executions[index]
         if mperf_executions:
             mperf_data = mperf_executions[index]
-        if instr_executions:
-            instr_data = instr_executions[index]
         if outliers:
             outliers_exec = outliers[index]
         if unique:
@@ -556,7 +529,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
         handles, labels = draw_process_exec(inner_grid, data, cycles_data,
-                              aperf_data, mperf_data, instr_data, titles[index], x_bounds,
+                              aperf_data, mperf_data, titles[index], x_bounds,
                               [y_min, y_max], window_size, outliers_exec,
                               unique_exec, common_exec, changepoint_exec, changepoint_mean_exec,
                               median, tukey)
@@ -566,7 +539,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
 
-    fig.subplots_adjust(**SUBPLOT_PARAMS)
+    outer_grid.update(**SUBPLOT_PARAMS)
 
     # Draw an inset, if required. This MUST be done after adjusting subplots,
     # so that we can calculate the correct bounding box for the inset.
@@ -609,8 +582,14 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close pyplot.
+        multiplier = 1
+        if cycles_executions and any(cycles_executions):
+            multiplier += 1
+        if aperf_executions and any(aperf_executions) and mperf_executions:
+            multiplier += 1
+        # Add an extra inch for the legend.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
-                       EXPORT_SIZE_INCHES[1] * n_rows)
+                       EXPORT_SIZE_INCHES[1] * n_rows * multiplier + 1)
         return fig, export_size
 
 
@@ -643,7 +622,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                        'cycles_counts': dict(), # core cycles measurements
                        'aperf_counts': dict(),
                        'mperf_counts': dict(),
-                       'instr_data': dict(),  # per-VM information.
                        'all_outliers': dict(),
                        'common_outliers': dict(),
                        'unique_outliers': dict(),
@@ -679,6 +657,12 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         # All benchmarking data from one Krun results file.
         data = read_krun_results_file(filename)
 
+        if not wallclock_only and not ('core_cycle_counts' in data and
+           'aperf_counts' in data and 'mperf_counts' in data):
+                fatal_error('Core cycle counts / perf data not stored in %s. '
+                            'Consider running this script with --wallclock-only.'
+                            % filename)
+
         # Get machine name from Krun results file.
         machine = data['audit']['uname'].split(' ')[1]
         if '.' in machine:  # Strip domain names.
@@ -703,7 +687,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['cycles_counts'][key] = dict()
                         data_dictionary['aperf_counts'][key] = dict()
                         data_dictionary['mperf_counts'][key] = dict()
-                        data_dictionary['instr_data'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
@@ -713,14 +696,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['cycles_counts'][key][machine] = data['core_cycle_counts'][key]
                         data_dictionary['aperf_counts'][key][machine] = data['aperf_counts'][key]
                         data_dictionary['mperf_counts'][key][machine] = data['mperf_counts'][key]
-                    # If there is VM instrumentation data, and we have a parser
-                    # for it, add it to the data dictionary.
-                    _, vm, _ = key.split(':')
-                    if vm in INSTRUMENTATION_PARSERS and not wallclock_only:
-                        parser = INSTRUMENTATION_PARSERS[vm](data['instr_data'][key])
-                        data_dictionary['instr_data'][key][machine] = parser.chart_data
-                    else:
-                        data_dictionary['instr_data'][key][machine] = None
             # Construct plot titles for all data in this file.
             for key in data_dictionary['data']:
                 if key not in plot_titles:

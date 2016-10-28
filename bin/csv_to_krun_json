@@ -20,7 +20,6 @@ def main(in_files, language, vm, uname):
                    'core_cycle_counts': dict(),
                    'aperf_counts': dict(),
                    'mperf_counts': dict(),
-                   'instr_data': dict(),
                    'audit': dict(),
                    'config': '',
                    'reboots': 0,
@@ -41,12 +40,10 @@ def main(in_files, language, vm, uname):
                     data_dictionary['core_cycle_counts'][key] = list()
                     data_dictionary['aperf_counts'][key] = list()
                     data_dictionary['mperf_counts'][key] = list()
-                    data_dictionary['instr_data'][key] = list()
                 data_dictionary['wallclock_times'][key].append(data)
                 data_dictionary['core_cycle_counts'][key].append(None)
                 data_dictionary['aperf_counts'][key].append(None)
                 data_dictionary['mperf_counts'][key].append(None)
-                data_dictionary['instr_data'][key].append(None)
         new_filename = os.path.splitext(filename)[0] + '.json.bz2'
         write_krun_results_file(data_dictionary, new_filename)
 
