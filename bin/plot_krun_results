@@ -475,6 +475,9 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             row += 1
     # Add any VM instrumentation data on another set of charts.
     if instr_data:
+        legend_texts = set()
+        for index in xrange(len(instr_data_narrays)):
+            legend_texts.add(instr_data[index].legend_text)
         for index in xrange(len(instr_data_narrays)):
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             pyplot.setp(axis.get_xticklabels(), visible=False)
@@ -495,7 +498,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 # Add all items to page legend (only once).
                 handles, labels = axis.get_legend_handles_labels()
                 handles_labels[0] += handles
-                handles_labels[1].append(instr_data[index].legend_text)
+                handles_labels[1].append(', '.join(legend_texts))
                 # Plot title goes above the top subplot (only once).
                 if not aperf_data and not cycles_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
