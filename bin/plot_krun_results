@@ -18,12 +18,12 @@ import sys
 
 from matplotlib import gridspec, pyplot
 from matplotlib.collections import LineCollection
-from matplotlib.ticker import FormatStrFormatter
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_margin_to_axes, compute_grid_offsets, style_axis
+from warmup.plotting import format_yticks_scientific
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS, merge_instr_data
 
 seaborn.set_palette('colorblind')
@@ -96,14 +96,12 @@ ZORDER_MARKERS = 20
 TWINX_OFFSET = 1.1
 
 # Use a fixed y-range for the aperf/mperf data.
-PERF_YRANGE = (0.0, 1.1)
+PERF_YRANGE = (0.0, 1.2)
+PERF_YTICK_FORMAT = '%.1f'
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_RECT = (0.675, 0.82, 0.3, 0.15)
 INSET_TICK_FONTSIZE = 14
-
-YTICK_FORMAT = '%.4f'
-PERF_YTICK_FORMAT = '%.1f'
 
 # Default (PDF) font sizes
 TICK_FONTSIZE = 14
@@ -111,6 +109,8 @@ TITLE_FONT_SIZE = 20
 AXIS_FONTSIZE = 14
 BASE_FONTSIZE = 20
 LEGEND_FONTSIZE = 16
+YTICK_FORMAT = '%.4f'
+
 
 FONT = {
     'family': 'sans',
@@ -405,8 +405,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     minor_yticks = compute_grid_offsets(
         y_range[0], y_range[1], GRID_MINOR_Y_DIVS)
     style_axis(axis1, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-    # Format y-ticks to 3 decimal places.
-    axis1.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
+    format_yticks_scientific(axis1)
     # Plot title goes above the top subplot.
     if not (cycles_data or aperf_data):
         axis1.set_title(title, fontsize=TITLE_FONT_SIZE)
@@ -464,6 +463,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
             minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+            format_yticks_scientific(axis)
             if core == 0:
                 # Add all items to page legend (only once).
                 handles, labels = axis.get_legend_handles_labels()
@@ -481,7 +481,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis.plot(iterations, instr_data_narrays[index],
                         color=INSTR_COLOR, label=(instr_data[index].title))
             y_ax = axis.get_yaxis()
-            y_ax.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
             axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
             axis.yaxis.set_label_position('right')
@@ -489,6 +488,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
             minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+            format_yticks_scientific(axis)
             if index == 0:
                 # Add all items to page legend (only once).
                 handles, labels = axis.get_legend_handles_labels()
@@ -594,7 +594,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
             inset.grid(False)  # Too many lines and y-ticks looks very messy.
             inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
-            inset.yaxis.set_major_formatter(FormatStrFormatter(YTICK_FORMAT))
+            inset.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
             inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.plot(range(*inset_xlimit),  # Plot subset of the data.

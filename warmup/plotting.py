@@ -1,6 +1,31 @@
+# import numpy
+from matplotlib import pyplot
+from matplotlib.ticker import ScalarFormatter
+
 SPINE_LINESTYLE = 'solid'
 SPINE_LINEWIDTH = 1
 ZORDER_GRID = 1
+
+
+def format_yticks_scientific(axis):
+    """Apply scientific formatting to y-axis of a given set of axes.
+    Change from 'offset' notation (where a number is added / subtracted to each
+    ticklabel) to the more intuitive scientific notation (where a number
+    multiplies each ticklabel). Remove the multiplier from the top-left hand
+    corner of the plot, and add it to the ticklabel instead.
+    """
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((-2, 2))
+    axis.yaxis.set_major_formatter(formatter)
+    y_axis = axis.yaxis
+    pyplot.draw()
+    offset = y_axis.get_offset_text().get_text()
+    if len(offset) > 0:
+        labels = [label.get_text() + offset for label in axis.get_yticklabels()]
+        axis.set_yticklabels(labels)
+        y_axis.offsetText.set_visible(False)
+
 
 def add_margin_to_axes(axis, x=0.01, y=0.01):
     """Seaborn-friendly way to add margins to axes (default 1% margin).
