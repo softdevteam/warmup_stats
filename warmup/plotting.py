@@ -27,6 +27,18 @@ def format_yticks_scientific(axis):
         y_axis.offsetText.set_visible(False)
 
 
+def get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=0.02):
+    y_min, y_max = float('inf'), float('-inf')  # Wallclock data.
+    for execution in executions:
+        y_min = min(min(execution[xlimits_start:xlimits_stop]), y_min)
+        y_max = max(max(execution[xlimits_start:xlimits_stop]), y_max)
+    range_ = y_max - y_min
+    adj = range_ * padding
+    y_min -= adj
+    y_max += adj
+    return y_min, y_max
+
+
 def add_margin_to_axes(axis, x=0.01, y=0.01):
     """Seaborn-friendly way to add margins to axes (default 1% margin).
     """

@@ -22,8 +22,8 @@ from matplotlib.collections import LineCollection
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import read_krun_results_file
 from warmup.outliers import get_window
-from warmup.plotting import add_margin_to_axes, compute_grid_offsets, style_axis
-from warmup.plotting import format_yticks_scientific
+from warmup.plotting import add_margin_to_axes, compute_grid_offsets
+from warmup.plotting import format_yticks_scientific, get_unified_yrange, style_axis
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS, merge_instr_data
 
 seaborn.set_palette('colorblind')
@@ -275,7 +275,7 @@ def _get_scatter_points_within_bounds(scatter, x_bounds):
 
 
 def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
-                 instr_data, title, x_bounds, y_range, window_size,
+                 instr_data, instr_y_ranges, title, x_bounds, y_range, window_size,
                  outliers, unique, common, changepoints, changepoint_means,
                  median, tukey):
     iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
@@ -484,9 +484,11 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
             axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
             axis.yaxis.set_label_position('right')
-            ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            axis.set_ylim(instr_y_ranges[index])
+            major_yticks = compute_grid_offsets(instr_y_ranges[index][0],
+                                   instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS)
+            minor_yticks = compute_grid_offsets(instr_y_ranges[index][0],
+                                   instr_y_ranges[index][1], GRID_MINOR_Y_DIVS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             format_yticks_scientific(axis)
             if index == 0:
@@ -498,7 +500,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 if not aperf_data and not cycles_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
-    # x-limits (shared with all axes) and y-limits.
     # Margin MUST be adjusted after plotting is complete.
     add_margin_to_axes(axis1, x=0.02, y=0.0)
     axis1.set_ylim(y_range)
@@ -520,7 +521,6 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     print('On this page, %g plots will be arranged in %g rows and %g columns.'
           % (len(executions), n_rows, n_cols))
 
-    # Find the min and max y values across all plots for this view.
     if xlimits is None:
         xlimits_start = 0
         xlimits_stop = len(executions[0])  # Assume all execs are the same length
@@ -530,16 +530,24 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         except ValueError:
             fatal_error('Invalid xlimits pair: %s' % xlimits)
             sys.exit(1)
-    y_min, y_max = float('inf'), float('-inf')
-    for execution in executions:
-        y_min = min(min(execution[xlimits_start:xlimits_stop]), y_min)
-        y_max = max(max(execution[xlimits_start:xlimits_stop]), y_max)
 
-    # Allow 2% pad either side
-    rng = y_max - y_min
-    adj = rng * 0.02
-    y_min -= adj
-    y_max += adj
+    # Find the min and max y values across all wallclock time plots for this page.
+    y_min, y_max = get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=0.02)
+
+    # Get unified y-ranges for the instrumentation data. Each VM may have more
+    # more than one set of instrumentation data (e.g. GC events, JIT
+    # compilation, etc.) and each VM instrument must have its own y-range.
+    if instr_executions:
+        instr_data_by_instrument = [list() for _ in instr_executions[0]]
+        for execution in instr_executions:
+            for index, instrument_data in enumerate(execution):
+                instr_data_by_instrument[index].append(instrument_data.data)
+        instr_y_ranges = list()
+        for chart_data in instr_data_by_instrument:
+            instr_y_ranges.append(get_unified_yrange(chart_data, xlimits_start,
+                                                     xlimits_stop, padding=0.02))
+    else:
+        instr_y_ranges = None
 
     fig = pyplot.figure()
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
@@ -572,10 +580,10 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
         handles, labels = draw_process_exec(inner_grid, data, cycles_data,
-                              aperf_data, mperf_data, instr_data, titles[index],
-                              x_bounds, [y_min, y_max], window_size, outliers_exec,
-                              unique_exec, common_exec, changepoint_exec, changepoint_mean_exec,
-                              median, tukey)
+                              aperf_data, mperf_data, instr_data, instr_y_ranges,
+                              titles[index], x_bounds, [y_min, y_max], window_size,
+                              outliers_exec, unique_exec, common_exec, changepoint_exec,
+                              changepoint_mean_exec, median, tukey)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
