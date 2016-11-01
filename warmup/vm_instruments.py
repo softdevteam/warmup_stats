@@ -66,12 +66,29 @@ class HotSpotInstrumentParser(VMInstrumentParser):
             return None
         for p_exec in xrange(len(self.instr_data)):
             iterations = len(self.instr_data[p_exec])
-            cumulative_times = [self.instr_data[p_exec][i][1] for i in xrange(iterations)]
-            times_secs = [cumulative_times[0] / 1000.0]
-            for index in xrange(1, len(cumulative_times)):
-                times_secs.append((cumulative_times[index] - cumulative_times[index - 1]) / 1000.0)
-            assert len(times_secs) == len(cumulative_times)
-            self.chart_data.append([ChartData('GC (secs)', times_secs, 'GC events')])
+            jit_cumulative_times = [self.instr_data[p_exec][i][1] for i in xrange(iterations)]
+            gc_cumulative_times = list()
+            # Sum GC times over all collectors that ran in each iteration.
+            for iteration in xrange(iterations):
+                gc_iteration = 0
+                for collector in self.instr_data[p_exec][iteration][2]:
+                    gc_iteration += collector[-1]
+                gc_cumulative_times.append(gc_iteration)
+            # Turn the cumulative times in milliseconds into non-cumulative
+            # times in seconds.
+            jit_times_secs = [jit_cumulative_times[0] / 1000.0]
+            gc_times_secs = [gc_cumulative_times[0] / 1000.0]
+            last_jit_time = jit_cumulative_times[0]
+            last_gc_time = gc_cumulative_times[0]
+            for iteration in xrange(1, iterations):
+                jit_times_secs.append((jit_cumulative_times[iteration] - last_jit_time) / 1000.0)
+                last_jit_time = jit_cumulative_times[iteration]
+                gc_times_secs.append((gc_cumulative_times[iteration] - last_gc_time) / 1000.0)
+                last_gc_time = gc_cumulative_times[iteration]
+            assert len(jit_times_secs) == len(jit_cumulative_times)
+            assert len(gc_times_secs) == len(gc_cumulative_times)
+            self.chart_data.append([ChartData('GC (secs)', gc_times_secs, 'GC events'),
+                                    ChartData('JIT (secs)', jit_times_secs, 'JIT compilation')])
 
 
 class PyPyInstrumentParser(VMInstrumentParser):
