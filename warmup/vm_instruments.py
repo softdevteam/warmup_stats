@@ -3,6 +3,15 @@
 import abc
 
 
+def merge_instr_data(file_data):
+    """Merge data from one or more instr_data JSON dictionaries.
+    """
+    instr_data = {'raw_vm_events': list()}
+    for dict_ in file_data:
+        instr_data['raw_vm_events'].append(dict_['raw_vm_events'])
+    return instr_data
+
+
 class ChartData(object):
     """Class to hold data needed by the plotting script.
     Each VM parser may parse a number of different events which need to be
@@ -57,15 +66,76 @@ class HotSpotInstrumentParser(VMInstrumentParser):
             return None
         for p_exec in xrange(len(self.instr_data)):
             iterations = len(self.instr_data[p_exec])
-            cumulative_times = [self.instr_data[p_exec][i][1] for i in xrange(iterations)]
-            times_secs = [cumulative_times[0] / 1000.0]
-            for index in xrange(1, len(cumulative_times)):
-                times_secs.append((cumulative_times[index] - cumulative_times[index - 1]) / 1000.0)
-            assert len(times_secs) == len(cumulative_times)
-            self.chart_data.append([ChartData('GC (secs)', times_secs, 'GC events')])
+            jit_cumulative_times = [self.instr_data[p_exec][i][1] for i in xrange(iterations)]
+            gc_cumulative_times = list()
+            # Sum GC times over all collectors that ran in each iteration.
+            for iteration in xrange(iterations):
+                gc_iteration = 0
+                for collector in self.instr_data[p_exec][iteration][2]:
+                    gc_iteration += collector[-1]
+                gc_cumulative_times.append(gc_iteration)
+            # Turn the cumulative times in milliseconds into non-cumulative
+            # times in seconds.
+            jit_times_secs = [jit_cumulative_times[0] / 1000.0]
+            gc_times_secs = [gc_cumulative_times[0] / 1000.0]
+            last_jit_time = jit_cumulative_times[0]
+            last_gc_time = gc_cumulative_times[0]
+            for iteration in xrange(1, iterations):
+                jit_times_secs.append((jit_cumulative_times[iteration] - last_jit_time) / 1000.0)
+                last_jit_time = jit_cumulative_times[iteration]
+                gc_times_secs.append((gc_cumulative_times[iteration] - last_gc_time) / 1000.0)
+                last_gc_time = gc_cumulative_times[iteration]
+            assert len(jit_times_secs) == len(jit_cumulative_times)
+            assert len(gc_times_secs) == len(gc_cumulative_times)
+            self.chart_data.append([ChartData('GC (secs)', gc_times_secs, 'GC events'),
+                                    ChartData('JIT (secs)', jit_times_secs, 'JIT compilation')])
+
+
+class PyPyInstrumentParser(VMInstrumentParser):
+    """Parser for PyPy instrumentation data."""
+
+    def __init__(self, instr_data):
+        VMInstrumentParser.__init__(self, 'PyPy')
+        self.instr_data = instr_data['raw_vm_events'] if instr_data else None
+        self.parse_instr_data()
+
+    def parse_instr_data(self):
+        if self.instr_data is None:
+            return None
+        for p_exec in xrange(len(self.instr_data)):
+            iterations = {'gc': list(), 'jit': list()}
+            for inproc_iter_num, node in enumerate(self.instr_data[p_exec]):
+                event_type, start_time, stop_time, children = node
+                assert start_time == stop_time == None
+                iteration = {'gc': 0, 'jit': 0}
+                for child in children:
+                    self._parse_node(child, iteration)
+                iterations['gc'].append(iteration['gc'])
+                iterations['jit'].append(iteration['jit'])
+            self.chart_data.append([ChartData('GC', iterations['gc'], 'GC events') ,
+                                    ChartData('JIT', iterations['jit'], 'JIT tracing')])
+
+    def _parse_node(self, node, info):
+        """Recurse the event tree summing time spent in gc and tracing.
+        """
+        event_type, start_time, stop_time, children = node
+        assert event_type != 'root'
+        child_time = 0
+        for child in children:
+            child_time += self._parse_node(child, info)
+        gross_time = stop_time - start_time
+        net_time = gross_time - child_time
+        if event_type.startswith('gc-'):
+            info['gc'] += net_time
+        elif event_type.startswith('jit-'):
+            info['jit'] += net_time
+        else:
+            print 'WARNING: unknown event in PyPy instrumentation: %s' % event_type
+        return net_time
 
 
 # Mapping from VM name -> parser class.
 # This enables the main scripts to parse instrumentation data based only
 # on the vm:bench:language triplets found in Krun data files.
-INSTRUMENTATION_PARSERS = {'Hotspot': HotSpotInstrumentParser}
+INSTRUMENTATION_PARSERS = { 'Hotspot': HotSpotInstrumentParser,
+                            'PyPy': PyPyInstrumentParser, }
