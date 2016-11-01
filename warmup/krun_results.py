@@ -2,6 +2,24 @@ import bz2
 import json
 
 
+_VARIANTS = {'default-python': 'Python',
+             'default-c': 'C',
+             'default-php': 'PHP',
+             'default-java': 'Java',
+             'default-ruby': 'Ruby',
+             'default-javascript': 'Javascript',
+             'default-lua': 'Lua'}
+
+
+def pretty_print_variant(language):
+    if language in _VARIANTS:
+        return _VARIANTS[language]
+    elif language.startswith('default-'):
+        name = language[len('default-'):]
+        return name.capitalize()
+    return language.capitalize()
+
+
 def create_minimal_blank_results(audit):
     return {'wallclock_times':dict(), 'all_outliers':dict(),
             'common_outliers':dict(), 'unique_outliers':dict(), 'audit':audit}
