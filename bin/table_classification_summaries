@@ -45,9 +45,13 @@ def main(data_dcts, window_size, latex_file):
                     last_segment_means.append(data_dcts[machine]['changepoint_means'][key][p_exec][-1])
                     last_changepoints.append(data_dcts[machine]['changepoints'][key][p_exec][-1])
                 # Average all information.
-                most_common_category = _most_common_item_from_list(categories)
-                mean_last_segment = format_median_error(*bootstrap_confidence_interval(last_segment_means))
-                mean_last_cpt = format_median_error(*bootstrap_confidence_interval(last_changepoints))
+                most_common_category = _most_common_item_from_list(categories).capitalize()
+                if most_common_category == 'No steady state':
+                    mean_last_segment = ''
+                    mean_last_cpt = ''
+                else:
+                    mean_last_segment = format_median_error(*bootstrap_confidence_interval(last_segment_means))
+                    mean_last_cpt = format_median_error(*bootstrap_confidence_interval(last_changepoints))
                 # Add summary for this benchmark.
                 summary_data[vm_variant][bench] = {'style': most_common_category,
                     'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment}

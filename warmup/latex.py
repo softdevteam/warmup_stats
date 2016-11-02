@@ -1,6 +1,5 @@
 __LATEX_PREAMBLE = lambda title: """
 \documentclass[12pt]{article}
-\usepackage{longtable}
 \usepackage{booktabs}
 \\title{%s}
 \\begin{document}
@@ -12,29 +11,19 @@ __LATEX_SECTION = lambda section: """
 """ % section
 
 __LATEX_START_TABLE = lambda format_, headings: """
-\\begin{center}
-\\begin{longtable}{%s}
+\\begin{tabular}{%s}
 \\toprule
-%s\\\\
-\midrule
-\endfirsthead
-\\toprule
-%s\\\\
-\midrule
-\endhead
-\midrule
-\endfoot
-\\bottomrule
-\endlastfoot
-""" % (format_, headings, headings)
+%s \\\\
+\\midrule
+""" % (format_, headings)
 
 __LATEX_END_TABLE = """
-\end{longtable}
-\end{center}
+\\bottomrule
+\\end{tabular}
 """
 
 __LATEX_END_DOCUMENT = """
-\end{document}
+\\end{document}
 """
 
 
@@ -48,6 +37,11 @@ def end_table():
 
 def escape(word):
     return word.replace('_', '\\_')
+
+
+def format_median_error(median, error):
+    return '$%.5f\\scriptstyle{\\pm%.6f}$' % (median, error)
+
 
 def preamble(title):
     return __LATEX_PREAMBLE(title)
