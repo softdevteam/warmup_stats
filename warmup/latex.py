@@ -39,8 +39,13 @@ def escape(word):
     return word.replace('_', '\\_')
 
 
-def format_median_error(median, error):
-    return '$%.5f\\scriptstyle{\\pm%.6f}$' % (median, error)
+def format_median_error(median, error, as_integer=False):
+    formatted_text = ''
+    if as_integer:
+        formatted_text = '$%d\\scriptstyle{\\pm%d}$' % (int(median), int(error))
+    else:
+        formatted_text = '$%.5f\\scriptstyle{\\pm%.6f}$' % (median, error)
+    return formatted_text
 
 
 def preamble(title):

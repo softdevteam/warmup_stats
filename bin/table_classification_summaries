@@ -10,7 +10,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import pretty_print_variant, read_krun_results_file
-from warmup.latex import preamble, end_document, end_table, escape, section, start_table
+from warmup.latex import preamble, end_document, end_table, escape
+from warmup.latex import format_median_error, section, start_table
 from warmup.statistics import bootstrap_confidence_interval
 
 
@@ -50,8 +51,10 @@ def main(data_dcts, window_size, latex_file):
                     mean_last_segment = ''
                     mean_last_cpt = ''
                 else:
-                    mean_last_segment = format_median_error(*bootstrap_confidence_interval(last_segment_means))
-                    mean_last_cpt = format_median_error(*bootstrap_confidence_interval(last_changepoints))
+                    median, error = bootstrap_confidence_interval(last_segment_means)
+                    mean_last_segment = format_median_error(median, error)
+                    median, error = bootstrap_confidence_interval(last_changepoints)
+                    mean_last_cpt = format_median_error(median, error, as_integer=True)
                 # Add summary for this benchmark.
                 summary_data[vm_variant][bench] = {'style': most_common_category,
                     'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment}
@@ -59,9 +62,6 @@ def main(data_dcts, window_size, latex_file):
     write_results_as_latex(summary_data, window_size, latex_file)
     return
 
-
-def format_median_error(median, error):
-    return '$%.5f\\scriptstyle{\\pm%.6f}$' % (median, error)
 
 def _most_common_item_from_list(list_):
     return max(set(list_), key=list_.count)
