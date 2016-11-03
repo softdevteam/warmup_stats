@@ -1,6 +1,13 @@
 import bz2
 import json
 
+_MACHINES = {
+    'bencher3': 'Linux1/i7-4790K',
+    'bencher5': 'Linux2/i7-4790',
+    'bencher6': 'OpenBSD/i7-4790',
+    'bencher7': 'ARM',  # this machine has not been set up yet
+}
+
 
 _VARIANTS = {'default-python': 'Python',
              'default-c': 'C',
@@ -9,6 +16,12 @@ _VARIANTS = {'default-python': 'Python',
              'default-ruby': 'Ruby',
              'default-javascript': 'Javascript',
              'default-lua': 'Lua'}
+
+
+def pretty_print_machine(machine):
+    if machine in _MACHINES:
+        return _MACHINES[machine]
+    return machine.capitalize()
 
 
 def pretty_print_variant(language):

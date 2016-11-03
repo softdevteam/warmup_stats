@@ -9,7 +9,8 @@ import os.path
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from warmup.krun_results import pretty_print_variant, read_krun_results_file
+from warmup.krun_results import pretty_print_machine, pretty_print_variant
+from warmup.krun_results import read_krun_results_file
 from warmup.latex import preamble, end_document, end_table, escape
 from warmup.latex import format_median_error, section, start_table
 from warmup.statistics import bootstrap_confidence_interval
@@ -34,7 +35,8 @@ def main(data_dcts, window_size, latex_file):
                       (key, machine))
             else:
                 bench, vm, variant = key.split(':')
-                vm_variant = '%s: %s (%s)' % (machine, vm, pretty_print_variant(variant))
+                vm_variant = '%s: %s (%s)' % (pretty_print_machine(machine),
+                                              vm, pretty_print_variant(variant))
                 if vm_variant not in summary_data:
                     summary_data[vm_variant] = dict()
                 # Get information for all p_execs of this key.
