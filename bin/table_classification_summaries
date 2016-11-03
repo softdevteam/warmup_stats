@@ -1,0 +1,158 @@
+#!/usr/bin/env python2.7
+"""Summarise benchmark classifications.
+Must be run after mark_changepoints_in_json.
+"""
+
+import argparse
+import os
+import os.path
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from warmup.krun_results import pretty_print_machine, pretty_print_variant
+from warmup.krun_results import read_krun_results_file
+from warmup.latex import preamble, end_document, end_table, escape
+from warmup.latex import format_median_error, section, start_table
+from warmup.statistics import bootstrap_confidence_interval
+
+
+TITLE = 'Summary of benchmark classifications.\nWindow size: %s'
+TABLE_FORMAT = 'llrr'
+TABLE_HEADINGS = '%s & Clasification & Steady iter & Median (s)'
+
+
+def main(data_dcts, window_size, latex_file):
+    summary_data = dict()
+    for machine in data_dcts:
+        keys = sorted(data_dcts[machine]['wallclock_times'].keys())
+        for key in sorted(keys):
+            wallclock_times = data_dcts[machine]['wallclock_times'][key]
+            if len(wallclock_times) == 0:
+                print ('WARNING: Skipping: %s from %s (no executions)' %
+                       (key, machine))
+            elif len(wallclock_times[0]) == 0:
+                print('WARNING: Skipping: %s from %s (benchmark crashed)' %
+                      (key, machine))
+            else:
+                bench, vm, variant = key.split(':')
+                vm_variant = '%s: %s (%s)' % (pretty_print_machine(machine),
+                                              vm, pretty_print_variant(variant))
+                if vm_variant not in summary_data:
+                    summary_data[vm_variant] = dict()
+                # Get information for all p_execs of this key.
+                categories = list()
+                last_segment_means = list()
+                last_changepoints = list()
+                for p_exec in xrange(len(data_dcts[machine]['wallclock_times'][key])):
+                    categories.append(data_dcts[machine]['classifications'][key][p_exec])
+                    last_segment_means.append(data_dcts[machine]['changepoint_means'][key][p_exec][-1])
+                    # Not all process execs have changepoints. However, all
+                    # p_execs will have one or more segment mean.
+                    if data_dcts[machine]['changepoints'][key][p_exec]:
+                        last_changepoints.append(data_dcts[machine]['changepoints'][key][p_exec][-1])
+                # Average all information.
+                most_common_category = _most_common_item_from_list(categories).capitalize()
+                if most_common_category == 'No steady state':
+                    mean_last_segment = ''
+                    mean_last_cpt = ''
+                else:
+                    median, error = bootstrap_confidence_interval(last_segment_means)
+                    mean_last_segment = format_median_error(median, error)
+                    if last_changepoints:
+                        median, error = bootstrap_confidence_interval(last_changepoints)
+                        mean_last_cpt = format_median_error(median, error, as_integer=True)
+                    else:  # No changepoints in any process executions.
+                        mean_last_cpt = format_median_error(median, 0, as_integer=True)
+                # Add summary for this benchmark.
+                summary_data[vm_variant][bench] = {'style': most_common_category,
+                    'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment}
+    # Write out results.
+    write_results_as_latex(summary_data, window_size, latex_file)
+    return
+
+
+def _most_common_item_from_list(list_):
+    return max(set(list_), key=list_.count)
+
+
+def write_results_as_latex(summary, window_size, tex_file):
+    """Write a results file.
+    """
+    print('Writing data to %s.' % tex_file)
+    with open(tex_file, 'w') as fp:
+        fp.write(preamble(TITLE % str(window_size)))
+        for section_heading in sorted(summary):
+            fp.write(section(section_heading))
+            fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS % 'Benchmark'))
+            for bench in summary[section_heading]:
+                fp.write('%s & %s & %s & %s\\\\ \n' % (escape(bench),
+                         escape(summary[section_heading][bench]['style']),
+                         summary[section_heading][bench]['last_cpt'],
+                         summary[section_heading][bench]['last_mean']))
+            fp.write(end_table())
+            fp.write('\\newpage{}')
+        fp.write(end_document())
+    return
+
+
+def get_data_dictionaries(json_files):
+    """Read a list of BZipped JSON files and return their contents as a
+    dictionaries of machine name -> JSON values.
+    """
+    data_dictionary = dict()
+    window_size = None
+    for filename in json_files:
+        assert os.path.exists(filename), 'File %s does not exist.' % filename
+        print 'Loading: %s' % filename
+        data = read_krun_results_file(filename)
+        if 'classifications' not in data:
+            print 'Please run mark_changepoints_in_json before re-running this script.'
+            sys.exit(1)
+        machine_name = data['audit']['uname'].split(' ')[1]
+        if '.' in machine_name:  # Remove domain, if there is one.
+            machine_name = machine_name.split('.')[0]
+        if machine_name not in data_dictionary:
+            data_dictionary[machine_name] = data
+        else:  # We may have two datasets from the same machine.
+            for outer_key in data:
+                if outer_key == 'audit' or outer_key == 'reboots':
+                    continue
+                elif outer_key == 'window_size':
+                    assert data_dictionary[machine_name][outer_key] == data[outer_key]
+                    continue
+                for key in data[outer_key]:
+                    assert key not in data_dictionary[machine_name][outer_key]
+                    if key not in data_dictionary[machine_name][outer_key]:
+                        data_dictionary[machine_name][outer_key][key] = dict()
+                    data_dictionary[machine_name][outer_key][key] = data[outer_key][key]
+        if window_size is None:
+            window_size = data['window_size']
+        else:
+            assert window_size == data['window_size'], \
+                   ('Cannot summarise categories generated with different' +
+                    ' window sizes.')
+    return window_size, data_dictionary
+
+
+def create_cli_parser():
+    """Create a parser to deal with command line switches.
+    """
+    script = os.path.basename(__file__)
+    description = (('Summarise benchmark classifications stored within a Krun ' +
+                    'results file. Must be run after mark_changepoints_in_json.' +
+                    '\n\nExample usage:\n\n' +
+                    '\t$ python %s -l summary.tex results.json.bz2') % script)
+    parser = argparse.ArgumentParser(description=description,
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('json_files', action='append', nargs='+', default=[],
+                        type=str, help='One or more Krun result files.')
+    parser.add_argument('--outfile', '-o', action='store', dest='latex_file',
+                        type=str, help=('Name of the LaTeX file to write to.'))
+    return parser
+
+
+if __name__ == '__main__':
+    parser = create_cli_parser()
+    options = parser.parse_args()
+    window_size, data_dcts = get_data_dictionaries(options.json_files[0])
+    main(data_dcts, window_size, options.latex_file)

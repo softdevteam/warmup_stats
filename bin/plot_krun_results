@@ -20,7 +20,7 @@ from matplotlib import gridspec, pyplot
 from matplotlib.collections import LineCollection
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from warmup.krun_results import read_krun_results_file
+from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_margin_to_axes, compute_grid_offsets
 from warmup.plotting import format_yticks_scientific, get_unified_yrange, style_axis
@@ -49,14 +49,6 @@ BENCHMARKS = {
     'spectralnorm':     'Spectral Norm',
     'fannkuch_redux':   'Fannkuch Redux',
     'nbody':            'N-Body',
-}
-
-# Machine names that need to be reformatted.
-MACHINES = {
-    'bencher3': 'Linux1/i7-4790K',
-    'bencher5': 'Linux2/i7-4790',
-    'bencher6': 'OpenBSD/i7-4790',
-    'bencher7': 'ARM',  # this machine has not been set up yet
 }
 
 GRID_MINOR_X_DIVS = 20
@@ -723,10 +715,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         machine = data['audit']['uname'].split(' ')[1]
         if '.' in machine:  # Strip domain names.
             machine = machine.split('.')[0]
-        if machine in MACHINES:
-            machine_name = MACHINES[machine]
-        else:
-            machine_name = machine
+        machine_name = pretty_print_machine(machine)
 
         # Is there instrumentation data with this results file?
         instr_data = False
