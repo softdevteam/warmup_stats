@@ -44,7 +44,10 @@ def main(data_dcts, window_size, latex_file):
                 for p_exec in xrange(len(data_dcts[machine]['wallclock_times'][key])):
                     categories.append(data_dcts[machine]['classifications'][key][p_exec])
                     last_segment_means.append(data_dcts[machine]['changepoint_means'][key][p_exec][-1])
-                    last_changepoints.append(data_dcts[machine]['changepoints'][key][p_exec][-1])
+                    # Not all process execs have changepoints. However, all
+                    # p_execs will have one or more segment mean.
+                    if data_dcts[machine]['changepoints'][key][p_exec]:
+                        last_changepoints.append(data_dcts[machine]['changepoints'][key][p_exec][-1])
                 # Average all information.
                 most_common_category = _most_common_item_from_list(categories).capitalize()
                 if most_common_category == 'No steady state':
@@ -53,8 +56,11 @@ def main(data_dcts, window_size, latex_file):
                 else:
                     median, error = bootstrap_confidence_interval(last_segment_means)
                     mean_last_segment = format_median_error(median, error)
-                    median, error = bootstrap_confidence_interval(last_changepoints)
-                    mean_last_cpt = format_median_error(median, error, as_integer=True)
+                    if last_changepoints:
+                        median, error = bootstrap_confidence_interval(last_changepoints)
+                        mean_last_cpt = format_median_error(median, error, as_integer=True)
+                    else:  # No changepoints in any process executions.
+                        mean_last_cpt = format_median_error(median, 0, as_integer=True)
                 # Add summary for this benchmark.
                 summary_data[vm_variant][bench] = {'style': most_common_category,
                     'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment}
