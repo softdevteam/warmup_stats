@@ -226,7 +226,8 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # Draw each page and display (interactive mode) or save to disk.
     try:
         for index, page in enumerate(pages):
-            print 'Plotting page %02d of %02d.' % (index + 1, len(pages)),
+            bmark, vm = all_subplot_titles[index][0].split(', ')[:-1]
+            print 'Plotting %s (%s) on page %02d of %02d.' % (bmark, vm, index + 1, len(pages)),
             fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
                                    aperf_pages[index], mperf_pages[index],
                                    instr_pages[index],
@@ -521,7 +522,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     n_rows = int(math.ceil(float(len(executions)) / MAX_SUBPLOTS_PER_ROW))
     n_cols = min(MAX_SUBPLOTS_PER_ROW, n_execs)
 
-    print('On this page, %g plots will be arranged in %g rows and %g columns.'
+    print('%g plots arranged in %g rows and %g columns.'
           % (len(executions), n_rows, n_cols))
 
     if xlimits is None:
