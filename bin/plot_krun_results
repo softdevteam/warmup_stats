@@ -124,6 +124,19 @@ EXPORT_SIZE_INCHES = 12, 10
 DPI = 300
 
 
+def add_instr_data(data_dictionary, key, machine):
+    vm = key.split(':')[1]  # bench, vm, language
+    if vm in INSTRUMENTATION_PARSERS:
+        files = glob.glob(os.path.join(instr_dir,
+                   key.replace(':', '__') + '__*.json.bz2'))
+        pexec_data = list()
+        for file_ in sorted(files):
+            pexec_data.append(read_krun_results_file(file_))
+        # Merge JSON data from each file and parse.
+        parser = INSTRUMENTATION_PARSERS[vm](merge_instr_data(pexec_data))
+        data_dictionary['instr_data'][key][machine] = parser.chart_data
+
+
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, changepoints, median=False,
          tukey=False, inset_xlimit=None, one_page=False):
@@ -158,13 +171,14 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             for machine in sorted(data_dcts['data'][key]):
                 for index, run_seq in enumerate(data_dcts['data'][key][machine]):
                     page.append(run_seq)
-                    cycles_page.append(data_dcts['cycles_counts'][key][machine][index])
-                    aperf_page.append(data_dcts['aperf_counts'][key][machine][index])
-                    mperf_page.append(data_dcts['mperf_counts'][key][machine][index])
+                    if data_dcts['cycles_counts'][key][machine]:
+                        cycles_page.append(data_dcts['cycles_counts'][key][machine][index])
+                    if data_dcts['aperf_counts'][key][machine]:
+                        aperf_page.append(data_dcts['aperf_counts'][key][machine][index])
+                    if data_dcts['mperf_counts'][key][machine]:
+                        mperf_page.append(data_dcts['mperf_counts'][key][machine][index])
                     if data_dcts['instr_data'][key][machine]:
                         instr_page.append(data_dcts['instr_data'][key][machine][index])
-                    else:
-                        instr_page.append(None)
                     subplot_titles.append(plot_titles[key][machine][index])
                     # Collect outliers, if the user wishes to annotate them on
                     # the plots. The draw_page() and draw_subplot() functions
@@ -767,16 +781,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['aperf_counts'][key][machine] = data['aperf_counts'][key]
                         data_dictionary['mperf_counts'][key][machine] = data['mperf_counts'][key]
                         if instr_data:
-                            vm = key.split(':')[1]  # bench, vm, language
-                            if vm in INSTRUMENTATION_PARSERS:
-                                files = glob.glob(os.path.join(instr_dir,
-                                           key.replace(':', '__') + '__*.json.bz2'))
-                                pexec_data = list()
-                                for file_ in sorted(files):
-                                    pexec_data.append(read_krun_results_file(file_))
-                                # Merge JSON data from each file and parse.
-                                parser = INSTRUMENTATION_PARSERS[vm](merge_instr_data(pexec_data))
-                                data_dictionary['instr_data'][key][machine] = parser.chart_data
+                            add_instr_data(data_dictionary, key, machine)
                         else:
                             data_dictionary['instr_data'][key][machine] = None
             # Construct plot titles for all data in this file.
@@ -817,13 +822,28 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                 if key not in data['wallclock_times']:
                     # Hope the key appears in another file, checked below.
                     continue
-                # FIXME: Core cycles and aperf/mperf data needs to go here.
-                # FIXME: VM instrumentation data needs to go here.
-                # FIXME: Deal with wallclock_only.
+
+                # Scaffold entries if not existing
                 if key not in data_dictionary['data']:
                     data_dictionary['data'][key] = dict()
+                    data_dictionary['cycles_counts'][key] = dict()
+                    data_dictionary['aperf_counts'][key] = dict()
+                    data_dictionary['mperf_counts'][key] = dict()
+                    data_dictionary['instr_data'][key] = dict()
+
                 if machine not in data_dictionary['data'][key]:
                     data_dictionary['data'][key][machine] = list()
+                    if not wallclock_only:
+                        data_dictionary['cycles_counts'][key][machine] = list()
+                        data_dictionary['aperf_counts'][key][machine] = list()
+                        data_dictionary['mperf_counts'][key][machine] = list()
+                        data_dictionary['instr_data'][key][machine] = list()
+                    else:
+                        data_dictionary['cycles_counts'][key][machine] = None
+                        data_dictionary['aperf_counts'][key][machine] = None
+                        data_dictionary['mperf_counts'][key][machine] = None
+                        data_dictionary['instr_data'][key][machine] = None
+
                 if key not in plot_titles:
                     plot_titles[key] = dict()
                 if machine not in plot_titles[key]:
@@ -841,7 +861,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     else:
                         benchmark_name = benchmark_name.title()
                     for p_exec in requested_data[key][machine]:
-                        if p_exec >= len(data['wallclock_times'][key][p_exec]):
+                        if p_exec >= len(data['wallclock_times'][key]):
                             fatal_error('You requested that process '
                                         'execution %g for benchmark %s '
                                         'from machine %s be plotted, but '
@@ -851,10 +871,19 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                         (p_exec,
                                          key,
                                          machine,
-                                         len(data['wallclock_times'][key][p_exec])))
+                                         len(data['wallclock_times'][key])))
                         # Add run sequence to data dictionary.
                         print 'Adding run sequence to ', key, machine
                         data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
+                        if not wallclock_only:
+                            data_dictionary['cycles_counts'][key][machine].append(data['core_cycle_counts'][key][p_exec])
+                            data_dictionary['aperf_counts'][key][machine].append(data['aperf_counts'][key][p_exec])
+                            data_dictionary['mperf_counts'][key][machine].append(data['mperf_counts'][key][p_exec])
+                            if instr_data:
+                                add_instr_data(data_dictionary, key, machine)
+                            else:
+                                data_dictionary['instr_data'][key][machine] = None
+
                         # Construct plot title.
                         title = '%s, %s, %s, Process execution #%d' % \
                                 (benchmark_name,
