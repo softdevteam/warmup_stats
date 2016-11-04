@@ -57,9 +57,15 @@ GRID_MAJOR_X_DIVS = 10
 GRID_MINOR_Y_DIVS = 12
 GRID_MAJOR_Y_DIVS = 6
 
+GRID_MINOR_Y_DIVS_SMALLER_PLOTS = 4
+GRID_MAJOR_Y_DIVS_SMALLER_PLOTS = 2
+
 LINE_COLOUR = 'k'
-LINE_WIDTH = 1
 FILL_ALPHA = 0.2
+
+# line widths, measured in pts
+LINE_WIDTH = 1
+PLOT_LINE_WIDTH = 0.4
 
 OUTLIER_MARKER = 'o'
 OUTLIER_COLOR = 'r'
@@ -70,9 +76,9 @@ UNIQUE_SIZE = 80
 COMMON_COLOR = 'r'
 COMMON_MARKER = '*'
 COMMON_SIZE = 80
-CYCLES_COLOR = 'green'
-PERF_COLOR = 'blue'
-INSTR_COLOR = 'red'
+CYCLES_COLOR = 'black'
+PERF_COLOR = 'black'
+INSTR_COLOR = 'black'
 
 CHANGEPOINT_LINE_STYLE = '-'
 CHANGEPOINT_LINE_COLOR = 'r'
@@ -96,11 +102,11 @@ INSET_RECT = (0.675, 0.82, 0.3, 0.15)
 INSET_TICK_FONTSIZE = 14
 
 # Default (PDF) font sizes
-TICK_FONTSIZE = 14
-TITLE_FONT_SIZE = 20
-AXIS_FONTSIZE = 14
-BASE_FONTSIZE = 20
-LEGEND_FONTSIZE = 16
+TICK_FONTSIZE = 8
+TITLE_FONT_SIZE = 10
+AXIS_FONTSIZE = 8
+BASE_FONTSIZE = 8
+LEGEND_FONTSIZE = 10
 YTICK_FORMAT = '%.4f'
 
 
@@ -112,7 +118,7 @@ FONT = {
 matplotlib.rc('font', **FONT)
 
 MAX_SUBPLOTS_PER_ROW = 2
-EXPORT_SIZE_INCHES = 12, 10
+EXPORT_SIZE_INCHES = [12, 10]
 DPI = 300
 
 
@@ -232,8 +238,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # Draw each page and display (interactive mode) or save to disk.
     try:
         for index, page in enumerate(pages):
-            bmark, vm = all_subplot_titles[index][0].split(', ')[:-1]
-            print 'Plotting %s (%s) on page %02d of %02d.' % (bmark, vm, index + 1, len(pages)),
             fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
                                    aperf_pages[index], mperf_pages[index],
                                    instr_pages[index],
@@ -316,6 +320,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     if n_rows == 1:  # Only create another gridspec if we have to.
         inner_grid = None
     else:
+        # Spring constraints for grid cell heights
         heights = [.25] * (n_rows - 1)
         heights.append(1)
         inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell,
@@ -329,7 +334,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     else:
         axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
     axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
-               zorder=ZORDER_DATA)
+               zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
     # If there are outliers, highlight them.
     axis1.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
     if outliers is not None:
@@ -397,7 +402,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 pc_bands[0].append(medians[index] - band)
                 pc_bands[1].append(medians[index] + band)
         if median:  # Plot the median.
-            axis1.plot(iterations, medians, label='Median', zorder=ZORDER_MEDIAN)
+            axis1.plot(iterations, medians, label='Median',
+                       zorder=ZORDER_MEDIAN, linewidth=PLOT_LINE_WIDTH)
         if tukey:  # Fill between the Tukey band.
             axis1.fill_between(iterations, pc_bands[0], pc_bands[1], alpha=FILL_ALPHA,
                                facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
@@ -431,19 +437,21 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         for core in xrange(len(perf_data_narrays)):
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             axis.plot(iterations, perf_data_narrays[core],
-                       color=PERF_COLOR, clip_on=False,
-                       label=('Core %d aperf/mperf ratio' % core))
+                      color=PERF_COLOR, clip_on=False,
+                      linewidth=PLOT_LINE_WIDTH,
+                      label=('Core %d aperf/mperf ratio' % core),
+                      zorder=ZORDER_DATA)
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(PERF_YRANGE)
             y_ax = axis.get_yaxis()
             y_ax.set_major_formatter(matplotlib.ticker.FormatStrFormatter(PERF_YTICK_FORMAT))
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=PERF_COLOR,
                                   right=True, direction='in', which='both', pad=1)
-            axis.set_ylabel('AMR Core %d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
+            axis.set_ylabel('AMR #%d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
+            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             if core == 0:
                 # Add all items to page legend.
@@ -460,15 +468,16 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(cycles_min, cycles_max)
             axis.plot(iterations, cycle_data_narrays[core],
-                      color=CYCLES_COLOR, label=('Core %d cycles' % core))
+                      color=CYCLES_COLOR, label=('Core %d cycles' % core),
+                      linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
             # Style axes and grid.
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-            axis.set_ylabel('CC Core %d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
+            axis.set_ylabel('CC #%d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
+            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             format_yticks_scientific(axis)
             if core == 0:
@@ -489,16 +498,17 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.plot(iterations, instr_data_narrays[index],
-                        color=INSTR_COLOR, label=(instr_data[index].title))
+                        color=INSTR_COLOR, label=(instr_data[index].title),
+                      linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
             axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
             axis.yaxis.set_label_position('right')
             axis.set_ylim(instr_y_ranges[index])
             major_yticks = compute_grid_offsets(instr_y_ranges[index][0],
-                                   instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS)
+                                   instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
             minor_yticks = compute_grid_offsets(instr_y_ranges[index][0],
-                                   instr_y_ranges[index][1], GRID_MINOR_Y_DIVS)
+                                   instr_y_ranges[index][1], GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             format_yticks_scientific(axis)
             if index == 0:
@@ -617,7 +627,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.plot(range(*inset_xlimit),  # Plot subset of the data.
                        executions[index][inset_xlimit[0]:inset_xlimit[1]],
-                       color=LINE_COLOUR)
+                       color=LINE_COLOUR, linewidth=PLOT_LINE_WIDTH,
+                       zorder=ZORDER_DATA)
             col += 1
             if col == MAX_SUBPLOTS_PER_ROW:
                 col = 0
@@ -644,14 +655,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close pyplot.
-        multiplier = 1
-        if cycles_executions and any(cycles_executions):
-            multiplier += 1
-        if aperf_executions and any(aperf_executions) and mperf_executions:
-            multiplier += 1
-        # Add an extra inch for the legend.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
-                       EXPORT_SIZE_INCHES[1] * n_rows * multiplier + 1)
+                       EXPORT_SIZE_INCHES[1] * n_rows)
         return fig, export_size
 
 
@@ -798,7 +803,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data['classifications'][key][p_exec]
                         else:
                             classification = ''
-                        title = '%s, %s, %s\nProcess execution #%d%s' % \
+                        title = '%s, %s, %s, Proc. exec. #%d%s' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
@@ -875,7 +880,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data_dictionary['instr_data'][key][machine] = None
 
                         # Construct plot title.
-                        title = '%s, %s, %s\nProcess execution #%d' % \
+                        title = '%s, %s, %s, Proc. exec. #%d' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
@@ -1047,6 +1052,12 @@ def create_cli_parser():
                         dest='legend_off',
                         default=True,
                         help='Do not draw a legend.')
+    parser.add_argument('--export-size',
+                        action='store',
+                        default="12, 10",
+                        help=("Set the total size (comma separated pair, "
+                             "in inches) of each process execution's "
+                             "plots in the output."))
     return parser
 
 
@@ -1072,6 +1083,15 @@ if __name__ == '__main__':
             (matplotlib.__version__, matplotlib.get_backend()))
     print(('Charting with sliding window size: %d, xlimits: %s') %
            (options.window_size, options.xlimits))
+
+    # Set process execution plot-stack sizes
+    try:
+        sz_x, sz_y = options.export_size.split(",")
+        EXPORT_SIZE_INCHES[0] = int(sz_x)
+        EXPORT_SIZE_INCHES[1] = int(sz_y)
+    except ValueError:
+        print("invalid --export-size argument")
+        sys.exit(1)
 
     # Smaller fonts for on-screen plots.
     if options.outfile is None:
