@@ -643,14 +643,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close pyplot.
-        multiplier = 1
-        if cycles_executions and any(cycles_executions):
-            multiplier += 1
-        if aperf_executions and any(aperf_executions) and mperf_executions:
-            multiplier += 1
-        # Add an extra inch for the legend.
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
-                       EXPORT_SIZE_INCHES[1] * n_rows * multiplier + 1)
+                       EXPORT_SIZE_INCHES[1] * n_rows)
         return fig, export_size
 
 
