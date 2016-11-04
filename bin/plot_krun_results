@@ -437,9 +437,10 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         for core in xrange(len(perf_data_narrays)):
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             axis.plot(iterations, perf_data_narrays[core],
-                       color=PERF_COLOR, clip_on=False,
+                      color=PERF_COLOR, clip_on=False,
                       linewidth=PLOT_LINE_WIDTH,
-                       label=('Core %d aperf/mperf ratio' % core))
+                      label=('Core %d aperf/mperf ratio' % core),
+                      zorder=ZORDER_DATA)
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(PERF_YRANGE)
             y_ax = axis.get_yaxis()
@@ -468,7 +469,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis.set_ylim(cycles_min, cycles_max)
             axis.plot(iterations, cycle_data_narrays[core],
                       color=CYCLES_COLOR, label=('Core %d cycles' % core),
-                      linewidth=PLOT_LINE_WIDTH)
+                      linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
             # Style axes and grid.
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
@@ -498,7 +499,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.plot(iterations, instr_data_narrays[index],
                         color=INSTR_COLOR, label=(instr_data[index].title),
-                      linewidth=PLOT_LINE_WIDTH)
+                      linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
             axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
@@ -626,7 +627,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.plot(range(*inset_xlimit),  # Plot subset of the data.
                        executions[index][inset_xlimit[0]:inset_xlimit[1]],
-                       color=LINE_COLOUR, linewidth=PLOT_LINE_WIDTH)
+                       color=LINE_COLOUR, linewidth=PLOT_LINE_WIDTH,
+                       zorder=ZORDER_DATA)
             col += 1
             if col == MAX_SUBPLOTS_PER_ROW:
                 col = 0
