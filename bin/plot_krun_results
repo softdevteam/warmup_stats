@@ -116,7 +116,7 @@ EXPORT_SIZE_INCHES = 12, 10
 DPI = 300
 
 
-def add_instr_data(data_dictionary, key, machine):
+def add_instr_data(data_dictionary, key, machine, instr_dir):
     vm = key.split(':')[1]  # bench, vm, language
     if vm in INSTRUMENTATION_PARSERS:
         files = glob.glob(os.path.join(instr_dir,
@@ -770,7 +770,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['aperf_counts'][key][machine] = data['aperf_counts'][key]
                         data_dictionary['mperf_counts'][key][machine] = data['mperf_counts'][key]
                         if instr_data:
-                            add_instr_data(data_dictionary, key, machine)
+                            add_instr_data(data_dictionary, key, machine, instr_dir)
                         else:
                             data_dictionary['instr_data'][key][machine] = None
             # Construct plot titles for all data in this file.
