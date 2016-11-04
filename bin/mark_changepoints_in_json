@@ -76,7 +76,8 @@ def get_changepoints(cpt, p_exec, outliers):
             if c_points[index] >= outlier:
                 c_points[index] += 1
     # Means is a list of mean values for each data segment between changepoints.
-    means = [mean for mean in changepoints.slots['param.est'][0]]
+    means = [float(mean) for mean in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('mean')]]
+    assert len(means) == len(c_points)
     return c_points, means
 
 
