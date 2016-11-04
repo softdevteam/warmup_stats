@@ -232,8 +232,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # Draw each page and display (interactive mode) or save to disk.
     try:
         for index, page in enumerate(pages):
-            bmark, vm = all_subplot_titles[index][0].split(', ')[:-1]
-            print 'Plotting %s (%s) on page %02d of %02d.' % (bmark, vm, index + 1, len(pages)),
             fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
                                    aperf_pages[index], mperf_pages[index],
                                    instr_pages[index],
@@ -798,7 +796,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data['classifications'][key][p_exec]
                         else:
                             classification = ''
-                        title = '%s, %s, %s\nProcess execution #%d%s' % \
+                        title = '%s, %s, %s, Proc. exec. #%d%s' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
@@ -875,7 +873,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data_dictionary['instr_data'][key][machine] = None
 
                         # Construct plot title.
-                        title = '%s, %s, %s\nProcess execution #%d' % \
+                        title = '%s, %s, %s, Proc. exec. #%d' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
