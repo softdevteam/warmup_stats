@@ -631,8 +631,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         labels.append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
 
     # One legend per page.
-    fig.legend(handles, labels, loc='upper center',
-               fontsize=LEGEND_FONTSIZE, ncol=10,)
+    # fig.legend(handles, labels, loc='upper center',
+    #            fontsize=LEGEND_FONTSIZE, ncol=10,)
 
     if is_interactive:
         mng = pyplot.get_current_fig_manager()
@@ -869,7 +869,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             data_dictionary['aperf_counts'][key][machine].append(data['aperf_counts'][key][p_exec])
                             data_dictionary['mperf_counts'][key][machine].append(data['mperf_counts'][key][p_exec])
                             if instr_data:
-                                add_instr_data(data_dictionary, key, machine)
+                                add_instr_data(data_dictionary, key, machine, instr_dir)
                             else:
                                 data_dictionary['instr_data'][key][machine] = None
 
