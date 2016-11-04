@@ -57,6 +57,9 @@ GRID_MAJOR_X_DIVS = 10
 GRID_MINOR_Y_DIVS = 12
 GRID_MAJOR_Y_DIVS = 6
 
+GRID_MINOR_Y_DIVS_SMALLER_PLOTS = 4
+GRID_MAJOR_Y_DIVS_SMALLER_PLOTS = 2
+
 LINE_COLOUR = 'k'
 FILL_ALPHA = 0.2
 
@@ -446,8 +449,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis.set_ylabel('AMR Core %d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
+            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             if core == 0:
                 # Add all items to page legend.
@@ -472,8 +475,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis.set_ylabel('CC Core %d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS)
+            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
+            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             format_yticks_scientific(axis)
             if core == 0:
@@ -502,9 +505,9 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis.yaxis.set_label_position('right')
             axis.set_ylim(instr_y_ranges[index])
             major_yticks = compute_grid_offsets(instr_y_ranges[index][0],
-                                   instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS)
+                                   instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
             minor_yticks = compute_grid_offsets(instr_y_ranges[index][0],
-                                   instr_y_ranges[index][1], GRID_MINOR_Y_DIVS)
+                                   instr_y_ranges[index][1], GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
             style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
             format_yticks_scientific(axis)
             if index == 0:
