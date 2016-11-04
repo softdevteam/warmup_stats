@@ -4,6 +4,7 @@ Write changepoint and classification information into JSON files.
 """
 
 import argparse
+import math
 import os
 import os.path
 import rpy2
@@ -15,6 +16,75 @@ from rpy2.rinterface import R_VERSION_BUILD
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import read_krun_results_file, write_krun_results_file
+
+
+class Segment(object):
+    """A single segment between two changepoints.
+    """
+    def __init__(self, start, end, mean, variance):
+        self.start = start
+        self.end = end
+        self.mean = mean
+        self.variance = variance
+        self.lower_ci = self.mean - 1.96 * math.sqrt(self.variance)
+        self.upper_ci = self.mean + 1.96 * math.sqrt(self.variance)
+
+    def overlap(self, other):
+        """Return True if the confidence interval of 'other' segment overlaps
+        with this segment.
+        """
+        assert isinstance(other, Segment)
+        if self.lower_ci > other.upper_ci or other.lower_ci > self.upper_ci:
+            return False
+        return True
+
+
+class Segments(object):
+    """A list of Segments for a whole run sequence.
+    """
+    def __init__(self, length, window_size, cpts, means, variances):
+        self.length = length  # Length of original run sequence.
+        self.window_size = window_size
+        self.segments = list()
+        assert len(means) == len(variances) == len(cpts)
+        if len(means) == 1:
+            segment = Segment(0, self.length - 1, means[0], variances[0])
+            self.segments.append(segment)
+        else:
+            for index in xrange(len(means)):
+                segment = None
+                if index == 0:
+                    segment = Segment(0, cpts[index], means[index], variances[index])
+                else:
+                    segment = Segment(cpts[index - 1], cpts[index], means[index], variances[index])
+                self.segments.append(segment)
+        assert cpts[:-1] == [s.end for s in self.segments][:-1]
+
+    @property
+    def means(self):
+        return [segment.mean for segment in self.segments]
+
+    @property
+    def changepoints(self):
+        """Return all changepoints.
+        The last datum is always a changepoint, so we ignore it.
+        """
+        if len(self.segments) == 1:
+            return list()
+        return [segment.end for segment in self.segments][:-1]
+
+    def get_classification(self):
+        """Return the classification for this run sequence.
+        """
+        if len(self.segments) == 1:  # No change points.
+            return 'flat'
+        # Change in last window.
+        elif self.segments[-1].start > (self.length - self.window_size):
+            return 'no steady state'
+        # Last window is the smallest.
+        elif self.segments[-1].mean == min(self.segments, key=lambda s: s.mean):
+            return 'warm-up'
+        return 'slow down'
 
 
 def main(in_files, window_size):
@@ -46,22 +116,20 @@ def main(in_files, window_size):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                c_points_all, means = get_changepoints(cpt, p_exec[:], outliers)
-                # The last datum is always a changepoint, so we ignore it.
-                c_points = c_points_all[:-1]
-                changepoints[bench].append(c_points)
-                changepoint_means[bench].append(means)
-                classifications[bench].append(get_classification(p_exec, c_points,
-                                                                 means, window_size))
+                segments = get_segments(cpt, p_exec[:], window_size, outliers)
+                changepoints[bench].append(segments.changepoints)
+                changepoint_means[bench].append(segments.means)
+                classifications[bench].append(segments.get_classification())
         krun_data[filename]['changepoints'] = changepoints
-        krun_data[filename]['classifications'] = classifications
         krun_data[filename]['changepoint_means'] = changepoint_means
+        krun_data[filename]['classifications'] = classifications
         new_filename = create_output_filename(filename)
         print 'Writing out: %s' % new_filename
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_changepoints(cpt, p_exec, outliers):
+def get_segments(cpt, p_exec, window_size, outliers):
+    length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
     for index in indices:
         del p_exec[index]
@@ -76,20 +144,12 @@ def get_changepoints(cpt, p_exec, outliers):
             if c_points[index] >= outlier:
                 c_points[index] += 1
     # Means is a list of mean values for each data segment between changepoints.
-    means = [float(mean) for mean in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('mean')]]
-    assert len(means) == len(c_points)
-    return c_points, means
-
-
-def get_classification(p_exec, changepoints, means, window_size):
-    iterations = len(p_exec)
-    if len(changepoints) == 0:  # No change points.
-        return 'flat'
-    elif changepoints[-1] > (iterations - window_size):  # Change in last window.
-        return 'no steady state'
-    elif means[-1] == min(means):  # Last window is the smallest.
-        return 'warm-up'
-    return 'slow down'
+    means, variances = list(), list()
+    for mean in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('mean')]:
+        means.append(float(mean))
+    for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
+        variances.append(float(var_))
+    return Segments(length, window_size, c_points, means, variances)
 
 
 def create_output_filename(in_file_name):
