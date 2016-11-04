@@ -131,7 +131,7 @@ def add_instr_data(data_dictionary, key, machine, instr_dir):
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, changepoints, median=False,
-         tukey=False, inset_xlimit=None, one_page=False):
+         tukey=False, inset_xlimit=None, one_page=False, legend_off=True):
     """Determine which plots to put on each page of output.
     Plot all data.
     """
@@ -241,7 +241,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                    all_outliers[index], all_unique[index],
                                    all_common[index], all_changepoints[index],
                                    all_changepoint_means[index], median, tukey,
-                                   inset_xlimit)
+                                   inset_xlimit, legend_off)
             if not is_interactive:
                 fig.set_size_inches(*export_size)
                 pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
@@ -520,7 +520,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
 def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
               mperf_executions, instr_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means, median,
-              tukey, inset_xlimit=100):
+              tukey, inset_xlimit=100, legend_off=True):
     """Plot a page of benchmarks.
     """
 
@@ -631,8 +631,9 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         labels.append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
 
     # One legend per page.
-    # fig.legend(handles, labels, loc='upper center',
-    #            fontsize=LEGEND_FONTSIZE, ncol=10,)
+    if not legend_off:
+        fig.legend(handles, labels, loc='upper center', fontsize=LEGEND_FONTSIZE,
+                   ncol=10, borderaxespad=0)
 
     if is_interactive:
         mng = pyplot.get_current_fig_manager()
@@ -1041,6 +1042,11 @@ def create_cli_parser():
                         default=False,
                         help='Annotate changepoints. Only use this if your Krun '
                              'results file contains changepoint information.')
+    parser.add_argument('--no-legend',
+                        action='store_true',
+                        dest='legend_off',
+                        default=True,
+                        help='Do not draw a legend.')
     return parser
 
 
@@ -1098,4 +1104,5 @@ if __name__ == '__main__':
          median=options.median,
          tukey=options.tukey,
          inset_xlimit=inset_xlimits,
-         one_page=options.one_page)
+         one_page=options.one_page,
+         legend_off=options.legend_off)
