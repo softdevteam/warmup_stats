@@ -631,8 +631,8 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         labels.append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
 
     # One legend per page.
-    fig.legend(handles, labels, loc='upper center',
-               fontsize=LEGEND_FONTSIZE, ncol=10,)
+    # fig.legend(handles, labels, loc='upper center',
+    #            fontsize=LEGEND_FONTSIZE, ncol=10,)
 
     if is_interactive:
         mng = pyplot.get_current_fig_manager()
