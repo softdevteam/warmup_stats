@@ -39,10 +39,12 @@ def escape(word):
     return word.replace('_', '\\_')
 
 
-def format_median_error(median, error, as_integer=False):
+def format_median_error(median, error, as_integer=False, brief=False):
     formatted_text = ''
     if as_integer:
         formatted_text = '$%d\\scriptstyle{\\pm%d}$' % (int(median), int(error))
+    elif brief:  # Take up less space.
+        formatted_text = '$%.2f\\scriptstyle{\\pm%.3f}$' % (median, error)
     else:
         formatted_text = '$%.5f\\scriptstyle{\\pm%.6f}$' % (median, error)
     return formatted_text

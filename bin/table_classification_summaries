@@ -8,6 +8,8 @@ import os
 import os.path
 import sys
 
+from collections import Counter
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import pretty_print_machine, pretty_print_variant
 from warmup.krun_results import read_krun_results_file
@@ -17,8 +19,8 @@ from warmup.statistics import bootstrap_confidence_interval
 
 
 TITLE = 'Summary of benchmark classifications.\nWindow size: %s'
-TABLE_FORMAT = 'llrr'
-TABLE_HEADINGS = '%s & Clasification & Steady iter & Median (s)'
+TABLE_FORMAT = 'llrrr'
+TABLE_HEADINGS = '%s & Classification & Steady iter & Time to steady (s) & Median (s)'
 
 
 def main(data_dcts, window_size, latex_file):
@@ -43,36 +45,52 @@ def main(data_dcts, window_size, latex_file):
                 categories = list()
                 last_segment_means = list()
                 last_changepoints = list()
-                for p_exec in xrange(len(data_dcts[machine]['wallclock_times'][key])):
+                time_to_steadys = list()
+                n_pexecs = len(data_dcts[machine]['wallclock_times'][key])
+                for p_exec in xrange(n_pexecs):
                     categories.append(data_dcts[machine]['classifications'][key][p_exec])
                     last_segment_means.append(data_dcts[machine]['changepoint_means'][key][p_exec][-1])
                     # Not all process execs have changepoints. However, all
                     # p_execs will have one or more segment mean.
                     if data_dcts[machine]['changepoints'][key][p_exec]:
                         last_changepoints.append(data_dcts[machine]['changepoints'][key][p_exec][-1])
+                        to_steady = 0.0
+                        for index in xrange(data_dcts[machine]['changepoints'][key][p_exec][-1]):
+                            to_steady += data_dcts[machine]['wallclock_times'][key][p_exec][index]
+                        time_to_steadys.append(to_steady)
+                    else:  # Flat execution, no changepoints.
+                        time_to_steadys.append(0.0)
                 # Average all information.
-                most_common_category = _most_common_item_from_list(categories).capitalize()
-                if most_common_category == 'No steady state':
+                category, occurences = Counter(categories).most_common()[0]
+                if occurences == n_pexecs:
+                    reported_category = category.capitalize()
+                elif occurences > n_pexecs // 2:
+                    reported_category = 'Mostly %s' % category
+                else:
+                    reported_category = 'Inconsistent'
+                if (reported_category in ('No steady state', 'Inconsistent') or
+                    reported_category.startswith('Mostly ')):
                     mean_last_segment = ''
                     mean_last_cpt = ''
+                    time_to_steady = ''
                 else:
                     median, error = bootstrap_confidence_interval(last_segment_means)
                     mean_last_segment = format_median_error(median, error)
                     if last_changepoints:
                         median, error = bootstrap_confidence_interval(last_changepoints)
                         mean_last_cpt = format_median_error(median, error, as_integer=True)
+                        median_t, error_t = bootstrap_confidence_interval(time_to_steadys)
+                        time_to_steady = format_median_error(median_t, error_t, brief=True)
                     else:  # No changepoints in any process executions.
                         mean_last_cpt = format_median_error(median, 0, as_integer=True)
+                        time_to_steady = ''
                 # Add summary for this benchmark.
-                summary_data[vm_variant][bench] = {'style': most_common_category,
-                    'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment}
+                summary_data[vm_variant][bench] = {'style': reported_category,
+                    'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment,
+                    'time_to_steady_state':time_to_steady}
     # Write out results.
     write_results_as_latex(summary_data, window_size, latex_file)
     return
-
-
-def _most_common_item_from_list(list_):
-    return max(set(list_), key=list_.count)
 
 
 def write_results_as_latex(summary, window_size, tex_file):
@@ -84,10 +102,11 @@ def write_results_as_latex(summary, window_size, tex_file):
         for section_heading in sorted(summary):
             fp.write(section(section_heading))
             fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS % 'Benchmark'))
-            for bench in summary[section_heading]:
-                fp.write('%s & %s & %s & %s\\\\ \n' % (escape(bench),
+            for bench in sorted(summary[section_heading]):
+                fp.write('%s & %s & %s & %s & %s\\\\ \n' % (escape(bench),
                          escape(summary[section_heading][bench]['style']),
                          summary[section_heading][bench]['last_cpt'],
+                         summary[section_heading][bench]['time_to_steady_state'],
                          summary[section_heading][bench]['last_mean']))
             fp.write(end_table())
             fp.write('\\newpage{}')
