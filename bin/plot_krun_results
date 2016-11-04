@@ -112,7 +112,7 @@ FONT = {
 matplotlib.rc('font', **FONT)
 
 MAX_SUBPLOTS_PER_ROW = 2
-EXPORT_SIZE_INCHES = 12, 10
+EXPORT_SIZE_INCHES = [12, 10]
 DPI = 300
 
 
@@ -1047,6 +1047,12 @@ def create_cli_parser():
                         dest='legend_off',
                         default=True,
                         help='Do not draw a legend.')
+    parser.add_argument('--export-size',
+                        action='store',
+                        default="12, 10",
+                        help=("Set the total size (comma separated pair, "
+                             "in inches) of each process execution's "
+                             "plots in the output."))
     return parser
 
 
@@ -1072,6 +1078,15 @@ if __name__ == '__main__':
             (matplotlib.__version__, matplotlib.get_backend()))
     print(('Charting with sliding window size: %d, xlimits: %s') %
            (options.window_size, options.xlimits))
+
+    # Set process execution plot-stack sizes
+    try:
+        sz_x, sz_y = options.export_size.split(",")
+        EXPORT_SIZE_INCHES[0] = int(sz_x)
+        EXPORT_SIZE_INCHES[1] = int(sz_y)
+    except ValueError:
+        print("invalid --export-size argument")
+        sys.exit(1)
 
     # Smaller fonts for on-screen plots.
     if options.outfile is None:
