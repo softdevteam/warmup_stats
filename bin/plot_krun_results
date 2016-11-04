@@ -316,8 +316,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     if n_rows == 1:  # Only create another gridspec if we have to.
         inner_grid = None
     else:
-        heights = [.25] * (n_rows - 1)
-        heights.append(1)
+        # Spring constraints for grid cell heights
+        heights = [.25] * n_rows
         inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell,
                                                       height_ratios=heights,
                                                       hspace=0.2)
