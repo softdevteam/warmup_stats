@@ -58,8 +58,11 @@ GRID_MINOR_Y_DIVS = 12
 GRID_MAJOR_Y_DIVS = 6
 
 LINE_COLOUR = 'k'
-LINE_WIDTH = 1
 FILL_ALPHA = 0.2
+
+# line widths, measured in pts
+LINE_WIDTH = 1
+PLOT_LINE_WIDTH = 0.4
 
 OUTLIER_MARKER = 'o'
 OUTLIER_COLOR = 'r'
@@ -328,7 +331,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     else:
         axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
     axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
-               zorder=ZORDER_DATA)
+               zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
     # If there are outliers, highlight them.
     axis1.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
     if outliers is not None:
@@ -396,7 +399,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 pc_bands[0].append(medians[index] - band)
                 pc_bands[1].append(medians[index] + band)
         if median:  # Plot the median.
-            axis1.plot(iterations, medians, label='Median', zorder=ZORDER_MEDIAN)
+            axis1.plot(iterations, medians, label='Median',
+                       zorder=ZORDER_MEDIAN, linewidth=PLOT_LINE_WIDTH)
         if tukey:  # Fill between the Tukey band.
             axis1.fill_between(iterations, pc_bands[0], pc_bands[1], alpha=FILL_ALPHA,
                                facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
@@ -431,6 +435,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             axis.plot(iterations, perf_data_narrays[core],
                        color=PERF_COLOR, clip_on=False,
+                      linewidth=PLOT_LINE_WIDTH,
                        label=('Core %d aperf/mperf ratio' % core))
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(PERF_YRANGE)
@@ -459,7 +464,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(cycles_min, cycles_max)
             axis.plot(iterations, cycle_data_narrays[core],
-                      color=CYCLES_COLOR, label=('Core %d cycles' % core))
+                      color=CYCLES_COLOR, label=('Core %d cycles' % core),
+                      linewidth=PLOT_LINE_WIDTH)
             # Style axes and grid.
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
@@ -488,7 +494,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.plot(iterations, instr_data_narrays[index],
-                        color=INSTR_COLOR, label=(instr_data[index].title))
+                        color=INSTR_COLOR, label=(instr_data[index].title),
+                      linewidth=PLOT_LINE_WIDTH)
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
             axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
@@ -616,7 +623,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
             inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.plot(range(*inset_xlimit),  # Plot subset of the data.
                        executions[index][inset_xlimit[0]:inset_xlimit[1]],
-                       color=LINE_COLOUR)
+                       color=LINE_COLOUR, linewidth=PLOT_LINE_WIDTH)
             col += 1
             if col == MAX_SUBPLOTS_PER_ROW:
                 col = 0
