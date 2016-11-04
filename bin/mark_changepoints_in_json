@@ -29,14 +29,18 @@ class Segment(object):
         self.lower_ci = self.mean - 1.96 * math.sqrt(self.variance)
         self.upper_ci = self.mean + 1.96 * math.sqrt(self.variance)
 
-    def overlap(self, other):
+    def overlaps_with(self, other):
         """Return True if the confidence interval of 'other' segment overlaps
         with this segment.
         """
         assert isinstance(other, Segment)
-        if self.lower_ci > other.upper_ci or other.lower_ci > self.upper_ci:
+        if self.upper_ci < other.lower_ci or other.upper_ci < self.lower_ci:
             return False
         return True
+
+    @property
+    def n(self):
+        return self.end - self.start
 
 
 class Segments(object):
@@ -73,18 +77,70 @@ class Segments(object):
             return list()
         return [segment.end for segment in self.segments][:-1]
 
+    def _pooled_means(self, mu0, n0, mu1, n1):
+        return (mu0 * n0 + mu1 * n1) / (n0+n1)
+
+    def _pooled_variances(self, var0, mu0, n0, var1, mu1, n1):
+        mu01_sq = math.pow(self._pooled_means(mu0, n0, mu1, n1), 2)
+        mu0_sq = math.pow(mu0, 2)
+        mu1_sq = math.pow(mu1, 2)
+        return (((n0 * (var0 + mu0_sq) + n1 * (var1 + mu1_sq)) / (n0 + n1)) -
+                 mu01_sq)
+
+    def merge_overlapping_segments(self):
+        while True:
+            for index in xrange(len(self.segments) - 1):
+                if self.segments[index].overlaps_with(self.segments[index + 1]):
+                    first = self.segments[index]
+                    second = self.segments[index + 1]
+                    mean = self._pooled_means(first.mean, first.n, second.mean, second.n)
+                    var_ = self._pooled_variances(first.variance, first.mean, first.n,
+                                      second.variance, second.mean, second.n)
+                    # Merge segment 1 and 2
+                    merged = Segment(first.start, second.end, mean, var_)
+                    # Replace segment 1 with the merged segment.
+                    self.segments[index] = merged
+                    # Delete segment 2.
+                    del self.segments[index + 1]
+                    break
+            else:  # for-loop reached last segment, break out of while.
+                break
+
     def get_classification(self):
         """Return the classification for this run sequence.
         """
-        if len(self.segments) == 1:  # No change points.
-            return 'flat'
-        # Change in last window.
+        classification = ''
+        # Flat -> last segment mean+ci overlaps with all other segment mean+cis.
+        overlaps_with_last_segment = list()
+        for segment in self.segments[:-1]:
+            overlaps_with_last_segment.append(segment.overlaps_with(self.segments[-1]))
+        if len(self.segments) == 1 or all(overlaps_with_last_segment):
+            classification = 'flat'
+        # Slowdown -> last mean+ci does not overlap with another mean+ci and
+        #             it is higher than the first mean+ci.
+        elif ((not any(overlaps_with_last_segment)) and
+            self.segments[-1].mean == max(self.segments, key=lambda s: s.mean).mean):
+            classification = 'slow-down'
+        # Partial slowdown -> last mean+ci does not overlap with another mean+ci
+        #                     and it is higher than the first mean+ci.
+        elif ((not any(overlaps_with_last_segment)) and
+            self.segments[-1].mean == max(self.segments[1:], key=lambda s: s.mean).mean):
+            classification = 'partial slow-down'
+        # Warmup -> last mean+ci does not overlap with another segment CI and
+        #           is lower than the first mean+ci.
+        elif ((not any(overlaps_with_last_segment)) and
+            self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean):
+            classification = 'warm-up'
+        # Steady state -> there are no changepoints in the last window.
+        elif self.segments[-1].start < (self.length - self.window_size):
+            classification = 'steady state'
+        # TODO: Detect cyclic behaviour.
+        # No steady state -> there are changes in the last window and no cycles.
         elif self.segments[-1].start > (self.length - self.window_size):
-            return 'no steady state'
-        # Last window is the smallest.
-        elif self.segments[-1].mean == min(self.segments, key=lambda s: s.mean):
-            return 'warm-up'
-        return 'slow down'
+            classification = 'no steady state'
+        else:
+            classification = 'could not classify'
+        return classification
 
 
 def main(in_files, window_size):
