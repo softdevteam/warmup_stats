@@ -42,13 +42,12 @@ class Segment(object):
     def n(self):
         return self.end - self.start
 
-
 class Segments(object):
     """A list of Segments for a whole run sequence.
     """
-    def __init__(self, length, window_size, cpts, means, variances):
+    def __init__(self, length, steady_state, cpts, means, variances):
         self.length = length  # Length of original run sequence.
-        self.window_size = window_size
+        self.steady_state = steady_state
         self.segments = list()
         assert len(means) == len(variances) == len(cpts)
         if len(means) == 1:
@@ -60,7 +59,8 @@ class Segments(object):
                 if index == 0:
                     segment = Segment(0, cpts[index], means[index], variances[index])
                 else:
-                    segment = Segment(cpts[index - 1], cpts[index], means[index], variances[index])
+                    segment = Segment(cpts[index - 1], cpts[index], means[index],
+                                      variances[index])
                 self.segments.append(segment)
         assert cpts[:-1] == [s.end for s in self.segments][:-1]
 
@@ -71,7 +71,7 @@ class Segments(object):
     @property
     def changepoints(self):
         """Return all changepoints.
-        The last datum is always a changepoint, so we ignore it.
+        The last location in the data is always a changepoint, so we ignore it.
         """
         if len(self.segments) == 1:
             return list()
@@ -131,19 +131,19 @@ class Segments(object):
         elif ((not any(overlaps_with_last_segment)) and
             self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean):
             classification = 'warm-up'
-        # Steady state -> there are no changepoints in the last window.
-        elif self.segments[-1].start < (self.length - self.window_size):
+        # Steady state -> there are no changepoints after we expect steady state.
+        elif self.segments[-1].start < (self.length - self.steady_state):
             classification = 'steady state'
         # TODO: Detect cyclic behaviour.
-        # No steady state -> there are changes in the last window and no cycles.
-        elif self.segments[-1].start > (self.length - self.window_size):
+        # No steady state -> there are changes after we expect steady state and no cycles.
+        elif self.segments[-1].start > (self.length - self.steady_state):
             classification = 'no steady state'
         else:
             classification = 'could not classify'
         return classification
 
 
-def main(in_files, window_size):
+def main(in_files, steady_state):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -172,7 +172,7 @@ def main(in_files, window_size):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, p_exec[:], window_size, outliers)
+                segments = get_segments(cpt, p_exec[:], steady_state, outliers)
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
                 classifications[bench].append(segments.get_classification())
@@ -184,7 +184,7 @@ def main(in_files, window_size):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, p_exec, window_size, outliers):
+def get_segments(cpt, p_exec, steady_state, outliers):
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
     for index in indices:
@@ -192,20 +192,20 @@ def get_segments(cpt, p_exec, window_size, outliers):
     measurements = rpy2.robjects.FloatVector(p_exec)
     changepoints = cpt.cpt_meanvar(measurements, method='PELT')
     # List indices in R start at 1.
-    c_points = [cpoint - 1 for cpoint in changepoints.slots['cpts']]
+    c_points = [int(cpoint - 1) for cpoint in changepoints.slots['cpts']]
     # If outliers were deleted, the index of each changepoint will have moved.
     # Here, we adjust the indices to match the original data.
     for outlier in outliers:
         for index in xrange(len(c_points)):
             if c_points[index] >= outlier:
                 c_points[index] += 1
-    # Means is a list of mean values for each data segment between changepoints.
+    # Variances is a list of variances for each data segment between changepoints.
     means, variances = list(), list()
     for mean in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('mean')]:
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(length, window_size, c_points, means, variances)
+    return Segments(length, steady_state, c_points, means, variances)
 
 
 def create_output_filename(in_file_name):
@@ -224,36 +224,36 @@ def create_cli_parser():
     """
     script = os.path.basename(__file__)
     description = ("""Write changepoints and classifications into Krun results
-file(s). This script does not alter your original Krun results file. Instead
-it writes out a new file. If you want outliers to be excluded from the
-changepoint calculations, you should first run your data through the
-./bin/mark_outliers_in_json script. You should use the same moving window size
-to calculate outliers and changepoints and this will be written into the name
-of the output file, for example if the input file is:
+file(s). If you want outliers to be excluded from the changepoint calculations,
+you should first run your data through the ./bin/mark_outliers_in_json script.
 
-    results_outliers_200.json.bz2
+This script does not alter your original Krun results file. Instead it writes
+out a new file, with _changepoints added to the filename. For example if the
+input file is:
 
-and the window size is 200, the output of this script will be stored in file:
+    results_outliers_w200.json.bz2
+
+the output of this script will be a new file named:
 
     results_outliers_w200_changepoints.json.bz2.
 
 Example usage:
     $ python %s results1.json.bz2
-    $ python %s  --window 250 results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    $ python %s  --steady 500 results1.json.bz2 results2.json.bz2\n""" % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
-    parser.add_argument('--window', '-w', action='store', dest='window_size',
-                        default=200, type=int,
-                        help=('Size of the sliding window used by '
-                              'mark_outliers_in_json script. This is needed to '
-                              'classify process executions.'))
+    parser.add_argument('--steady', '-s', action='store', dest='steady_state',
+                        default=200, type=int, metavar='N',
+                        help=('Expact a steady state should be reached before '
+                              'the last N iterations.'))
     return parser
 
 
 if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
-    print ('Marking changepoints and classifications with sliding window size: %d' %
-           options.window_size)
-    main(options.json_files[0], options.window_size)
+    print ('Marking changepoints and classifications, expecting a steady state '
+           'to be reached before the last %d iterations.' %
+           options.steady_state)
+    main(options.json_files[0], options.steady_state)
