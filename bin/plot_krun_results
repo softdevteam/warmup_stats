@@ -303,7 +303,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 cycles_min = min(min(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_min)
                 cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_max)
         for core in xrange(len(cycles_data)):  # For each core.
-            cycle_data_narrays.append(numpy.array(cycles_data[core]))
+            cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
     perf_data_narrays = list()
     if aperf_data and mperf_data:
         for core in xrange(len(aperf_data)):  # For each core.
