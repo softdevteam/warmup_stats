@@ -13,15 +13,16 @@ from collections import Counter
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import pretty_print_machine, pretty_print_variant
 from warmup.krun_results import read_krun_results_file
-from warmup.latex import preamble, end_document, end_table, escape
-from warmup.latex import format_median_error, section, start_table
+from warmup.latex import STYLE_SYMBOLS, preamble, end_document, end_table, escape
+from warmup.latex import format_median_error, get_latex_symbol_map, section, start_table
 from warmup.statistics import bootstrap_confidence_interval
 
 
 TITLE = 'Summary of benchmark classifications'
-TABLE_FORMAT = 'llrrr'
-TABLE_HEADINGS = '%s & Classification & Steady iter & Time to steady (s) & Median (s)'
-
+TABLE_FORMAT = 'p{5pt}lcrrr'
+TABLE_HEADINGS = """& \\multicolumn{2}{c}{Benchmark} &\\multicolumn{2}{c}{Steady state}&\\multicolumn{1}{c}{Median}\\\\
+& \\multicolumn{2}{c}{\\& classification} &\\multicolumn{1}{c}{(iter. \\#)} &\\multicolumn{1}{c}{(secs)}&\\multicolumn{1}{c}{(secs)}\\\\
+"""
 
 def main(data_dcts, window_size, latex_file):
     summary_data = dict()
@@ -63,13 +64,13 @@ def main(data_dcts, window_size, latex_file):
                 # Average all information.
                 category, occurences = Counter(categories).most_common()[0]
                 if occurences == n_pexecs:
-                    reported_category = category.capitalize()
+                    reported_category = category
                 elif occurences > n_pexecs // 2:
-                    reported_category = 'Mostly %s' % category
+                    reported_category = 'mostly %s' % category
                 else:
-                    reported_category = 'Inconsistent'
-                if (reported_category in ('No steady state', 'Inconsistent') or
-                    reported_category.startswith('Mostly ')):
+                    reported_category = 'inconsistent'
+                if (reported_category in ('no steady state', 'inconsistent') or
+                    reported_category.startswith('mostly ')):
                     mean_last_segment = ''
                     mean_last_cpt = ''
                     time_to_steady = ''
@@ -99,14 +100,21 @@ def write_results_as_latex(summary, steady_state, tex_file):
     print('Writing data to %s.' % tex_file)
     with open(tex_file, 'w') as fp:
         fp.write(preamble(TITLE))
-        fp.write('\\textbf{Note:} steady state expected within the last %d iterations.'
+        fp.write('\\textbf{Note:} steady state expected within the last \\textbf{%d} iterations.'
                  % steady_state)
+        fp.write('\n\n')
+        fp.write(get_latex_symbol_map())
         for section_heading in sorted(summary):
             fp.write(section(section_heading))
-            fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS % 'Benchmark'))
+            fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS))
             for bench in sorted(summary[section_heading]):
-                fp.write('%s & %s & %s & %s & %s\\\\ \n' % (escape(bench),
-                         escape(summary[section_heading][bench]['style']),
+                try:
+                    classification = STYLE_SYMBOLS[summary[section_heading][bench]['style']]
+                except KeyError:
+                    print 'Unknown classification style: %s' % summary[section_heading][bench]['style']
+                    sys.exit(1)
+                fp.write('&\n%s\n&\n%s\n&\n%s\n&\n%s\\\\ \n' % (
+                         ' '.join((escape(bench), classification)),
                          summary[section_heading][bench]['last_cpt'],
                          summary[section_heading][bench]['time_to_steady_state'],
                          summary[section_heading][bench]['last_mean']))
