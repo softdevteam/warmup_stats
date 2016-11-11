@@ -4,7 +4,7 @@ Write changepoint and classification information into JSON files.
 """
 
 import argparse
-import math
+import numpy
 import os
 import os.path
 import rpy2
@@ -21,13 +21,16 @@ from warmup.krun_results import read_krun_results_file, write_krun_results_file
 class Segment(object):
     """A single segment between two changepoints.
     """
-    def __init__(self, start, end, mean, variance):
+
+    def __init__(self, start, end, mean, variance, data):
         self.start = start
         self.end = end
         self.mean = mean
         self.variance = variance
-        self.lower_ci = self.mean - 1.96 * math.sqrt(self.variance)
-        self.upper_ci = self.mean + 1.96 * math.sqrt(self.variance)
+        self.median = numpy.median(data)
+        self.ci = 3.0 * (numpy.percentile(data, 90.0) - numpy.percentile(data, 10.0))
+        self.lower_ci = self.median - self.ci
+        self.upper_ci = self.median + self.ci
 
     def overlaps_with(self, other):
         """Return True if the confidence interval of 'other' segment overlaps
@@ -45,22 +48,26 @@ class Segment(object):
 class Segments(object):
     """A list of Segments for a whole run sequence.
     """
-    def __init__(self, length, steady_state, cpts, means, variances):
-        self.length = length  # Length of original run sequence.
+
+    def __init__(self, length, steady_state, cpts, means, variances, data):
+        self.length = length  # Length of original data (might be without outliers).
+        assert self.length == len(data)
+        self.data = data
         self.steady_state = steady_state
         self.segments = list()
         assert len(means) == len(variances) == len(cpts)
         if len(means) == 1:
-            segment = Segment(0, self.length - 1, means[0], variances[0])
+            segment = Segment(0, self.length - 1, means[0], variances[0], data)
             self.segments.append(segment)
         else:
             for index in xrange(len(means)):
                 segment = None
                 if index == 0:
-                    segment = Segment(0, cpts[index], means[index], variances[index])
+                    segment = Segment(0, cpts[index], means[index],
+                                      variances[index], data[:cpts[index]])
                 else:
                     segment = Segment(cpts[index - 1], cpts[index], means[index],
-                                      variances[index])
+                                      variances[index], data[cpts[index - 1]:cpts[index]])
                 self.segments.append(segment)
         assert cpts[:-1] == [s.end for s in self.segments][:-1]
 
@@ -77,73 +84,43 @@ class Segments(object):
             return list()
         return [segment.end for segment in self.segments][:-1]
 
-    def _pooled_means(self, mu0, n0, mu1, n1):
-        return (mu0 * n0 + mu1 * n1) / (n0+n1)
-
-    def _pooled_variances(self, var0, mu0, n0, var1, mu1, n1):
-        mu01_sq = math.pow(self._pooled_means(mu0, n0, mu1, n1), 2)
-        mu0_sq = math.pow(mu0, 2)
-        mu1_sq = math.pow(mu1, 2)
-        return (((n0 * (var0 + mu0_sq) + n1 * (var1 + mu1_sq)) / (n0 + n1)) -
-                 mu01_sq)
-
-    def merge_overlapping_segments(self):
-        while True:
-            for index in xrange(len(self.segments) - 1):
-                if self.segments[index].overlaps_with(self.segments[index + 1]):
-                    first = self.segments[index]
-                    second = self.segments[index + 1]
-                    mean = self._pooled_means(first.mean, first.n, second.mean, second.n)
-                    var_ = self._pooled_variances(first.variance, first.mean, first.n,
-                                      second.variance, second.mean, second.n)
-                    # Merge segment 1 and 2
-                    merged = Segment(first.start, second.end, mean, var_)
-                    # Replace segment 1 with the merged segment.
-                    self.segments[index] = merged
-                    # Delete segment 2.
-                    del self.segments[index + 1]
-                    break
-            else:  # for-loop reached last segment, break out of while.
-                break
-
     def get_classification(self):
         """Return the classification for this run sequence.
         """
         classification = ''
-        # Flat -> last segment mean+ci overlaps with all other segment mean+cis.
+        # We do not use the first segment in the overlaps_with_last_segment
+        # calculations. This is because in a classic warm-up execution, the
+        # first segment will be short, and will a much larger mean than other
+        # segments, and therefore any measure of variation will be very large .
+        # If we include the first segment in the overlaps_with_last_segment
+        # calculations, every warm-up execution will be classified as flat.
         overlaps_with_last_segment = list()
-        for segment in self.segments[:-1]:
+        for segment in self.segments[1:-1]:
             overlaps_with_last_segment.append(segment.overlaps_with(self.segments[-1]))
-        if len(self.segments) == 1 or all(overlaps_with_last_segment):
+        if len(self.segments) == 1:
             classification = 'flat'
         # Slowdown -> last mean+ci does not overlap with another mean+ci and
         #             it is higher than the first mean+ci.
-        elif ((not any(overlaps_with_last_segment)) and
-            self.segments[-1].mean == max(self.segments, key=lambda s: s.mean).mean):
-            classification = 'slow-down'
-        # Partial slowdown -> last mean+ci does not overlap with another mean+ci
-        #                     and it is higher than the first mean+ci.
-        elif ((not any(overlaps_with_last_segment)) and
-            self.segments[-1].mean == max(self.segments[1:], key=lambda s: s.mean).mean):
-            classification = 'partial slow-down'
+        elif self.segments[-1].mean == max(self.segments, key=lambda s: s.mean).mean:
+            classification = 'slowdown'
         # Warmup -> last mean+ci does not overlap with another segment CI and
         #           is lower than the first mean+ci.
-        elif ((not any(overlaps_with_last_segment)) and
-            self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean):
+        elif (self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean and
+              self.segments[0].mean == max(self.segments, key=lambda s: s.mean).mean):
             classification = 'warm-up'
-        # Steady state -> there are no changepoints after we expect steady state.
+        # Slow down -> not flat or a warm-up, and no changepoints after we
+        #              expect a steady state.
         elif self.segments[-1].start < (self.length - self.steady_state):
-            classification = 'steady state'
-        # TODO: Detect cyclic behaviour.
-        # No steady state -> there are changes after we expect steady state and no cycles.
+            classification = 'slowdown'
+        # No steady state -> there are changes after we expect steady state.
         elif self.segments[-1].start > (self.length - self.steady_state):
             classification = 'no steady state'
         else:
-            classification = 'could not classify'
+            raise ValueError('Could not classify data.')
         return classification
 
 
-def main(in_files, steady_state):
+def main(in_files, steady_state, penalty=False):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -163,7 +140,7 @@ def main(in_files, steady_state):
             print ('No all_outliers key in %s; please run '
                    './bin/mark_outliers_in_json on your data if you want this '
                    'analysis to exclude outliers.'% filename)
-        for bench in krun_data[filename]['wallclock_times']:
+        for bench in sorted(krun_data[filename]['wallclock_times']):
             changepoints[bench] = list()
             classifications[bench] = list()
             changepoint_means[bench] = list()
@@ -172,10 +149,15 @@ def main(in_files, steady_state):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, p_exec[:], steady_state, outliers)
+                segments = get_segments(cpt, p_exec, steady_state, outliers,
+                                        use_snr_penalty=penalty)
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
-                classifications[bench].append(segments.get_classification())
+                try:
+                    classifications[bench].append(segments.get_classification())
+                except ValueError:
+                    print 'Could not classify %s execution %d' % (bench, index + 1)
+                    sys.exit(1)
         krun_data[filename]['changepoints'] = changepoints
         krun_data[filename]['changepoint_means'] = changepoint_means
         krun_data[filename]['classifications'] = classifications
@@ -185,13 +167,30 @@ def main(in_files, steady_state):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, p_exec, steady_state, outliers):
+def _get_snr_penalty(data):
+    penalty = numpy.mean(data) / numpy.std(data)
+    if numpy.isnan(penalty) or numpy.isinf(penalty):
+        raise ValueError()
+    else:
+        return penalty
+
+
+def get_segments(cpt, data, steady_state, outliers, use_snr_penalty=False):
+    p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
     for index in indices:
         del p_exec[index]
     measurements = rpy2.robjects.FloatVector(p_exec)
-    changepoints = cpt.cpt_meanvar(measurements, method='PELT')
+    if use_snr_penalty:  # User has asked for SNR penalty.
+        try:  # Check it doesn't return NaN or Inf.
+            penalty = _get_snr_penalty(p_exec[-steady_state:])
+            changepoints = cpt.cpt_meanvar(measurements, method='PELT',
+                                           penalty='Manual', pen_value=penalty)
+        except ValueError:  # Use default penalty, 'MBIC'.
+            changepoints = cpt.cpt_meanvar(measurements, method='PELT')
+    else:
+        changepoints = cpt.cpt_meanvar(measurements, method='PELT')
     # List indices in R start at 1.
     c_points = [int(cpoint - 1) for cpoint in changepoints.slots['cpts']]
     # If outliers were deleted, the index of each changepoint will have moved.
@@ -206,7 +205,7 @@ def get_segments(cpt, p_exec, steady_state, outliers):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(length, steady_state, c_points, means, variances)
+    return Segments(length, steady_state, c_points, means, variances, data)
 
 
 def create_output_filename(in_file_name):
@@ -240,7 +239,7 @@ the output of this script will be a new file named:
 
 Example usage:
     $ python %s results1.json.bz2
-    $ python %s  --steady 500 results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    $ python %s  --steady 500 -p results1.json.bz2 results2.json.bz2\n""" % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
@@ -248,6 +247,13 @@ Example usage:
                         default=200, type=int, metavar='N',
                         help=('Expact a steady state should be reached before '
                               'the last N iterations.'))
+    parser.add_argument('--penalty', '-p', action='store_true', dest='penalty',
+                        default=False,
+                        help=('Use mean/std as a penalty in changepoint detection. '
+                              'This option should be used if you have noisy data '
+                              '(e.g. not from the Krun framework) and you find '
+                              'the default settings produce a large, specious '
+                              'number of changepoints.'))
     return parser
 
 
@@ -257,4 +263,4 @@ if __name__ == '__main__':
     print ('Marking changepoints and classifications, expecting a steady state '
            'to be reached before the last %d iterations.' %
            options.steady_state)
-    main(options.json_files[0], options.steady_state)
+    main(options.json_files[0], options.steady_state, options.penalty)
