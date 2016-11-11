@@ -8,17 +8,21 @@ import os
 import os.path
 import sys
 
+from collections import Counter
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import pretty_print_machine, pretty_print_variant
 from warmup.krun_results import read_krun_results_file
-from warmup.latex import preamble, end_document, end_table, escape
-from warmup.latex import format_median_error, section, start_table
+from warmup.latex import STYLE_SYMBOLS, preamble, end_document, end_table, escape
+from warmup.latex import format_median_error, get_latex_symbol_map, section, start_table
 from warmup.statistics import bootstrap_confidence_interval
 
 
-TITLE = 'Summary of benchmark classifications.\nWindow size: %s'
-TABLE_FORMAT = 'llrr'
-TABLE_HEADINGS = '%s & Clasification & Steady iter & Median (s)'
+TITLE = 'Summary of benchmark classifications'
+TABLE_FORMAT = 'p{5pt}lcrrr'
+TABLE_HEADINGS = """& \\multicolumn{2}{c}{Benchmark} &\\multicolumn{2}{c}{Steady state}&\\multicolumn{1}{c}{Median}\\\\
+& \\multicolumn{2}{c}{\\& classification} &\\multicolumn{1}{c}{(iter. \\#)} &\\multicolumn{1}{c}{(secs)}&\\multicolumn{1}{c}{(secs)}\\\\
+"""
 
 
 def main(data_dcts, window_size, latex_file):
@@ -43,51 +47,82 @@ def main(data_dcts, window_size, latex_file):
                 categories = list()
                 last_segment_means = list()
                 last_changepoints = list()
-                for p_exec in xrange(len(data_dcts[machine]['wallclock_times'][key])):
+                time_to_steadys = list()
+                n_pexecs = len(data_dcts[machine]['wallclock_times'][key])
+                for p_exec in xrange(n_pexecs):
                     categories.append(data_dcts[machine]['classifications'][key][p_exec])
                     last_segment_means.append(data_dcts[machine]['changepoint_means'][key][p_exec][-1])
                     # Not all process execs have changepoints. However, all
                     # p_execs will have one or more segment mean.
                     if data_dcts[machine]['changepoints'][key][p_exec]:
                         last_changepoints.append(data_dcts[machine]['changepoints'][key][p_exec][-1])
+                        to_steady = 0.0
+                        for index in xrange(data_dcts[machine]['changepoints'][key][p_exec][-1]):
+                            to_steady += data_dcts[machine]['wallclock_times'][key][p_exec][index]
+                        time_to_steadys.append(to_steady)
+                    else:  # Flat execution, no changepoints.
+                        time_to_steadys.append(0.0)
                 # Average all information.
-                most_common_category = _most_common_item_from_list(categories).capitalize()
-                if most_common_category == 'No steady state':
+                category, occurences = Counter(categories).most_common()[0]
+                if occurences == n_pexecs:
+                    reported_category = category
+                elif occurences > n_pexecs // 2:
+                    reported_category = 'mostly %s' % category
+                else:
+                    reported_category = 'inconsistent'
+                if (reported_category in ('no steady state', 'inconsistent') or
+                    reported_category.startswith('mostly ')):
                     mean_last_segment = ''
                     mean_last_cpt = ''
+                    time_to_steady = ''
                 else:
                     median, error = bootstrap_confidence_interval(last_segment_means)
                     mean_last_segment = format_median_error(median, error)
                     if last_changepoints:
                         median, error = bootstrap_confidence_interval(last_changepoints)
                         mean_last_cpt = format_median_error(median, error, as_integer=True)
+                        median_t, error_t = bootstrap_confidence_interval(time_to_steadys)
+                        time_to_steady = format_median_error(median_t, error_t, brief=True)
                     else:  # No changepoints in any process executions.
                         mean_last_cpt = format_median_error(median, 0, as_integer=True)
+                        time_to_steady = ''
                 # Add summary for this benchmark.
-                summary_data[vm_variant][bench] = {'style': most_common_category,
-                    'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment}
+                summary_data[vm_variant][bench] = {'style': reported_category,
+                    'last_cpt': mean_last_cpt, 'last_mean': mean_last_segment,
+                    'time_to_steady_state':time_to_steady}
     # Write out results.
-    write_results_as_latex(summary_data, window_size, latex_file)
+    write_results_as_latex(summary_data, steady_state, latex_file)
     return
 
 
-def _most_common_item_from_list(list_):
-    return max(set(list_), key=list_.count)
-
-
-def write_results_as_latex(summary, window_size, tex_file):
+def write_results_as_latex(summary, steady_state, tex_file):
     """Write a results file.
     """
     print('Writing data to %s.' % tex_file)
     with open(tex_file, 'w') as fp:
-        fp.write(preamble(TITLE % str(window_size)))
+        fp.write(preamble(TITLE))
+        fp.write('\\textbf{Note:} steady state expected within the last \\textbf{%d} iterations.'
+                 % steady_state)
+        fp.write('\n\n')
+        fp.write(get_latex_symbol_map())
         for section_heading in sorted(summary):
             fp.write(section(section_heading))
-            fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS % 'Benchmark'))
-            for bench in summary[section_heading]:
-                fp.write('%s & %s & %s & %s\\\\ \n' % (escape(bench),
-                         escape(summary[section_heading][bench]['style']),
+            fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS))
+            for bench in sorted(summary[section_heading]):
+                try:
+                    # For now we ignore how many process execs were given each
+                    # classification and use 'inconsistent' throughout.
+                    if summary[section_heading][bench]['style'].startswith('mostly'):
+                        classification = STYLE_SYMBOLS['inconsistent']
+                    else:
+                        classification = STYLE_SYMBOLS[summary[section_heading][bench]['style']]
+                except KeyError:
+                    print 'Unknown classification style: %s' % summary[section_heading][bench]['style']
+                    sys.exit(1)
+                fp.write('&\n%s\n&\n%s\n&\n%s\n&\n%s\\\\ \n' % (
+                         ' '.join((escape(bench), classification)),
                          summary[section_heading][bench]['last_cpt'],
+                         summary[section_heading][bench]['time_to_steady_state'],
                          summary[section_heading][bench]['last_mean']))
             fp.write(end_table())
             fp.write('\\newpage{}')
@@ -100,7 +135,7 @@ def get_data_dictionaries(json_files):
     dictionaries of machine name -> JSON values.
     """
     data_dictionary = dict()
-    window_size = None
+    steady_state = None
     for filename in json_files:
         assert os.path.exists(filename), 'File %s does not exist.' % filename
         print 'Loading: %s' % filename
@@ -117,7 +152,7 @@ def get_data_dictionaries(json_files):
             for outer_key in data:
                 if outer_key == 'audit' or outer_key == 'reboots':
                     continue
-                elif outer_key == 'window_size':
+                elif outer_key == 'steady_state_expected':
                     assert data_dictionary[machine_name][outer_key] == data[outer_key]
                     continue
                 for key in data[outer_key]:
@@ -125,13 +160,13 @@ def get_data_dictionaries(json_files):
                     if key not in data_dictionary[machine_name][outer_key]:
                         data_dictionary[machine_name][outer_key][key] = dict()
                     data_dictionary[machine_name][outer_key][key] = data[outer_key][key]
-        if window_size is None:
-            window_size = data['window_size']
+        if steady_state is None:
+            steady_state = data['steady_state_expected']
         else:
-            assert window_size == data['window_size'], \
+            assert steady_state == data['steady_state_expected'], \
                    ('Cannot summarise categories generated with different' +
-                    ' window sizes.')
-    return window_size, data_dictionary
+                    ' steady-state-expected values.')
+    return steady_state, data_dictionary
 
 
 def create_cli_parser():
@@ -154,5 +189,5 @@ def create_cli_parser():
 if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
-    window_size, data_dcts = get_data_dictionaries(options.json_files[0])
-    main(data_dcts, window_size, options.latex_file)
+    steady_state, data_dcts = get_data_dictionaries(options.json_files[0])
+    main(data_dcts, steady_state, options.latex_file)
