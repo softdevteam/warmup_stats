@@ -24,6 +24,7 @@ TABLE_HEADINGS = """& \\multicolumn{2}{c}{Benchmark} &\\multicolumn{2}{c}{Steady
 & \\multicolumn{2}{c}{\\& classification} &\\multicolumn{1}{c}{(iter. \\#)} &\\multicolumn{1}{c}{(secs)}&\\multicolumn{1}{c}{(secs)}\\\\
 """
 
+
 def main(data_dcts, window_size, latex_file):
     summary_data = dict()
     for machine in data_dcts:
@@ -109,7 +110,12 @@ def write_results_as_latex(summary, steady_state, tex_file):
             fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS))
             for bench in sorted(summary[section_heading]):
                 try:
-                    classification = STYLE_SYMBOLS[summary[section_heading][bench]['style']]
+                    # For now we ignore how many process execs were given each
+                    # classification and use 'inconsistent' throughout.
+                    if summary[section_heading][bench]['style'].startswith('mostly'):
+                        classification = STYLE_SYMBOLS['inconsistent']
+                    else:
+                        classification = STYLE_SYMBOLS[summary[section_heading][bench]['style']]
                 except KeyError:
                     print 'Unknown classification style: %s' % summary[section_heading][bench]['style']
                     sys.exit(1)

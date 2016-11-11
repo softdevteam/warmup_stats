@@ -107,7 +107,7 @@ class Segments(object):
         #           is lower than the first mean+ci.
         elif (self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean and
               self.segments[0].mean == max(self.segments, key=lambda s: s.mean).mean):
-            classification = 'warm-up'
+            classification = 'warmup'
         # Slow down -> not flat or a warm-up, and no changepoints after we
         #              expect a steady state.
         elif self.segments[-1].start < (self.length - self.steady_state):

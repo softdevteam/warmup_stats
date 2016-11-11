@@ -5,12 +5,10 @@ STYLE_SYMBOLS = {  # Requires \usepackage{amssymb}
     'mostly flat': '\\flatc$^*$',
     'no steady state': '\\nosteadystate',
     'mostly no steady state': '\\nosteadystate$^*$',
-    'slow down': '\\slowdown',
-    'mostly slow down': '\\slowdown$^*$',
-    'steady state': 's',
-    'mostly steady state': 's$^*$',
-    'warm-up': '\\warmup',
-    'mostly warm-up': '\\warmup$^*$',
+    'slowdown': '\\slowdown',
+    'mostly slowdown': '\\slowdown$^*$',
+    'warmup': '\\warmup',
+    'mostly warmup': '\\warmup$^*$',
     'inconsistent': '\\inconsistent',
 }
 
@@ -22,8 +20,9 @@ def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
             continue
         symbols.append('%s %s' % (STYLE_SYMBOLS[key], key.lower()))
     text  = prefix + ', '.join(symbols)
-    text += '. Classifications which apply to more than half, but not all,'
-    text += '  process executions for a given benchmark are marked with $^*$.'
+    text += '.'  # Ignore the 'mostly' classifications for now.
+    # text += '. Classifications which apply to more than half, but not all,'
+    # text += '  process executions for a given benchmark are marked with $^*$.'
     return text
 
 
