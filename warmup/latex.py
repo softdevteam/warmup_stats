@@ -18,7 +18,7 @@ def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
     for key in sorted(STYLE_SYMBOLS):
         if key.startswith('mostly '):
             continue
-        symbols.append('%s %s' % (STYLE_SYMBOLS[key], key.lower()))
+        symbols.append('%s~%s' % (STYLE_SYMBOLS[key], key.lower()))
     text  = prefix + ', '.join(symbols)
     text += '.'  # Ignore the 'mostly' classifications for now.
     # text += '. Classifications which apply to more than half, but not all,'
