@@ -64,10 +64,10 @@ class Segments(object):
                 segment = None
                 if index == 0:
                     segment = Segment(0, cpts[index], means[index],
-                                      variances[index], data[:cpts[index]])
+                                      variances[index], data[:cpts[index]+1])
                 else:
                     segment = Segment(cpts[index - 1], cpts[index], means[index],
-                                      variances[index], data[cpts[index - 1]:cpts[index]])
+                                      variances[index], data[cpts[index - 1]+1:cpts[index]+1])
                 self.segments.append(segment)
         assert cpts[:-1] == [s.end for s in self.segments][:-1]
 
@@ -97,20 +97,19 @@ class Segments(object):
         overlaps_with_last_segment = list()
         for segment in self.segments[1:-1]:
             overlaps_with_last_segment.append(segment.overlaps_with(self.segments[-1]))
-        if len(self.segments) == 1:
+        if len(self.segments) == 1:  # No changepoints.
             classification = 'flat'
         # Slowdown -> last mean+ci does not overlap with another mean+ci and
         #             it is higher than the first mean+ci.
         elif self.segments[-1].mean == max(self.segments, key=lambda s: s.mean).mean:
             classification = 'slowdown'
-        # Warmup -> last mean+ci does not overlap with another segment CI and
-        #           is lower than the first mean+ci.
-        elif (self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean and
-              self.segments[0].mean == max(self.segments, key=lambda s: s.mean).mean):
+        # Warmup -> first segment mean is highest, and other segments overlap.
+        elif (self.segments[0].mean == max(self.segments, key=lambda s: s.mean).mean
+              and all(overlaps_with_last_segment)):
             classification = 'warmup'
         # Slow down -> not flat or a warm-up, and no changepoints after we
         #              expect a steady state.
-        elif self.segments[-1].start < (self.length - self.steady_state):
+        elif self.segments[-1].start <= (self.length - self.steady_state):
             classification = 'slowdown'
         # No steady state -> there are changes after we expect steady state.
         elif self.segments[-1].start > (self.length - self.steady_state):
@@ -190,7 +189,8 @@ def get_segments(cpt, data, steady_state, outliers, use_snr_penalty=False):
         except ValueError:  # Use default penalty, 'MBIC'.
             changepoints = cpt.cpt_meanvar(measurements, method='PELT')
     else:
-        changepoints = cpt.cpt_meanvar(measurements, method='PELT')
+        changepoints = cpt.cpt_meanvar(measurements, method='PELT', penalty='Manual',
+                                       pen_value=15.0*numpy.log(len(p_exec)))
     # List indices in R start at 1.
     c_points = [int(cpoint - 1) for cpoint in changepoints.slots['cpts']]
     # If outliers were deleted, the index of each changepoint will have moved.
