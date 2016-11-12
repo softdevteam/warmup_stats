@@ -367,10 +367,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
         means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
         assert len(changepoints) == len(changepoint_means) - 1
         for index, x_location in enumerate(changepoints):
-            # Draw changepoint.
-            axis1.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
-                         zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
-                         linewidth=LINE_WIDTH)
             if index == 0:
                 means.append([(0, changepoint_means[0]),
                              (x_location, changepoint_means[0])])
@@ -382,6 +378,10 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             means.append([(0, changepoint_means[-1]),
                          (len(data_narray), changepoint_means[-1])])
         else:
+            # Draw changepoints.
+            axis1.scatter(changepoints, [y_range[0] for _ in changepoints],
+                          c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
+                          zorder=ZORDER_CHANGEPOINTS)
             means.append([(changepoints[-1], changepoint_means[-1]),
                          (len(data_narray), changepoint_means[-1])])
         # Add changepoint means to chart, on top of all other splines.
@@ -527,9 +527,9 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 if not aperf_data and not cycles_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
-    # Margin MUST be adjusted after plotting is complete.
-    add_margin_to_axes(axis1, x=0.02, y=0.0)
     axis1.set_ylim(y_range)
+    # Margin MUST be adjusted after plotting is complete.
+    add_margin_to_axes(axis1, x=0.02, y=0.02)
     # Return lines and labels so that we can draw a single legend for the page.
     return handles_labels
 
