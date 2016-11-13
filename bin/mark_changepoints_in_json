@@ -39,6 +39,12 @@ class Segment(object):
         for outlier in sorted(outliers, reverse=True):
             del segment_data[outlier]
         self.outliers = outliers
+        # Use a robust method (inter-quartile range) to calculate a confidence
+        # interval. We use IQR because it is robust to outliers and non-normal
+        # distributions of data, and in practice we found it generates slightly
+        # thinner than the Tukey interval used by mark_outliers_in_json. This
+        # helps prevent specious merging of segments which can lead to a
+        # misclassification.
         q1, q3 = numpy.percentile(segment_data, 25.0), numpy.percentile(segment_data, 75.0)
         self.iqr = q3 - q1
         self.lower_ci = q1 - 1.5 * self.iqr
@@ -46,7 +52,7 @@ class Segment(object):
 
     def overlaps_with(self, other):
         """Return True if the confidence interval of 'other' segment overlaps
-        with this segment.
+        with this segment, and False otherwise.
         """
         assert isinstance(other, Segment)
         if self.upper_ci < other.lower_ci or other.upper_ci < self.lower_ci:
@@ -132,20 +138,39 @@ class Segments(object):
 
     def merge_overlapping_segments(self):
         """Merge adjacent segments whose confidence intervals overlap.
+
+        We do not consider the first segment initially because in a classic
+        warm-up execution, the first segment will be short, and will a much
+        larger mean than other segments, and therefore any measure of variation
+        will be very large . If we include the first segment in the
+        overlaps_with_last_segment calculations, many warm-up executions will be
+        classified as flat. Instead we consider the first segment separately,
+        and use an absolute measure of difference between it and any subsequent
+        segment means.
         """
-        # Merge overlapping segments, ignoring the first segment.
-        while True:
-            for index in xrange(1, len(self.segments) - 1):
-                if self.segments[index].overlaps_with(self.segments[index + 1]):
+        if len(self.segments) > 2:
+            i = 1
+            to_merge = list()
+            while i < len(self.segments) - 1:
+                orig_i = i
+                for j in range(orig_i + 1, len(self.segments)):
+                    no_overlap = False
+                    for k in range(orig_i, j):
+                        if not self.segments[k].overlaps_with(self.segments[j]):
+                            no_overlap = True
+                            break
+                    i += 1
+                    if no_overlap:
+                        break
+                    to_merge.append(j - 1)
+            if to_merge:
+                for index in sorted(to_merge, reverse=True):
                     self._merge_segment(index)
-                    break
-            else:  # for-loop reached last segment, break out of while.
-                break
         # In a classic "warmup", the first segment may have only a small number
         # of data (possibly one datum). So a confidence interval in this case
         # will be wide, and will overlap with all later segments, leaving a flat
-        # classification. Instead, we consider the absolute difference between
-        # the means of first two segments.
+        # classification. Instead, of using a confidence interval, we consider
+        # the absolute difference between the means of first two segments.
         if len(self.segments) >= 2:
             if math.fabs(self.segments[0].mean - self.segments[1].mean) < ABSOLUTE_DELTA:
                 self._merge_segment(0)
@@ -154,36 +179,18 @@ class Segments(object):
         """Return the classification for this run sequence.
         """
         classification = ''
-        # We do not use the first segment in the overlaps_with_last_segment
-        # calculations. This is because in a classic warm-up execution, the
-        # first segment will be short, and will a much larger mean than other
-        # segments, and therefore any measure of variation will be very large .
-        # If we include the first segment in the overlaps_with_last_segment
-        # calculations, every warm-up execution will be classified as flat.
-        overlaps_with_last_segment = list()
-        for segment in self.segments[1:-1]:
-            overlaps_with_last_segment.append(segment.overlaps_with(self.segments[-1]))
-        # Flat (a) -> no changepoints.
+        # Flat -> no changepoints.
         if len(self.segments) == 1:
             classification = 'flat'
-        # Slowdown -> last mean+ci does not overlap with another mean+ci and
-        #             it is higher than the first mean+ci.
+        # Slowdown (a) -> last segment has the highest mean.
         elif self.segments[-1].mean == max(self.segments, key=lambda s: s.mean).mean:
             classification = 'slowdown'
-        # Warmup -> first segment mean is highest, and other segments overlap.
-        #          OR first segment mean is highest, and last is the lowest.
+        # Warmup -> first segment mean is highest and last is the lowest.
         elif (self.segments[0].mean == max(self.segments, key=lambda s: s.mean).mean
-              and self.segments[0].mean - self.segments[1].mean > ABSOLUTE_DELTA
-              and (all(overlaps_with_last_segment) or
-                   self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean)):
+              and self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean):
             classification = 'warmup'
-        # Flat (b) -> 2 or more segments, whose confidence intervals overlap.
-        elif (all(overlaps_with_last_segment) and
-              self.segments[0].mean - self.segments[1].mean <= ABSOLUTE_DELTA):
-            classification = 'flat'
-        # Slow down -> changes larger than the confidence interval after the
-        #              first segment and no changepoints after we expect a
-        #              steady state.
+        # Slowdown (b) -> no warmup and no changepoints after we expect a
+        #                 steady state.
         elif self.segments[-1].start <= (self.length - self.steady_state):
             classification = 'slowdown'
         # No steady state -> there are changes after we expect steady state.
