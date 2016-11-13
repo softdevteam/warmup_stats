@@ -28,14 +28,18 @@ class Segment(object):
     """A single segment between two changepoints.
     """
 
-    def __init__(self, start, end, mean, variance, data):
+    def __init__(self, start, end, mean, variance, data, outliers):
         self.start = start
         self.end = end
         self.mean = mean
         self.variance = variance
         self.data = data
-        self.median = numpy.median(data)
-        self.ci = 3.0 * (numpy.percentile(data, 90.0) - numpy.percentile(data, 10.0))
+        segment_data = data[:]
+        for outlier in sorted(outliers, reverse=True):
+            del segment_data[outlier]
+        self.outliers = outliers
+        self.median = numpy.median(segment_data)
+        self.ci = 3.0 * (numpy.percentile(segment_data, 90.0) - numpy.percentile(segment_data, 10.0))
         self.lower_ci = self.median - self.ci
         self.upper_ci = self.median + self.ci
 
@@ -56,25 +60,33 @@ class Segments(object):
     """A list of Segments for a whole run sequence.
     """
 
-    def __init__(self, length, steady_state, cpts, means, variances, data):
-        self.length = length  # Length of original data (might be without outliers).
+    def __init__(self, length, steady_state, cpts, means, variances, data, outliers):
+        self.length = length  # Length of original data with outliers.
         assert self.length == len(data)
         self.data = data
+        self.outliers = outliers
         self.steady_state = steady_state
         self.segments = list()
         assert len(means) == len(variances) == len(cpts)
-        if len(means) == 1:
-            segment = Segment(0, self.length - 1, means[0], variances[0], data)
+        if len(means) == 1:  # No changepoints.
+            segment = Segment(0, self.length - 1, means[0], variances[0], data,
+                              outliers)
             self.segments.append(segment)
         else:
             for index in xrange(len(means)):
                 segment = None
                 if index == 0:
+                    s_out = [out for out in outliers if out <= cpts[index]]
                     segment = Segment(0, cpts[index], means[index],
-                                      variances[index], data[:cpts[index]+1])
+                                  variances[index], data[:cpts[index]+1], s_out)
                 else:
+                    s_out = list()
+                    for out in outliers:
+                         if out > (cpts[index - 1]) and out <= cpts[index]:
+                             s_out.append(out - cpts[index - 1] - 1)
                     segment = Segment(cpts[index - 1], cpts[index], means[index],
-                                      variances[index], data[cpts[index - 1]+1:cpts[index]+1])
+                                  variances[index],
+                                  data[cpts[index - 1]+1:cpts[index]+1], s_out)
                 self.segments.append(segment)
         assert cpts[:-1] == [s.end for s in self.segments][:-1]
 
@@ -110,7 +122,7 @@ class Segments(object):
                           second.variance, second.mean, second.n)
         # Merge segment 1 and 2
         merged = Segment(first.start, second.end, mean, var_,
-                         first.data + second.data)
+                     first.data + second.data, first.outliers + second.outliers)
         # Replace segment 1 with the merged segment.
         self.segments[index] = merged
         # Delete segment 2.
@@ -267,7 +279,7 @@ def get_segments(cpt, data, steady_state, outliers, use_snr_penalty=False):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(length, steady_state, c_points, means, variances, data)
+    return Segments(length, steady_state, c_points, means, variances, data, outliers)
 
 
 def create_output_filename(in_file_name):
