@@ -136,9 +136,9 @@ def add_instr_data(data_dictionary, key, machine, instr_dir):
 
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
-         xlimits, with_outliers, unique_outliers, changepoints, median=False,
-         tukey=False, inset_xlimit=None, one_page=False, legend_off=True,
-         cycles_ylimits=None):
+         xlimits, with_outliers, unique_outliers, changepoints, changepoint_means,
+         median=False, tukey=False, inset_xlimit=None, one_page=False,
+         legend_off=True, cycles_ylimits=None):
     """Determine which plots to put on each page of output.
     Plot all data.
     """
@@ -195,6 +195,9 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                         page_unique.append(None)
                     if changepoints:
                         page_changepoints.append(data_dcts['changepoints'][key][machine][index])
+                        page_changepoint_means.append(None)
+                    if changepoint_means:
+                        page_changepoints.append(data_dcts['changepoints'][key][machine][index])
                         page_changepoint_means.append(data_dcts['changepoint_means'][key][machine][index])
                     else:
                         page_changepoints.append(None)
@@ -230,6 +233,9 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     all_common.append(None)
                     all_unique.append(None)
                 if changepoints:
+                    all_changepoints.append(data_dcts['changepoints'][key][machine])
+                    all_changepoint_means.append(None)
+                elif changepoint_means:
                     all_changepoints.append(data_dcts['changepoints'][key][machine])
                     all_changepoint_means.append(data_dcts['changepoint_means'][key][machine])
                 else:
@@ -390,6 +396,11 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                                zorder=ZORDER_CHANGEPOINTS,
                                linewidths=[LINE_WIDTH for _ in xrange(len(means))])
         axis1.add_collection(lines)
+    # Draw changepoints as blobs, without changepoint means.
+    if changepoints and not changepoint_means:
+        axis1.scatter(changepoints, [y_range[0] for _ in changepoints],
+                      c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
+                      zorder=ZORDER_CHANGEPOINTS)
     # Draw a rolling median (optionally).
     if median or tukey:
         medians = list()
@@ -527,9 +538,9 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 if not aperf_data and not cycles_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
-    # Margin MUST be adjusted after plotting is complete.
-    add_margin_to_axes(axis1, x=0.02, y=0.0)
     axis1.set_ylim(y_range)
+    # Margin MUST be adjusted after plotting is complete.
+    add_margin_to_axes(axis1, x=0.02, y=0.02)
     # Return lines and labels so that we can draw a single legend for the page.
     return handles_labels
 
@@ -1048,6 +1059,13 @@ def create_cli_parser():
                              'executions differently. Only use this if '
                              'your Krun results file contains outlier '
                              'information.')
+    parser.add_argument('--with-changepoint-means',
+                        action='store_true',
+                        dest='changepoint_means',
+                        default=False,
+                        help='Annotate changepoints and their means as vertical '
+                             'and horizontal lines. Only use this if your Krun '
+                             'results file contains changepoint information.')
     parser.add_argument('--with-changepoints',
                         action='store_true',
                         dest='changepoints',
@@ -1123,11 +1141,9 @@ if __name__ == '__main__':
         BASE_FONTSIZE = 13
 
     data, plot_titles = get_data_dictionaries(options.json_files[0],
-                                              options.benchmarks,
-                                              options.wallclock,
-                                              options.outliers,
-                                              options.unique_outliers,
-                                              options.changepoints)
+                            options.benchmarks, options.wallclock,
+                            options.outliers, options.unique_outliers,
+                            options.changepoints or options.changepoint_means)
 
     inset_xlimits = None
     if options.inset_xlimits is not None:
@@ -1143,6 +1159,7 @@ if __name__ == '__main__':
          options.outliers,
          options.unique_outliers,
          options.changepoints,
+         options.changepoint_means,
          median=options.median,
          tukey=options.tukey,
          inset_xlimit=inset_xlimits,

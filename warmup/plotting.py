@@ -77,11 +77,7 @@ def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks, tick_
     ax.grid(which='minor', alpha=0.4, zorder=ZORDER_GRID)
     ax.grid(which='major', alpha=0.8, zorder=ZORDER_GRID)
 
-    for i in ['top', 'bottom']:
-        ax.spines[i].set_linestyle(SPINE_LINESTYLE)
-        ax.spines[i].set_linewidth(SPINE_LINEWIDTH)
-
-    for i in ['right', 'left']:
+    for i in ['right', 'left', 'top', 'bottom']:
         ax.spines[i].set_visible(False)
 
     ax.frameon = False
