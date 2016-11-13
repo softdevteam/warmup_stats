@@ -1,11 +1,12 @@
 import bz2
 import json
 
+
 _MACHINES = {
-    'bencher3': 'Linux1/i7-4790K',
-    'bencher5': 'Linux2/i7-4790',
-    'bencher6': 'OpenBSD/i7-4790',
-    'bencher7': 'ARM',  # this machine has not been set up yet
+    'bencher3': r'Linux$_\mathrm{4790K}$',
+    'bencher5': r'Linux$_\mathrm{4790}$',
+    'bencher6': r'OpenBSD$_\mathrm{4790}$',
+    'bencher7': r'Linux$_\mathrm{E3-1240v5}$',
 }
 
 
