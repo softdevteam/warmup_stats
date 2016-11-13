@@ -182,7 +182,8 @@ def create_cli_parser():
     parser.add_argument('json_files', action='append', nargs='+', default=[],
                         type=str, help='One or more Krun result files.')
     parser.add_argument('--outfile', '-o', action='store', dest='latex_file',
-                        type=str, help=('Name of the LaTeX file to write to.'))
+                        type=str, help=('Name of the LaTeX file to write to.'),
+                        required=True)
     return parser
 
 

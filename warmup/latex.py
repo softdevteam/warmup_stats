@@ -39,6 +39,7 @@ __LATEX_PREAMBLE = lambda title: """
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{booktabs}
+\usepackage{multirow}
 %s
 \\title{%s}
 \\begin{document}
