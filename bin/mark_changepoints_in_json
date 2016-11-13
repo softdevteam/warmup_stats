@@ -56,6 +56,7 @@ class Segment(object):
     def n(self):
         return self.end - self.start
 
+
 class Segments(object):
     """A list of Segments for a whole run sequence.
     """
@@ -192,7 +193,7 @@ class Segments(object):
         return classification
 
 
-def main(in_files, steady_state, penalty=False):
+def main(in_files, steady_state):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -221,8 +222,7 @@ def main(in_files, steady_state, penalty=False):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, p_exec, steady_state, outliers,
-                                        use_snr_penalty=penalty)
+                segments = get_segments(cpt, p_exec, steady_state, outliers)
                 segments.merge_overlapping_segments()
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
@@ -240,31 +240,15 @@ def main(in_files, steady_state, penalty=False):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def _get_snr_penalty(data):
-    penalty = numpy.mean(data) / numpy.std(data)
-    if numpy.isnan(penalty) or numpy.isinf(penalty):
-        raise ValueError()
-    else:
-        return penalty
-
-
-def get_segments(cpt, data, steady_state, outliers, use_snr_penalty=False):
+def get_segments(cpt, data, steady_state, outliers):
     p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
     for index in indices:
         del p_exec[index]
     measurements = rpy2.robjects.FloatVector(p_exec)
-    if use_snr_penalty:  # User has asked for SNR penalty.
-        try:  # Check it doesn't return NaN or Inf.
-            penalty = _get_snr_penalty(p_exec[-steady_state:])
-            changepoints = cpt.cpt_meanvar(measurements, method='PELT',
-                                           penalty='Manual', pen_value=penalty)
-        except ValueError:  # Use default penalty, 'MBIC'.
-            changepoints = cpt.cpt_meanvar(measurements, method='PELT')
-    else:
-        changepoints = cpt.cpt_meanvar(measurements, method='PELT', penalty='Manual',
-                                       pen_value=15.0*numpy.log(len(p_exec)))
+    changepoints = cpt.cpt_meanvar(measurements, method='PELT', penalty='Manual',
+                                   pen_value=15.0*numpy.log(len(p_exec)))
     # List indices in R start at 1.
     c_points = [int(cpoint - 1) for cpoint in changepoints.slots['cpts']]
     # If outliers were deleted, the index of each changepoint will have moved.
@@ -313,7 +297,7 @@ the output of this script will be a new file named:
 
 Example usage:
     $ python %s results1.json.bz2
-    $ python %s  --steady 500 -p results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    $ python %s  --steady 500 results1.json.bz2 results2.json.bz2\n""" % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
@@ -321,13 +305,6 @@ Example usage:
                         default=200, type=int, metavar='N',
                         help=('Expact a steady state should be reached before '
                               'the last N iterations.'))
-    parser.add_argument('--penalty', '-p', action='store_true', dest='penalty',
-                        default=False,
-                        help=('Use mean/std as a penalty in changepoint detection. '
-                              'This option should be used if you have noisy data '
-                              '(e.g. not from the Krun framework) and you find '
-                              'the default settings produce a large, specious '
-                              'number of changepoints.'))
     return parser
 
 
@@ -337,4 +314,4 @@ if __name__ == '__main__':
     print ('Marking changepoints and classifications, expecting a steady state '
            'to be reached before the last %d iterations.' %
            options.steady_state)
-    main(options.json_files[0], options.steady_state, options.penalty)
+    main(options.json_files[0], options.steady_state)
