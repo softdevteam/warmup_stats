@@ -34,14 +34,15 @@ class Segment(object):
         self.mean = mean
         self.variance = variance
         self.data = data
+        # Remove outliers before calculating confidence interval.
         segment_data = data[:]
         for outlier in sorted(outliers, reverse=True):
             del segment_data[outlier]
         self.outliers = outliers
-        self.median = numpy.median(segment_data)
-        self.ci = 3.0 * (numpy.percentile(segment_data, 90.0) - numpy.percentile(segment_data, 10.0))
-        self.lower_ci = self.median - self.ci
-        self.upper_ci = self.median + self.ci
+        q1, q3 = numpy.percentile(segment_data, 25.0), numpy.percentile(segment_data, 75.0)
+        self.iqr = q3 - q1
+        self.lower_ci = q1 - 1.5 * self.iqr
+        self.upper_ci = q3 + 1.5 * self.iqr
 
     def overlaps_with(self, other):
         """Return True if the confidence interval of 'other' segment overlaps
