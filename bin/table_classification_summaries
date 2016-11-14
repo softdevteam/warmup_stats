@@ -65,13 +65,16 @@ def main(data_dcts, window_size, latex_file):
                 # Average all information.
                 category, occurences = Counter(categories).most_common()[0]
                 if occurences == n_pexecs:
-                    reported_category = category
-                elif occurences > n_pexecs // 2:
-                    reported_category = 'mostly %s' % category
+                    reported_category = STYLE_SYMBOLS[category]
                 else:
-                    reported_category = 'inconsistent'
-                if (reported_category in ('no steady state', 'inconsistent') or
-                    reported_category.startswith('mostly ')):
+                    reported_category = STYLE_SYMBOLS['inconsistent']
+                    cat_counts = list()
+                    for category, occurences in Counter(categories).most_common():
+                        cat_counts.append('$\\scriptstyle{%d}$\small{%s}' % (occurences, STYLE_SYMBOLS[category]))
+                    reported_category += '~\small{(}%s\small{)}' % ',~'.join(cat_counts)
+                if (reported_category in (STYLE_SYMBOLS['no steady state'],
+                                          STYLE_SYMBOLS['inconsistent']) or
+                    reported_category.startswith(STYLE_SYMBOLS['inconsistent'])):
                     mean_last_segment = ''
                     mean_last_cpt = ''
                     time_to_steady = ''
@@ -109,21 +112,16 @@ def write_results_as_latex(summary, steady_state, tex_file):
             fp.write(section(section_heading))
             fp.write(start_table(TABLE_FORMAT, TABLE_HEADINGS))
             for bench in sorted(summary[section_heading]):
-                try:
-                    # For now we ignore how many process execs were given each
-                    # classification and use 'inconsistent' throughout.
-                    if summary[section_heading][bench]['style'].startswith('mostly'):
-                        classification = STYLE_SYMBOLS['inconsistent']
-                    else:
-                        classification = STYLE_SYMBOLS[summary[section_heading][bench]['style']]
-                except KeyError:
-                    print 'Unknown classification style: %s' % summary[section_heading][bench]['style']
-                    sys.exit(1)
-                fp.write('&\n%s\n&\n%s\n&\n%s\n&\n%s\\\\ \n' % (
-                         ' '.join((escape(bench), classification)),
-                         summary[section_heading][bench]['last_cpt'],
-                         summary[section_heading][bench]['time_to_steady_state'],
-                         summary[section_heading][bench]['last_mean']))
+                category = summary[section_heading][bench]['style']
+                if category.startswith('\inconsistent'):
+                    fp.write('&\multicolumn{4}{l}{%s}\n\\\\ \n' % (
+                         ' '.join((escape(bench), category))))
+                else:
+                    fp.write('&\n%s\n&\n%s\n&\n%s\n&\n%s\\\\ \n' % (
+                             ' '.join((escape(bench), category)),
+                             summary[section_heading][bench]['last_cpt'],
+                             summary[section_heading][bench]['time_to_steady_state'],
+                             summary[section_heading][bench]['last_mean']))
             fp.write(end_table())
             fp.write('\\newpage{}')
         fp.write(end_document())
