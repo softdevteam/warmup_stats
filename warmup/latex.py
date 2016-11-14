@@ -94,14 +94,13 @@ __LATEX_SECTION = lambda section: """
 \\section*{%s}
 """ % section
 
-__LATEX_START_TABLE = lambda format_, headings, before='': """
+__LATEX_START_TABLE = lambda format_, headings: """
 {
-%s
 \\begin{tabular}{%s}
 \\toprule
 %s \\\\
 \\midrule
-""" % (before, format_, headings)
+""" % (format_, headings)
 
 __LATEX_END_TABLE = """
 \\bottomrule
