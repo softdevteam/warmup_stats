@@ -55,7 +55,8 @@ class Segment(object):
         with this segment, and False otherwise.
         """
         assert isinstance(other, Segment)
-        if self.upper_ci < other.lower_ci or other.upper_ci < self.lower_ci:
+        if ((self.upper_ci < other.lower_ci or other.upper_ci < self.lower_ci)
+            and math.fabs(self.mean - other.mean) > ABSOLUTE_DELTA):
             return False
         return True
 
