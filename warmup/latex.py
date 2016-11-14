@@ -34,32 +34,38 @@ __MACROS = """
 \\newcommand{\\inconsistent}{$\\rightleftarrows$}
 """
 
-__LATEX_PREAMBLE = lambda title: """
-\documentclass[12pt,a4paper]{article}
+DEFAULT_DOCOPTS = '12pt, a4paper'
+
+__LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
+\documentclass[%s]{article}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{rotating}
 %s
 \\title{%s}
 \\begin{document}
 \maketitle
-""" % (__MACROS, title)
+""" % (doc_opts, __MACROS, title)
 
 __LATEX_SECTION = lambda section: """
 \\section*{%s}
 """ % section
 
-__LATEX_START_TABLE = lambda format_, headings: """
+__LATEX_START_TABLE = lambda format_, headings, before='': """
+{
+%s
 \\begin{tabular}{%s}
 \\toprule
 %s \\\\
 \\midrule
-""" % (format_, headings)
+""" % (before, format_, headings)
 
 __LATEX_END_TABLE = """
 \\bottomrule
 \\end{tabular}
+}
 """
 
 __LATEX_END_DOCUMENT = """
@@ -98,13 +104,13 @@ def format_median_error(median, error, as_integer=False, brief=False):
 $"""  % (median_s, error_s)
 
 
-def preamble(title):
-    return __LATEX_PREAMBLE(title)
+def preamble(title, doc_opts=DEFAULT_DOCOPTS):
+    return __LATEX_PREAMBLE(title, doc_opts)
 
 
 def section(heading):
     return __LATEX_SECTION(heading)
 
 
-def start_table(format_, headings):
-    return __LATEX_START_TABLE(format_, headings)
+def start_table(format_, headings, before=''):
+    return __LATEX_START_TABLE(format_, headings, before=before)
