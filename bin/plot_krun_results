@@ -115,7 +115,6 @@ FONT = {
     'weight': 'regular',
     'size': BASE_FONTSIZE,
 }
-matplotlib.rc('text', usetex=True)
 matplotlib.rc('font', **FONT)
 
 MAX_SUBPLOTS_PER_ROW = 2
@@ -466,7 +465,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             y_ax.set_major_formatter(matplotlib.ticker.FormatStrFormatter(PERF_YTICK_FORMAT))
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=PERF_COLOR,
                                   right=True, direction='in', which='both', pad=1)
-            axis.set_ylabel('AMR \#%d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
+            axis.set_ylabel('AMR #%d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
             major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
@@ -492,7 +491,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
             # Style axes and grid.
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-            axis.set_ylabel('CC \#%d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
+            axis.set_ylabel('CC #%d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
             major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
@@ -822,7 +821,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data['classifications'][key][p_exec]
                         else:
                             classification = ''
-                        title = '%s, %s, %s, Proc. exec. \#%d%s' % \
+                        title = '%s, %s, %s, Proc. exec. #%d%s' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
@@ -899,7 +898,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data_dictionary['instr_data'][key][machine] = None
 
                         # Construct plot title.
-                        title = '%s, %s, %s, Proc. exec. \#%d' % \
+                        title = '%s, %s, %s, Proc. exec. #%d' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
