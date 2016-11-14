@@ -43,6 +43,7 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{rotating}
+\usepackage{calc}
 %s
 \\title{%s}
 \\begin{document}
