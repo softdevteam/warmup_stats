@@ -1,4 +1,4 @@
-STYLE_SYMBOLS = {  # Requires \usepackage{amssymb}
+STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
     'could not classify': '$\\bot$',
     'flat': '\\flatc',
     'no steady state': '\\nosteadystate',
@@ -20,11 +20,56 @@ def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
 
 
 __MACROS = """
-\\newcommand{\\flatc}{$\\rightarrow$}
-\\newcommand{\\nosteadystate}{$\\rightsquigarrow$}
-\\newcommand{\\warmup}{$\\uparrow$}
-\\newcommand{\\slowdown}{$\\downarrow$}
-\\newcommand{\\inconsistent}{$\\rightleftarrows$}
+\\DeclareRobustCommand{\\flatc}{%
+\\setlength{\\sparklinethickness}{0.4pt}%
+\\begin{sparkline}{1.5}
+\\spark 0.0 0.35
+       1.0 0.35
+       /%
+\\end{sparkline}\\xspace}
+\\DeclareRobustCommand{\\nosteadystate}{%
+\\setlength{\\sparklinethickness}{0.4pt}%
+\\begin{sparkline}{1.5}
+\\spark 0.0 0.35
+       0.1 0.5
+       0.3 0.2
+       0.5 0.5
+       0.7 0.2
+       0.9 0.5
+       1.0 0.35
+       /%
+\\end{sparkline}\\xspace}
+\\DeclareRobustCommand{\\warmup}{%
+\\setlength{\\sparklinethickness}{0.4pt}%
+\\begin{sparkline}{1.5}
+\\spark 0.0 0.8
+       0.5 0.8
+       0.5 0.0
+       1.0 0.0
+       /%
+\\end{sparkline}\\xspace}
+\\DeclareRobustCommand{\\slowdown}{%
+\\setlength{\\sparklinethickness}{0.4pt}%
+\\begin{sparkline}{1.5}
+\\spark 0.0 0.0
+       0.5 0.0
+       0.5 0.8
+       1.0 0.8
+       /%
+\\end{sparkline}\\xspace}
+\\DeclareRobustCommand{\\inconsistent}{%
+\\setlength{\\sparklinethickness}{0.4pt}%
+\\begin{sparkline}{1.5}
+\\spark 0.0 0.55
+       1.0 0.55
+       /%
+\\spark 0.0 0.2
+       1.0 0.2
+       /%
+\\spark 0.1 0.75
+       0.9 0.0
+       /%
+\\end{sparkline}\\xspace}
 """
 
 DEFAULT_DOCOPTS = '12pt, a4paper'
@@ -34,9 +79,11 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{booktabs}
+\usepackage{calc}
 \usepackage{multirow}
 \usepackage{rotating}
-\usepackage{calc}
+\usepackage{sparklines}
+\usepackage{xspace}
 %s
 \\title{%s}
 \\begin{document}
