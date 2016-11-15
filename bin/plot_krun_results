@@ -151,7 +151,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
 
     # Run sequences, outliers and subplot titles for each page we need to plot.
     pages, all_subplot_titles = list(), list()
-    cycles_pages, aperf_pages, mperf_pages = list(), list(), list()
+    cycles_pages = list()
     instr_pages = list()
     all_outliers, all_common, all_unique = list(), list(), list()
     all_changepoints, all_changepoint_means = list(), list()
@@ -162,7 +162,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     # a flat list of all run sequences.
     if one_page:
         page, subplot_titles = list(), list()
-        cycles_page, aperf_page, mperf_page = list(), list(), list()
+        cycles_page = list()
         instr_page = list()
         page_common, page_unique, page_outlier = list(), list(), list()
         page_changepoints, page_changepoint_means = list(), list()
@@ -172,10 +172,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     page.append(run_seq)
                     if data_dcts['cycles_counts'][key][machine]:
                         cycles_page.append(data_dcts['cycles_counts'][key][machine][index])
-                    if data_dcts['aperf_counts'][key][machine]:
-                        aperf_page.append(data_dcts['aperf_counts'][key][machine][index])
-                    if data_dcts['mperf_counts'][key][machine]:
-                        mperf_page.append(data_dcts['mperf_counts'][key][machine][index])
                     if data_dcts['instr_data'][key][machine]:
                         instr_page.append(data_dcts['instr_data'][key][machine][index])
                     subplot_titles.append(plot_titles[key][machine][index])
@@ -204,8 +200,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                         page_changepoint_means.append(None)
         pages.append(page)
         cycles_pages.append(cycles_page)
-        aperf_pages.append(aperf_page)
-        mperf_pages.append(mperf_page)
         instr_pages.append(instr_page)
         all_subplot_titles.append(subplot_titles)
         all_outliers.append(page_outlier)
@@ -218,8 +212,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             for machine in sorted(data_dcts['data'][key]):
                 pages.append(data_dcts['data'][key][machine])
                 cycles_pages.append(data_dcts['cycles_counts'][key][machine])
-                aperf_pages.append(data_dcts['aperf_counts'][key][machine])
-                mperf_pages.append(data_dcts['mperf_counts'][key][machine])
                 instr_pages.append(data_dcts['instr_data'][key][machine])
                 all_subplot_titles.append(plot_titles[key][machine])
                 if with_outliers:
@@ -249,7 +241,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             print 'Plotting %s: %s (%s) on page %02d of %02d.' % \
                   (mc, bmark, vm, index + 1, len(pages)),
             fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
-                                   aperf_pages[index], mperf_pages[index],
                                    instr_pages[index],
                                    all_subplot_titles[index], window_size, xlimits,
                                    all_outliers[index], all_unique[index],
@@ -295,7 +286,7 @@ def _get_scatter_points_within_bounds(scatter, x_bounds):
     return x_vals, y_vals
 
 
-def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
+def draw_process_exec(grid_cell, data, cycles_data,
                  instr_data, instr_y_ranges, title, x_bounds, y_range, window_size,
                  outliers, unique, common, changepoints, changepoint_means,
                  median, tukey, cycles_ylimits):
@@ -313,11 +304,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_max)
         for core in xrange(len(cycles_data)):  # For each core.
             cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
-    perf_data_narrays = list()
-    if aperf_data and mperf_data:
-        for core in xrange(len(aperf_data)):  # For each core.
-            perf_data_narrays.append(numpy.array([float(aperf_data[core][i]) / float(mperf_data[core][i])
-                                     for i in xrange(x_bounds[0], x_bounds[1])]))
     instr_data_narrays = list()
     if instr_data:
         for chart_data in instr_data:
@@ -326,8 +312,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     n_rows = 1
     if cycles_data:
         n_rows += len(cycle_data_narrays)
-    if aperf_data:
-        n_rows += len(perf_data_narrays)
     if instr_data:
         n_rows += len(instr_data_narrays)
     if n_rows == 1:  # Only create another gridspec if we have to.
@@ -438,7 +422,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     style_axis(axis1, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
     format_yticks_scientific(axis1)
     # Plot title goes above the top subplot.
-    if not (cycles_data or aperf_data):
+    if not cycles_data:
         axis1.set_title(title, fontsize=TITLE_FONT_SIZE)
     # Axis labels.
     axis1.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
@@ -450,35 +434,6 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     handles_labels[1] += labels
     # Other charts.
     row = 0
-    # Add aperf/mperf data on another set of charts.
-    if aperf_data:
-        for core in xrange(len(perf_data_narrays)):
-            axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
-            axis.plot(iterations, perf_data_narrays[core],
-                      color=PERF_COLOR, clip_on=False,
-                      linewidth=PLOT_LINE_WIDTH,
-                      label=('Core %d aperf/mperf ratio' % core),
-                      zorder=ZORDER_DATA)
-            pyplot.setp(axis.get_xticklabels(), visible=False)
-            axis.set_ylim(PERF_YRANGE)
-            y_ax = axis.get_yaxis()
-            y_ax.set_major_formatter(matplotlib.ticker.FormatStrFormatter(PERF_YTICK_FORMAT))
-            y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=PERF_COLOR,
-                                  right=True, direction='in', which='both', pad=1)
-            axis.set_ylabel('AMR #%d' % core, fontsize=AXIS_FONTSIZE, color=PERF_COLOR)
-            axis.yaxis.set_label_position('right')
-            ymin, ymax = axis.get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-            style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-            if core == 0:
-                # Add all items to page legend.
-                handles, labels = axis.get_legend_handles_labels()
-                handles_labels[0] += handles
-                handles_labels[1].append('aperf/mperf ratio')
-                # Plot title goes above the top subplot.
-                axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-            row += 1
     # Add core cycles data on another set of charts.
     if cycles_data:
         for core in xrange(len(cycle_data_narrays)):
@@ -504,8 +459,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 handles_labels[0] += handles
                 handles_labels[1].append('Normalised core cycles')
                 # Plot title goes above the top subplot (only once).
-                if not aperf_data:
-                    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
+                axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
     # Add any VM instrumentation data on another set of charts.
     if instr_data:
@@ -535,7 +489,7 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
                 handles_labels[0] += handles
                 handles_labels[1].append(', '.join(legend_texts))
                 # Plot title goes above the top subplot (only once).
-                if not aperf_data and not cycles_data:
+                if not cycles_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
     axis1.set_ylim(y_range)
@@ -545,8 +499,8 @@ def draw_process_exec(grid_cell, data, cycles_data, aperf_data, mperf_data,
     return handles_labels
 
 
-def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
-              mperf_executions, instr_executions, titles, window_size, xlimits,
+def draw_page(is_interactive, executions, cycles_executions,
+              instr_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means, median,
               tukey, inset_xlimit=100, legend_off=True, cycles_ylimits=None):
     """Plot a page of benchmarks.
@@ -591,17 +545,13 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
 
     index, row, col = 0, 0, 0
-    cycles_data, aperf_data, mperf_data, instr_data = None, None, None, None
+    cycles_data, instr_data = None, None
     outliers_exec, unique_exec, common_exec = None, None, None
     changepoint_exec, changepoint_mean_exec = None, None
     while index < n_execs:
         data = executions[index]
         if cycles_executions:
             cycles_data = cycles_executions[index]
-        if aperf_executions:
-            aperf_data = aperf_executions[index]
-        if mperf_executions:
-            mperf_data = mperf_executions[index]
         if instr_executions:
             instr_data = instr_executions[index]
         if outliers:
@@ -618,7 +568,7 @@ def draw_page(is_interactive, executions, cycles_executions, aperf_executions,
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
         handles, labels = draw_process_exec(inner_grid, data, cycles_data,
-                              aperf_data, mperf_data, instr_data, instr_y_ranges,
+                              instr_data, instr_y_ranges,
                               titles[index], x_bounds, [y_min, y_max], window_size,
                               outliers_exec, unique_exec, common_exec, changepoint_exec,
                               changepoint_mean_exec, median, tukey, cycles_ylimits)
@@ -705,8 +655,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
 
     data_dictionary = {'data': dict(), # Measurement data to be plotted.
                        'cycles_counts': dict(),
-                       'aperf_counts': dict(),
-                       'mperf_counts': dict(),
                        'instr_data': dict(),  # Per-VM information.
                        'all_outliers': dict(),
                        'common_outliers': dict(),
@@ -743,9 +691,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         # All benchmarking data from one Krun results file.
         data = read_krun_results_file(filename)
 
-        if not wallclock_only and not ('core_cycle_counts' in data and
-           'aperf_counts' in data and 'mperf_counts' in data):
-                fatal_error('Core cycle counts / perf data not stored in %s. '
+        if not wallclock_only and not ('core_cycle_counts' in data):
+                fatal_error('Core cycle counts not stored in %s. '
                             'Consider running this script with --wallclock-only.'
                             % filename)
 
@@ -770,6 +717,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         # Collect any results requested from this file.
         if benchmarks == []:  # Chart all available data from this file.
             for key in data['wallclock_times']:
+                bmark = key.split(':')[0]
+                if bmark == 'empty': continue  # TODO: REMOVE THIS.
                 if len(data['wallclock_times'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))
@@ -780,19 +729,13 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     if key not in data_dictionary['data']:
                         data_dictionary['data'][key] = dict()
                         data_dictionary['cycles_counts'][key] = dict()
-                        data_dictionary['aperf_counts'][key] = dict()
-                        data_dictionary['mperf_counts'][key] = dict()
                         data_dictionary['instr_data'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
-                        data_dictionary['aperf_counts'][key][machine] = None
-                        data_dictionary['mperf_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
                     else:
                         data_dictionary['cycles_counts'][key][machine] = data['core_cycle_counts'][key]
-                        data_dictionary['aperf_counts'][key][machine] = data['aperf_counts'][key]
-                        data_dictionary['mperf_counts'][key][machine] = data['mperf_counts'][key]
                         if instr_data:
                             add_instr_data(data_dictionary, key, machine, instr_dir)
                         else:
@@ -840,21 +783,15 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                 if key not in data_dictionary['data']:
                     data_dictionary['data'][key] = dict()
                     data_dictionary['cycles_counts'][key] = dict()
-                    data_dictionary['aperf_counts'][key] = dict()
-                    data_dictionary['mperf_counts'][key] = dict()
                     data_dictionary['instr_data'][key] = dict()
 
                 if machine not in data_dictionary['data'][key]:
                     data_dictionary['data'][key][machine] = list()
                     if not wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = list()
-                        data_dictionary['aperf_counts'][key][machine] = list()
-                        data_dictionary['mperf_counts'][key][machine] = list()
                         data_dictionary['instr_data'][key][machine] = list()
                     else:
                         data_dictionary['cycles_counts'][key][machine] = None
-                        data_dictionary['aperf_counts'][key][machine] = None
-                        data_dictionary['mperf_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
 
                 if key not in plot_titles:
@@ -890,8 +827,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
                         if not wallclock_only:
                             data_dictionary['cycles_counts'][key][machine].append(data['core_cycle_counts'][key][p_exec])
-                            data_dictionary['aperf_counts'][key][machine].append(data['aperf_counts'][key][p_exec])
-                            data_dictionary['mperf_counts'][key][machine].append(data['mperf_counts'][key][p_exec])
                             if instr_data:
                                 add_instr_data(data_dictionary, key, machine, instr_dir)
                             else:
