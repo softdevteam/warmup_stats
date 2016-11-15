@@ -183,22 +183,17 @@ class Segments(object):
         # Flat -> no changepoints.
         if len(self.segments) == 1:
             classification = 'flat'
-        # Slowdown (a) -> last segment has the highest mean.
-        elif self.segments[-1].mean == max(self.segments, key=lambda s: s.mean).mean:
-            classification = 'slowdown'
+        # No steady state -> there are changes after we expect steady state.
+        elif self.segments[-1].start > (self.length - self.steady_state):
+            classification = 'no steady state'
         # Warmup -> first segment mean is highest and last is the lowest.
         elif (self.segments[-1].start <= (self.length - self.steady_state) and
               self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean):
             classification = 'warmup'
         # Slowdown (b) -> no warmup and no changepoints after we expect a
         #                 steady state.
-        elif self.segments[-1].start <= (self.length - self.steady_state):
-            classification = 'slowdown'
-        # No steady state -> there are changes after we expect steady state.
-        elif self.segments[-1].start > (self.length - self.steady_state):
-            classification = 'no steady state'
         else:
-            raise ValueError('Could not classify data.')
+            classification = 'slowdown'
         return classification
 
 
