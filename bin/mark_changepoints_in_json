@@ -311,7 +311,7 @@ Example usage:
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
     parser.add_argument('--steady', '-s', action='store', dest='steady_state',
-                        default=200, type=int, metavar='N',
+                        default=500, type=int, metavar='N',
                         help=('Expact a steady state should be reached before '
                               'the last N iterations.'))
     return parser
