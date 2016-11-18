@@ -653,15 +653,13 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
     for each subplot.
     """
 
-    data_dictionary = {'data': dict(), # Measurement data to be plotted.
-                       'cycles_counts': dict(),
+    data_dictionary = {'data': dict(),  'cycles_counts': dict(),
                        'instr_data': dict(),  # Per-VM information.
-                       'all_outliers': dict(),
-                       'common_outliers': dict(),
+                       'changepoints': dict(), 'changepoint_means': dict(),
+                       'all_outliers': dict(), 'common_outliers': dict(),
                        'unique_outliers': dict(),
-                       'changepoints': dict(),
-                       'changepoint_means': dict(),
                       }
+
     plot_titles = dict()  # All subplot titles.
 
     # Find out what data the user requested.
@@ -691,10 +689,26 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         # All benchmarking data from one Krun results file.
         data = read_krun_results_file(filename)
 
+        # Check that data requested on the command line exists in the JSON.
         if not wallclock_only and not ('core_cycle_counts' in data):
                 fatal_error('Core cycle counts not stored in %s. '
                             'Consider running this script with --wallclock-only.'
                             % filename)
+        if unique_outliers or outliers:
+            if not ('common_outliers' in data and 'unique_outliers' in data and
+                    'all_outliers' in data):
+                fatal_error('You requested that outliers be annotated '
+                            'on your plots, but file %s does not'
+                            'contain the relevant keys. Please run the '
+                            'mark_outliers_in_json.py script before '
+                            'proceeding.' % filename)
+        if changepoints:
+            if 'changepoints' not in data:
+                fatal_error('You requested that changepoints be annotated '
+                            'on your plots, but file %s does not'
+                            'contain the relevant keys. Please run the '
+                            'mark_changepoints_in_json.py script before '
+                            'proceeding.' % filename)
 
         # Get machine name from Krun results file.
         machine = data['audit']['uname'].split(' ')[1]
@@ -730,6 +744,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['data'][key] = dict()
                         data_dictionary['cycles_counts'][key] = dict()
                         data_dictionary['instr_data'][key] = dict()
+                        data_dictionary['changepoints'][key] = dict()
+                        data_dictionary['changepoint_means'][key] = dict()
+                        data_dictionary['all_outliers'][key] = dict()
+                        data_dictionary['common_outliers'][key] = dict()
+                        data_dictionary['unique_outliers'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
@@ -740,6 +759,20 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             add_instr_data(data_dictionary, key, machine, instr_dir)
                         else:
                             data_dictionary['instr_data'][key][machine] = None
+                    if changepoints:
+                        data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
+                        data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
+                    else:
+                        data_dictionary['changepoints'][key][machine] = None
+                        data_dictionary['changepoint_means'][key][machine] = None
+                    if outliers or unique_outliers:
+                        data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
+                        data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
+                        data_dictionary['unique_outliers'][key][machine] = data['unique_outliers'][key]
+                    else:
+                        data_dictionary['all_outliers'][key][machine] = None
+                        data_dictionary['common_outliers'][key][machine] = None
+                        data_dictionary['unique_outliers'][key][machine] = None
             # Construct plot titles for all data in this file.
             for key in data_dictionary['data']:
                 if key not in plot_titles:
@@ -784,6 +817,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     data_dictionary['data'][key] = dict()
                     data_dictionary['cycles_counts'][key] = dict()
                     data_dictionary['instr_data'][key] = dict()
+                    data_dictionary['changepoints'][key] = dict()
+                    data_dictionary['changepoint_means'][key] = dict()
+                    data_dictionary['all_outliers'][key] = dict()
+                    data_dictionary['common_outliers'][key] = dict()
+                    data_dictionary['unique_outliers'][key] = dict()
 
                 if machine not in data_dictionary['data'][key]:
                     data_dictionary['data'][key][machine] = list()
@@ -793,6 +831,20 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     else:
                         data_dictionary['cycles_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
+                    if changepoints:
+                        data_dictionary['changepoints'][key][machine] = list()
+                        data_dictionary['changepoint_means'][key][machine] = list()
+                    else:
+                        data_dictionary['changepoints'][key][machine] = None
+                        data_dictionary['changepoint_means'][key][machine] = None
+                    if outliers or unique_outliers:
+                        data_dictionary['all_outliers'][key][machine] = list()
+                        data_dictionary['common_outliers'][key][machine] = list()
+                        data_dictionary['unique_outliers'][key][machine] = list()
+                    else:
+                        data_dictionary['all_outliers'][key][machine] = None
+                        data_dictionary['common_outliers'][key][machine] = None
+                        data_dictionary['unique_outliers'][key][machine] = None
 
                 if key not in plot_titles:
                     plot_titles[key] = dict()
@@ -812,16 +864,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         benchmark_name = benchmark_name.title()
                     for p_exec in requested_data[key][machine]:
                         if p_exec >= len(data['wallclock_times'][key]):
-                            fatal_error('You requested that process '
-                                        'execution %g for benchmark %s '
-                                        'from machine %s be plotted, but '
-                                        'the Krun results file for that '
-                                        'machine only has %g process '
-                                        'executions for the benchmark.' %
-                                        (p_exec,
-                                         key,
-                                         machine,
-                                         len(data['wallclock_times'][key])))
+                            fatal_error('You requested that process execution %g '
+                                'for benchmark %s from machine %s be plotted, but '
+                                'the Krun results file for that machine only has '
+                                '%g process executions for the benchmark.' %
+                                (p_exec, key, machine, len(data['wallclock_times'][key])))
                         # Add run sequence to data dictionary.
                         print 'Adding run sequence to ', key, machine
                         data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
@@ -831,6 +878,13 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 add_instr_data(data_dictionary, key, machine, instr_dir)
                             else:
                                 data_dictionary['instr_data'][key][machine] = None
+                            if changepoints:
+                                data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
+                                data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
+                            if outliers or unique_outliers:
+                                data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
+                                data_dictionary['common_outliers'][key][machine].append(data['common_outliers'][key][p_exec])
+                                data_dictionary['unique_outliers'][key][machine].append(data['unique_outliers'][key][p_exec])
 
                         # Construct plot title.
                         title = '%s, %s, %s, Proc. exec. #%d' % \
@@ -839,42 +893,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                  machine_name,
                                  p_exec + 1)
                         plot_titles[key][machine].append(title)
-
-        # Collect outliers, if requested.
-        if unique_outliers or outliers:
-            if not ('common_outliers' in data and
-                    'unique_outliers' in data and
-                    'all_outliers' in data):
-                fatal_error('You requested that outliers be annotated '
-                            'on your plots, but file %s does not'
-                            'contain the relevant keys. Please run the '
-                            'mark_outliers_in_json.py script before '
-                            'proceeding.' % filename)
-            for key in data_dictionary['data']:
-                if key not in data_dictionary['all_outliers']:
-                    data_dictionary['all_outliers'][key] = dict()
-                    data_dictionary['common_outliers'][key] = dict()
-                    data_dictionary['unique_outliers'][key] = dict()
-                for p_exec in xrange(len(data_dictionary['data'][key])):
-                    data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
-                    data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
-                    data_dictionary['unique_outliers'][key][machine] = data['unique_outliers'][key]
-
-        # Collect changepoints, if requested.
-        if changepoints:
-            if 'changepoints' not in data:
-                fatal_error('You requested that changepoints be annotated '
-                            'on your plots, but file %s does not'
-                            'contain the relevant keys. Please run the '
-                            'mark_changepoints_in_json.py script before '
-                            'proceeding.' % filename)
-            for key in data_dictionary['data']:
-                if key not in data_dictionary['changepoints']:
-                    data_dictionary['changepoints'][key] = dict()
-                    data_dictionary['changepoint_means'][key] = dict()
-                for p_exec in xrange(len(data_dictionary['data'][key])):
-                    data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
-                    data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
 
     # Check that every benchmark that was requested has been found in the
     # given Krun results files.
