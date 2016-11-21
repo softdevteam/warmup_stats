@@ -138,7 +138,7 @@ def add_instr_data(data_dictionary, key, machine, instr_dir):
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, changepoints, changepoint_means,
          median=False, tukey=False, inset_xlimit=None, one_page=False,
-         legend_off=True, cycles_ylimits=None):
+         legend_off=True, core_cycles=(0,1,2,3), cycles_ylimits=None):
     """Determine which plots to put on each page of output.
     Plot all data.
     """
@@ -246,7 +246,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                    all_outliers[index], all_unique[index],
                                    all_common[index], all_changepoints[index],
                                    all_changepoint_means[index], median, tukey,
-                                   inset_xlimit, legend_off, cycles_ylimits)
+                                   inset_xlimit, legend_off, core_cycles, cycles_ylimits)
             if not is_interactive:
                 fig.set_size_inches(*export_size)
                 pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
@@ -289,7 +289,7 @@ def _get_scatter_points_within_bounds(scatter, x_bounds):
 def draw_process_exec(grid_cell, data, cycles_data,
                  instr_data, instr_y_ranges, title, x_bounds, y_range, window_size,
                  outliers, unique, common, changepoints, changepoint_means,
-                 median, tukey, cycles_ylimits):
+                 median, tukey, core_cycles, cycles_ylimits):
     iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
     # Marshal data into numpy arrays.
     data_narray = numpy.array(data[x_bounds[0]:x_bounds[1]])
@@ -298,11 +298,13 @@ def draw_process_exec(grid_cell, data, cycles_data,
         if cycles_ylimits:
             cycles_min, cycles_max = cycles_ylimits
         else:
+            if core_cycles is None:
+                core_cycles = range(len(cycles_data))
             cycles_min, cycles_max = float('inf'), float('-inf')
-            for core in xrange(len(cycles_data)):
+            for core in core_cycles:
                 cycles_min = min(min(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_min)
                 cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_max)
-        for core in xrange(len(cycles_data)):  # For each core.
+        for core in core_cycles:  # For each core specified on command line.
             cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
     instr_data_narrays = list()
     if instr_data:
@@ -311,7 +313,7 @@ def draw_process_exec(grid_cell, data, cycles_data,
     # Calculate the number of plots needed.
     n_rows = 1
     if cycles_data:
-        n_rows += len(cycle_data_narrays)
+        n_rows += len(core_cycles)
     if instr_data:
         n_rows += len(instr_data_narrays)
     if n_rows == 1:  # Only create another gridspec if we have to.
@@ -441,12 +443,12 @@ def draw_process_exec(grid_cell, data, cycles_data,
             pyplot.setp(axis.get_xticklabels(), visible=False)
             axis.set_ylim(cycles_min, cycles_max)
             axis.plot(iterations, cycle_data_narrays[core],
-                      color=CYCLES_COLOR, label=('Core %d cycles' % core),
+                      color=CYCLES_COLOR, label=('Core %d cycles' % core_cycles[core]),
                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
             # Style axes and grid.
             y_ax = axis.get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-            axis.set_ylabel('CC #%d' % core, fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
+            axis.set_ylabel('CC #%d' % core_cycles[core], fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
             axis.yaxis.set_label_position('right')
             ymin, ymax = axis.get_ylim()
             major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
@@ -502,7 +504,8 @@ def draw_process_exec(grid_cell, data, cycles_data,
 def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means, median,
-              tukey, inset_xlimit=100, legend_off=True, cycles_ylimits=None):
+              tukey, inset_xlimit=100, legend_off=True, core_cycles=(0,1,2,3),
+              cycles_ylimits=None):
     """Plot a page of benchmarks.
     """
 
@@ -521,7 +524,6 @@ def draw_page(is_interactive, executions, cycles_executions,
             xlimits_start, xlimits_stop = [int(x) for x in xlimits.split(',')]
         except ValueError:
             fatal_error('Invalid xlimits pair: %s' % xlimits)
-            sys.exit(1)
 
     # Find the min and max y values across all wallclock time plots for this page.
     y_min, y_max = get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=0.02)
@@ -571,7 +573,8 @@ def draw_page(is_interactive, executions, cycles_executions,
                               instr_data, instr_y_ranges,
                               titles[index], x_bounds, [y_min, y_max], window_size,
                               outliers_exec, unique_exec, common_exec, changepoint_exec,
-                              changepoint_mean_exec, median, tukey, cycles_ylimits)
+                              changepoint_mean_exec, median, tukey, core_cycles,
+                              cycles_ylimits)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -653,15 +656,13 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
     for each subplot.
     """
 
-    data_dictionary = {'data': dict(), # Measurement data to be plotted.
-                       'cycles_counts': dict(),
+    data_dictionary = {'data': dict(),  'cycles_counts': dict(),
                        'instr_data': dict(),  # Per-VM information.
-                       'all_outliers': dict(),
-                       'common_outliers': dict(),
+                       'changepoints': dict(), 'changepoint_means': dict(),
+                       'all_outliers': dict(), 'common_outliers': dict(),
                        'unique_outliers': dict(),
-                       'changepoints': dict(),
-                       'changepoint_means': dict(),
                       }
+
     plot_titles = dict()  # All subplot titles.
 
     # Find out what data the user requested.
@@ -691,10 +692,26 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         # All benchmarking data from one Krun results file.
         data = read_krun_results_file(filename)
 
+        # Check that data requested on the command line exists in the JSON.
         if not wallclock_only and not ('core_cycle_counts' in data):
                 fatal_error('Core cycle counts not stored in %s. '
                             'Consider running this script with --wallclock-only.'
                             % filename)
+        if unique_outliers or outliers:
+            if not ('common_outliers' in data and 'unique_outliers' in data and
+                    'all_outliers' in data):
+                fatal_error('You requested that outliers be annotated '
+                            'on your plots, but file %s does not'
+                            'contain the relevant keys. Please run the '
+                            'mark_outliers_in_json.py script before '
+                            'proceeding.' % filename)
+        if changepoints:
+            if 'changepoints' not in data:
+                fatal_error('You requested that changepoints be annotated '
+                            'on your plots, but file %s does not'
+                            'contain the relevant keys. Please run the '
+                            'mark_changepoints_in_json.py script before '
+                            'proceeding.' % filename)
 
         # Get machine name from Krun results file.
         machine = data['audit']['uname'].split(' ')[1]
@@ -730,6 +747,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['data'][key] = dict()
                         data_dictionary['cycles_counts'][key] = dict()
                         data_dictionary['instr_data'][key] = dict()
+                        data_dictionary['changepoints'][key] = dict()
+                        data_dictionary['changepoint_means'][key] = dict()
+                        data_dictionary['all_outliers'][key] = dict()
+                        data_dictionary['common_outliers'][key] = dict()
+                        data_dictionary['unique_outliers'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
@@ -740,6 +762,20 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             add_instr_data(data_dictionary, key, machine, instr_dir)
                         else:
                             data_dictionary['instr_data'][key][machine] = None
+                    if changepoints:
+                        data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
+                        data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
+                    else:
+                        data_dictionary['changepoints'][key][machine] = None
+                        data_dictionary['changepoint_means'][key][machine] = None
+                    if outliers or unique_outliers:
+                        data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
+                        data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
+                        data_dictionary['unique_outliers'][key][machine] = data['unique_outliers'][key]
+                    else:
+                        data_dictionary['all_outliers'][key][machine] = None
+                        data_dictionary['common_outliers'][key][machine] = None
+                        data_dictionary['unique_outliers'][key][machine] = None
             # Construct plot titles for all data in this file.
             for key in data_dictionary['data']:
                 if key not in plot_titles:
@@ -784,6 +820,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     data_dictionary['data'][key] = dict()
                     data_dictionary['cycles_counts'][key] = dict()
                     data_dictionary['instr_data'][key] = dict()
+                    data_dictionary['changepoints'][key] = dict()
+                    data_dictionary['changepoint_means'][key] = dict()
+                    data_dictionary['all_outliers'][key] = dict()
+                    data_dictionary['common_outliers'][key] = dict()
+                    data_dictionary['unique_outliers'][key] = dict()
 
                 if machine not in data_dictionary['data'][key]:
                     data_dictionary['data'][key][machine] = list()
@@ -793,6 +834,20 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     else:
                         data_dictionary['cycles_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
+                    if changepoints:
+                        data_dictionary['changepoints'][key][machine] = list()
+                        data_dictionary['changepoint_means'][key][machine] = list()
+                    else:
+                        data_dictionary['changepoints'][key][machine] = None
+                        data_dictionary['changepoint_means'][key][machine] = None
+                    if outliers or unique_outliers:
+                        data_dictionary['all_outliers'][key][machine] = list()
+                        data_dictionary['common_outliers'][key][machine] = list()
+                        data_dictionary['unique_outliers'][key][machine] = list()
+                    else:
+                        data_dictionary['all_outliers'][key][machine] = None
+                        data_dictionary['common_outliers'][key][machine] = None
+                        data_dictionary['unique_outliers'][key][machine] = None
 
                 if key not in plot_titles:
                     plot_titles[key] = dict()
@@ -812,16 +867,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         benchmark_name = benchmark_name.title()
                     for p_exec in requested_data[key][machine]:
                         if p_exec >= len(data['wallclock_times'][key]):
-                            fatal_error('You requested that process '
-                                        'execution %g for benchmark %s '
-                                        'from machine %s be plotted, but '
-                                        'the Krun results file for that '
-                                        'machine only has %g process '
-                                        'executions for the benchmark.' %
-                                        (p_exec,
-                                         key,
-                                         machine,
-                                         len(data['wallclock_times'][key])))
+                            fatal_error('You requested that process execution %g '
+                                'for benchmark %s from machine %s be plotted, but '
+                                'the Krun results file for that machine only has '
+                                '%g process executions for the benchmark.' %
+                                (p_exec, key, machine, len(data['wallclock_times'][key])))
                         # Add run sequence to data dictionary.
                         print 'Adding run sequence to ', key, machine
                         data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
@@ -831,6 +881,13 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 add_instr_data(data_dictionary, key, machine, instr_dir)
                             else:
                                 data_dictionary['instr_data'][key][machine] = None
+                            if changepoints:
+                                data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
+                                data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
+                            if outliers or unique_outliers:
+                                data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
+                                data_dictionary['common_outliers'][key][machine].append(data['common_outliers'][key][p_exec])
+                                data_dictionary['unique_outliers'][key][machine].append(data['unique_outliers'][key][p_exec])
 
                         # Construct plot title.
                         title = '%s, %s, %s, Proc. exec. #%d' % \
@@ -839,42 +896,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                  machine_name,
                                  p_exec + 1)
                         plot_titles[key][machine].append(title)
-
-        # Collect outliers, if requested.
-        if unique_outliers or outliers:
-            if not ('common_outliers' in data and
-                    'unique_outliers' in data and
-                    'all_outliers' in data):
-                fatal_error('You requested that outliers be annotated '
-                            'on your plots, but file %s does not'
-                            'contain the relevant keys. Please run the '
-                            'mark_outliers_in_json.py script before '
-                            'proceeding.' % filename)
-            for key in data_dictionary['data']:
-                if key not in data_dictionary['all_outliers']:
-                    data_dictionary['all_outliers'][key] = dict()
-                    data_dictionary['common_outliers'][key] = dict()
-                    data_dictionary['unique_outliers'][key] = dict()
-                for p_exec in xrange(len(data_dictionary['data'][key])):
-                    data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
-                    data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
-                    data_dictionary['unique_outliers'][key][machine] = data['unique_outliers'][key]
-
-        # Collect changepoints, if requested.
-        if changepoints:
-            if 'changepoints' not in data:
-                fatal_error('You requested that changepoints be annotated '
-                            'on your plots, but file %s does not'
-                            'contain the relevant keys. Please run the '
-                            'mark_changepoints_in_json.py script before '
-                            'proceeding.' % filename)
-            for key in data_dictionary['data']:
-                if key not in data_dictionary['changepoints']:
-                    data_dictionary['changepoints'][key] = dict()
-                    data_dictionary['changepoint_means'][key] = dict()
-                for p_exec in xrange(len(data_dictionary['data'][key])):
-                    data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
-                    data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
 
     # Check that every benchmark that was requested has been found in the
     # given Krun results files.
@@ -1014,15 +1035,21 @@ def create_cli_parser():
                         help='Do not draw a legend.')
     parser.add_argument('--export-size',
                         action='store',
-                        default="12, 10",
-                        help=("Set the total size (comma separated pair, "
+                        default='12, 10',
+                        help="Set the total size (comma separated pair, "
                              "in inches) of each process execution's "
-                             "plots in the output."))
+                             "plots in the output.")
     parser.add_argument('--cycles-ylimits',
                         action='store',
                         default=None,
-                        help=("Set the y-axis range for core cycle plots "
-                              "(comma separated pair)"))
+                        help="Set the y-axis range for core cycle plots "
+                             "(comma separated pair)")
+    parser.add_argument('--core-cycles',
+                        action='store',
+                        dest='core_cycles',
+                        default=None,
+                        help='Only plot the core cycles for specified cores'
+                              '(comma separated). e.g: 0,1,2,3')
     return parser
 
 
@@ -1051,22 +1078,36 @@ if __name__ == '__main__':
 
     # Set process execution plot-stack sizes
     try:
-        sz_x, sz_y = options.export_size.split(",")
+        sz_x, sz_y = options.export_size.split(',')
         EXPORT_SIZE_INCHES[0] = float(sz_x)
         EXPORT_SIZE_INCHES[1] = float(sz_y)
     except ValueError:
-        print("invalid --export-size argument")
-        sys.exit(1)
+        fatal_error('invalid --export-size argument')
+
+    if options.cycles_ylimits and options.wallclock:
+        fatal_error('Cannot use --cycles-ylimits AND --wallclock-only.')
 
     if options.cycles_ylimits:
         try:
-            y1, y2 = options.cycles_ylimits.split(",")
+            y1, y2 = options.cycles_ylimits.split(',')
             cycles_ylimits = float(y1), float(y2)
         except ValueError:
-            print("invalid --cycles-ylimits argument")
-            sys.exit(1)
+            fatal_error('invalid --cycles-ylimits argument')
     else:
         cycles_ylimits = None
+
+    if options.core_cycles and options.wallclock:
+        fatal_error('Cannot use --core-cycles AND --wallclock-only.')
+
+    if options.core_cycles and not options.wallclock:
+        try:
+            cycles_str = options.core_cycles.split(',')
+            core_cycles = [int(cycle) for cycle in cycles_str]
+        except ValueError:
+            fatal_error('invalid --core-cycles argument')
+        print 'Plotting cycle counts for core(s): %s' % ','.join([str(core) for core in core_cycles])
+    else:
+        core_cycles = None
 
     # Smaller fonts for on-screen plots.
     if options.outfile is None:
@@ -1100,4 +1141,5 @@ if __name__ == '__main__':
          inset_xlimit=inset_xlimits,
          one_page=options.one_page,
          legend_off=options.legend_off,
+         core_cycles=core_cycles,
          cycles_ylimits=cycles_ylimits)
