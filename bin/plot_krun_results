@@ -122,17 +122,28 @@ EXPORT_SIZE_INCHES = [12, 10]
 DPI = 300
 
 
-def add_instr_data(data_dictionary, key, machine, instr_dir):
-    vm = key.split(':')[1]  # bench, vm, language
+def get_instr_data(key, machine, instr_dir, pexec_idxs):
+    """Get the instrumentation data summary for the specified process execution
+    indexes"""
+
+    bench, vm, variant = key.split(":")
+    ret = []
     if vm in INSTRUMENTATION_PARSERS:
-        files = glob.glob(os.path.join(instr_dir,
-                   key.replace(':', '__') + '__*.json.bz2'))
-        pexec_data = list()
-        for file_ in sorted(files):
-            pexec_data.append(read_krun_results_file(file_))
-        # Merge JSON data from each file and parse.
-        parser = INSTRUMENTATION_PARSERS[vm](merge_instr_data(pexec_data))
-        data_dictionary['instr_data'][key][machine] = parser.chart_data
+        for pexec_idx in pexec_idxs:
+            file_ = os.path.join(instr_dir, "%s__%s__%s__%s.json.bz2" %
+                                 (bench, vm, variant, pexec_idx))
+            print("Loading: %s" % file_)
+            try:
+                js = read_krun_results_file(file_)
+            except IOError:
+                print("WARNING: Missing instrumentation data for: %s:%s:%s" % \
+                      (machine, key, pexec_idx))
+                ret.append(None)  # missing instr data
+                continue
+            parser = INSTRUMENTATION_PARSERS[vm](js)
+            ret.append(parser.chart_data)
+            del js  # This can be huge, so eagerly GC it
+        return ret
 
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
@@ -532,13 +543,23 @@ def draw_page(is_interactive, executions, cycles_executions,
     # more than one set of instrumentation data (e.g. GC events, JIT
     # compilation, etc.) and each VM instrument must have its own y-range.
     if instr_executions:
-        instr_data_by_instrument = [list() for _ in instr_executions[0]]
+        instr_data_by_instrument = []
         for execution in instr_executions:
-            for index, instrument_data in enumerate(execution):
-                instr_data_by_instrument[index].append(instrument_data.data)
+            if execution is None:
+                continue  # absent instr data for this pexec
+            instr_data_by_instrument = [list() for _ in execution]
+            break
+        for execution in instr_executions:
+            if execution is None:
+                for index in xrange(len(instr_data_by_instrument)):
+                    instr_data_by_instrument[index].append(None)
+            else:
+                for index, instrument_data in enumerate(execution):
+                    instr_data_by_instrument[index].append(instrument_data.data)
         instr_y_ranges = list()
         for chart_data in instr_data_by_instrument:
-            instr_y_ranges.append(get_unified_yrange(chart_data, xlimits_start,
+            chart_data_stripped = [x for x in chart_data if x is not None]
+            instr_y_ranges.append(get_unified_yrange(chart_data_stripped, xlimits_start,
                                                      xlimits_stop, padding=0.02))
     else:
         instr_y_ranges = None
@@ -759,7 +780,10 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     else:
                         data_dictionary['cycles_counts'][key][machine] = data['core_cycle_counts'][key]
                         if instr_data:
-                            add_instr_data(data_dictionary, key, machine, instr_dir)
+                            data_dictionary['instr_data'][key][machine] =  \
+                                get_instr_data(
+                                    key, machine, instr_dir,
+                                    xrange(len(data['wallclock_times'][key])))
                         else:
                             data_dictionary['instr_data'][key][machine] = None
                     if changepoints:
@@ -878,7 +902,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         if not wallclock_only:
                             data_dictionary['cycles_counts'][key][machine].append(data['core_cycle_counts'][key][p_exec])
                             if instr_data:
-                                add_instr_data(data_dictionary, key, machine, instr_dir)
+                                data_dictionary['instr_data'][key][machine].append(
+                                    get_instr_data(key, machine, instr_dir, [p_exec])[0])
                             else:
                                 data_dictionary['instr_data'][key][machine] = None
                             if changepoints:
