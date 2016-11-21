@@ -33,7 +33,7 @@ class VMInstrumentParser(object):
 
     def __init__(self, vm):
         self.vm = vm
-        self.chart_data = list()  # List of ChartData objects per p_exec.
+        self.chart_data = None
 
     @abc.abstractmethod
     def parse_instr_data(self):
@@ -58,37 +58,38 @@ class HotSpotInstrumentParser(VMInstrumentParser):
 
     def __init__(self, instr_data):
         VMInstrumentParser.__init__(self, 'Hotspot')
-        self.instr_data = instr_data['raw_vm_events'] if instr_data else None
+        self.instr_data = instr_data if instr_data else None
         self.parse_instr_data()
 
     def parse_instr_data(self):
         if self.instr_data is None:
             return None
-        for p_exec in xrange(len(self.instr_data)):
-            iterations = len(self.instr_data[p_exec])
-            jit_cumulative_times = [self.instr_data[p_exec][i][1] for i in xrange(iterations)]
-            gc_cumulative_times = list()
-            # Sum GC times over all collectors that ran in each iteration.
-            for iteration in xrange(iterations):
-                gc_iteration = 0
-                for collector in self.instr_data[p_exec][iteration][2]:
-                    gc_iteration += collector[-1]
-                gc_cumulative_times.append(gc_iteration)
-            # Turn the cumulative times in milliseconds into non-cumulative
-            # times in seconds.
-            jit_times_secs = [jit_cumulative_times[0] / 1000.0]
-            gc_times_secs = [gc_cumulative_times[0] / 1000.0]
-            last_jit_time = jit_cumulative_times[0]
-            last_gc_time = gc_cumulative_times[0]
-            for iteration in xrange(1, iterations):
-                jit_times_secs.append((jit_cumulative_times[iteration] - last_jit_time) / 1000.0)
-                last_jit_time = jit_cumulative_times[iteration]
-                gc_times_secs.append((gc_cumulative_times[iteration] - last_gc_time) / 1000.0)
-                last_gc_time = gc_cumulative_times[iteration]
-            assert len(jit_times_secs) == len(jit_cumulative_times)
-            assert len(gc_times_secs) == len(gc_cumulative_times)
-            self.chart_data.append([ChartData('GC (secs)', gc_times_secs, 'GC events'),
-                                    ChartData('JIT (secs)', jit_times_secs, 'JIT compilation')])
+        raw_events = self.instr_data['raw_vm_events']
+        iterations = len(raw_events)
+        jit_cumulative_times = [raw_events[i][1] for i in xrange(iterations)]
+        gc_cumulative_times = list()
+        # Sum GC times over all collectors that ran in each iteration.
+        for iteration in xrange(iterations):
+            gc_iteration = 0
+            for collector in raw_events[iteration][2]:
+                gc_iteration += collector[-1]
+            gc_cumulative_times.append(gc_iteration)
+        # Turn the cumulative times in milliseconds into non-cumulative
+        # times in seconds.
+        jit_times_secs = [jit_cumulative_times[0] / 1000.0]
+        gc_times_secs = [gc_cumulative_times[0] / 1000.0]
+        last_jit_time = jit_cumulative_times[0]
+        last_gc_time = gc_cumulative_times[0]
+        for iteration in xrange(1, iterations):
+            jit_times_secs.append((jit_cumulative_times[iteration] - last_jit_time) / 1000.0)
+            last_jit_time = jit_cumulative_times[iteration]
+            gc_times_secs.append((gc_cumulative_times[iteration] - last_gc_time) / 1000.0)
+            last_gc_time = gc_cumulative_times[iteration]
+        assert len(jit_times_secs) == len(jit_cumulative_times)
+        assert len(gc_times_secs) == len(gc_cumulative_times)
+        self.chart_data = [
+            ChartData('GC (secs)', gc_times_secs, 'GC events'),
+            ChartData('JIT (secs)', jit_times_secs, 'JIT compilation')]
 
 
 class PyPyInstrumentParser(VMInstrumentParser):
@@ -96,24 +97,24 @@ class PyPyInstrumentParser(VMInstrumentParser):
 
     def __init__(self, instr_data):
         VMInstrumentParser.__init__(self, 'PyPy')
-        self.instr_data = instr_data['raw_vm_events'] if instr_data else None
+        self.instr_data = instr_data if instr_data else None
         self.parse_instr_data()
 
     def parse_instr_data(self):
         if self.instr_data is None:
             return None
-        for p_exec in xrange(len(self.instr_data)):
-            iterations = {'gc': list(), 'jit': list()}
-            for inproc_iter_num, node in enumerate(self.instr_data[p_exec]):
-                event_type, start_time, stop_time, children = node
-                assert start_time == stop_time == None
-                iteration = {'gc': 0, 'jit': 0}
-                for child in children:
-                    self._parse_node(child, iteration)
-                iterations['gc'].append(iteration['gc'])
-                iterations['jit'].append(iteration['jit'])
-            self.chart_data.append([ChartData('GC', iterations['gc'], 'GC events') ,
-                                    ChartData('JIT', iterations['jit'], 'JIT tracing')])
+        iterations = {'gc': [], 'jit': None}
+        for node in self.instr_data['raw_vm_events']:
+            event_type, start_time, stop_time, children = node
+            assert start_time == stop_time == None
+            iteration = {'gc': 0}
+            for child in children:
+                self._parse_node(child, iteration)
+            iterations['gc'].append(iteration['gc'])
+        iterations['jit'] = self.instr_data['jit_times']
+        self.chart_data = (
+            [ChartData('GC', iterations['gc'], 'GC events') ,
+             ChartData('JIT', iterations['jit'], 'JIT tracing')])
 
     def _parse_node(self, node, info):
         """Recurse the event tree summing time spent in gc and tracing.

@@ -122,17 +122,22 @@ EXPORT_SIZE_INCHES = [12, 10]
 DPI = 300
 
 
-def add_instr_data(data_dictionary, key, machine, instr_dir):
-    vm = key.split(':')[1]  # bench, vm, language
+def get_instr_data(key, machine, instr_dir, pexec_idxs):
+    """Get the instrumentation data summary for the specified process execution
+    indexes"""
+
+    bench, vm, variant = key.split(":")
+    ret = []
     if vm in INSTRUMENTATION_PARSERS:
-        files = glob.glob(os.path.join(instr_dir,
-                   key.replace(':', '__') + '__*.json.bz2'))
-        pexec_data = list()
-        for file_ in sorted(files):
-            pexec_data.append(read_krun_results_file(file_))
-        # Merge JSON data from each file and parse.
-        parser = INSTRUMENTATION_PARSERS[vm](merge_instr_data(pexec_data))
-        data_dictionary['instr_data'][key][machine] = parser.chart_data
+        for pexec_idx in pexec_idxs:
+            file_ = os.path.join(instr_dir, "%s__%s__%s__%s.json.bz2" %
+                                 (bench, vm, variant, pexec_idx))
+            print("Loading: %s" % file_)
+            js = read_krun_results_file(file_)
+            parser = INSTRUMENTATION_PARSERS[vm](js)
+            ret.append(parser.chart_data)
+            del js  # This can be huge, so eagerly GC it
+        return ret
 
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
@@ -737,7 +742,10 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     else:
                         data_dictionary['cycles_counts'][key][machine] = data['core_cycle_counts'][key]
                         if instr_data:
-                            add_instr_data(data_dictionary, key, machine, instr_dir)
+                            data_dictionary['instr_data'][key][machine] =  \
+                                get_instr_data(
+                                    key, machine, instr_dir,
+                                    xrange(len(data['wallclock_times'][key])))
                         else:
                             data_dictionary['instr_data'][key][machine] = None
             # Construct plot titles for all data in this file.
@@ -828,7 +836,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         if not wallclock_only:
                             data_dictionary['cycles_counts'][key][machine].append(data['core_cycle_counts'][key][p_exec])
                             if instr_data:
-                                add_instr_data(data_dictionary, key, machine, instr_dir)
+                                data_dictionary['instr_data'][key][machine].append(
+                                    get_instr_data(key, machine, instr_dir, [p_exec])[0])
                             else:
                                 data_dictionary['instr_data'][key][machine] = None
 
