@@ -250,19 +250,46 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         for index, page in enumerate(pages):
             bmark, vm, mc = all_subplot_titles[index][0].split(', ')[:3]
             print 'Plotting %s: %s (%s) on page %02d of %02d.' % \
-                  (mc, bmark, vm, index + 1, len(pages)),
-            fig, export_size = draw_page(is_interactive, page, cycles_pages[index],
-                                   instr_pages[index],
-                                   all_subplot_titles[index], window_size, xlimits,
-                                   all_outliers[index], all_unique[index],
-                                   all_common[index], all_changepoints[index],
-                                   all_changepoint_means[index], median, tukey,
-                                   inset_xlimit, legend_off, core_cycles, cycles_ylimits)
-            if not is_interactive:
-                fig.set_size_inches(*export_size)
-                pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
-                            bbox_inches='tight')
-                pyplot.close()
+                  (mc, bmark, vm, index + 1, len(pages))
+
+            # Strip out indices where the benchmark crashed.
+            def only_uncrashed(data):
+                if data is None:
+                    return None
+                ret = list()
+                for i in xrange(len(page)):
+                    if page[i]:
+                        ret.append(data[i])
+                    else:
+                        if data == page:  # Stops repeated printing of warning.
+                            print("WARNING: requested pexec crashed: "
+                                  "%s, %s, %s, %s" % (mc, bmark, vm, index + 1))
+                return ret
+
+            wct_page = only_uncrashed(page)
+            cycles_page = only_uncrashed(cycles_pages[index])
+            instr_page = only_uncrashed(instr_pages[index])
+            subplot_titles = only_uncrashed(all_subplot_titles[index])
+            outliers = only_uncrashed(all_outliers[index])
+            common = only_uncrashed(all_common[index])
+            unique = only_uncrashed(all_unique[index])
+            changepoints = only_uncrashed(all_changepoints[index])
+            changepoint_means = only_uncrashed(all_changepoint_means[index])
+
+            rv = draw_page(is_interactive, wct_page, cycles_page,
+                                         instr_page, subplot_titles,
+                                         window_size, xlimits, outliers,
+                                         unique, common, changepoints,
+                                         changepoint_means, median, tukey,
+                                         inset_xlimit, legend_off, core_cycles,
+                                         cycles_ylimits)
+            if rv is not None:
+                fig, export_size = rv
+                if not is_interactive:
+                    fig.set_size_inches(*export_size)
+                    pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
+                                bbox_inches='tight')
+                    pyplot.close()
     except KeyboardInterrupt:
         pass  # Avoid printing a traceback.
     finally:
@@ -521,6 +548,10 @@ def draw_page(is_interactive, executions, cycles_executions,
     """
 
     n_execs = len(executions)
+    if n_execs == 0:
+        print("WARNING: empty page")
+        return None
+
     n_rows = int(math.ceil(float(len(executions)) / MAX_SUBPLOTS_PER_ROW))
     n_cols = min(MAX_SUBPLOTS_PER_ROW, n_execs)
 
@@ -760,9 +791,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                 if len(data['wallclock_times'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))
-                elif len(data['wallclock_times'][key][0]) == 0:
-                    print('WARNING: Skipping: %s from %s (benchmark crashed)' %
-                          (key, machine))
                 else:
                     if key not in data_dictionary['data']:
                         data_dictionary['data'][key] = dict()
@@ -880,9 +908,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                 if len(data['wallclock_times'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))
-                elif len(data['wallclock_times'][key][0]) == 0:
-                    print('WARNING: Skipping: %s from %s (benchmark '
-                          'crashed)' % (key, machine))
                 else:
                     benchmark_name = key.split(':')[0]
                     if benchmark_name in BENCHMARKS:
