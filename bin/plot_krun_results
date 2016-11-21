@@ -133,7 +133,13 @@ def get_instr_data(key, machine, instr_dir, pexec_idxs):
             file_ = os.path.join(instr_dir, "%s__%s__%s__%s.json.bz2" %
                                  (bench, vm, variant, pexec_idx))
             print("Loading: %s" % file_)
-            js = read_krun_results_file(file_)
+            try:
+                js = read_krun_results_file(file_)
+            except IOError:
+                print("WARNING: Missing instrumentation data for: %s:%s:%s" % \
+                      (machine, key, pexec_idx))
+                ret.append(None)  # missing instr data
+                continue
             parser = INSTRUMENTATION_PARSERS[vm](js)
             ret.append(parser.chart_data)
             del js  # This can be huge, so eagerly GC it
@@ -535,13 +541,23 @@ def draw_page(is_interactive, executions, cycles_executions,
     # more than one set of instrumentation data (e.g. GC events, JIT
     # compilation, etc.) and each VM instrument must have its own y-range.
     if instr_executions:
-        instr_data_by_instrument = [list() for _ in instr_executions[0]]
+        instr_data_by_instrument = []
         for execution in instr_executions:
-            for index, instrument_data in enumerate(execution):
-                instr_data_by_instrument[index].append(instrument_data.data)
+            if execution is None:
+                continue  # absent instr data for this pexec
+            instr_data_by_instrument = [list() for _ in execution]
+            break
+        for execution in instr_executions:
+            if execution is None:
+                for index in xrange(len(instr_data_by_instrument)):
+                    instr_data_by_instrument[index].append(None)
+            else:
+                for index, instrument_data in enumerate(execution):
+                    instr_data_by_instrument[index].append(instrument_data.data)
         instr_y_ranges = list()
         for chart_data in instr_data_by_instrument:
-            instr_y_ranges.append(get_unified_yrange(chart_data, xlimits_start,
+            chart_data_stripped = [x for x in chart_data if x is not None]
+            instr_y_ranges.append(get_unified_yrange(chart_data_stripped, xlimits_start,
                                                      xlimits_stop, padding=0.02))
     else:
         instr_y_ranges = None
