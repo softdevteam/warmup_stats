@@ -787,7 +787,6 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         if benchmarks == []:  # Chart all available data from this file.
             for key in data['wallclock_times']:
                 bmark = key.split(':')[0]
-                if bmark == 'empty': continue  # TODO: REMOVE THIS.
                 if len(data['wallclock_times'][key]) == 0:
                     print('WARNING: Skipping: %s from %s (no executions)' %
                           (key, machine))

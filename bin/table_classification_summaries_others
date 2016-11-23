@@ -51,10 +51,6 @@ def main(data_dcts, window_size, latex_file, num_splits):
                   (key, machine))
         else:
             bench, vm, variant = key.split(':')
-            # The empty benchmark is not useful
-            if bench == 'empty':
-                continue
-
             all_benchs |= set([bench])
             if vm not in summary_data:
                 summary_data[vm] = {}
