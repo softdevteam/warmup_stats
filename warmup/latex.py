@@ -20,6 +20,14 @@ def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
 
 
 __MACROS = """
+\\newlength{\\blankheight}
+\\settototalheight{\\blankheight}{
+$\\begin{array}{rr}
+\\scriptstyle{0.16} \\\\[-6pt]
+\\scriptscriptstyle{\\pm0.000}
+\end{array}$
+}
+
 \\DeclareRobustCommand{\\flatc}{%
 \\setlength{\\sparklinethickness}{0.4pt}%
 \\begin{sparkline}{1.5}
@@ -80,6 +88,8 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{calc}
+\usepackage{mathtools}
+\usepackage{multicol}
 \usepackage{multirow}
 \usepackage{rotating}
 \usepackage{sparklines}
