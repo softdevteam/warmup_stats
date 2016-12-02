@@ -102,24 +102,29 @@ $\\begin{array}{rr}
 \\end{sparkline}\\xspace}
 """
 
-DEFAULT_DOCOPTS = '12pt, a4paper'
+DEFAULT_DOCOPTS = '10pt, a4paper'
 
 __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
-\documentclass[%s]{article}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{booktabs}
-\usepackage{calc}
-\usepackage{mathtools}
-\usepackage{multicol}
-\usepackage{multirow}
-\usepackage{rotating}
-\usepackage{sparklines}
-\usepackage{xspace}
+\\documentclass[%s]{article}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{booktabs}
+\\usepackage{calc}
+\\usepackage[margin=1.0cm]{geometry}
+\\usepackage{mathtools}
+\\usepackage{multicol}
+\\usepackage{multirow}
+\\usepackage{rotating}
+\\usepackage{sparklines}
+\\usepackage{xspace}
+
+
 %s
 \\title{%s}
 \\begin{document}
-\maketitle
+\\maketitle
+\\thispagestyle{empty}
+\\pagestyle{empty}
 """ % (doc_opts, __MACROS, title)
 
 __LATEX_SECTION = lambda section: """

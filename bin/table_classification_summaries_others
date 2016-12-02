@@ -142,6 +142,8 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
             fp.write(preamble(TITLE))
             fp.write('%s' % get_latex_symbol_map())
             fp.write('\n\n\n')
+            fp.write('\\begin{table*}[t]\n')
+            fp.write('\\centering\n')
         # emit table header
         heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1] * num_splits)
         heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2] * num_splits)
@@ -225,6 +227,7 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
             split_row_idx += 1
         fp.write(end_table())
         if with_preamble:
+            fp.write('\\end{table*}\n')
             fp.write(end_document())
     return
 
