@@ -87,8 +87,7 @@ def main(data_dcts, window_size, latex_file, num_splits, with_preamble=False):
                     cat_counts.append('$%d$%s' % (occurences, STYLE_SYMBOLS[category]))
                 reported_category += ' \\scriptsize(%s)' % ', '.join(cat_counts)
 
-            if (reported_category == STYLE_SYMBOLS['no steady state'] or
-                reported_category.startswith(STYLE_SYMBOLS['inconsistent'])):
+            if STYLE_SYMBOLS['no steady state'] in reported_category:
                 mean_last_segment = ''
                 mean_last_cpt = ''
                 time_to_steady = ''
@@ -178,7 +177,8 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
                         time_steady = this_summary['time_to_steady_state']
                         last_mean = this_summary['last_mean']
 
-                        if 'inconsistent' in classification:
+                        if (STYLE_SYMBOLS['inconsistent'] in classification and
+                              STYLE_SYMBOLS['no steady state'] in classification):
                             classification = '\\multicolumn{4}{l}{%s}' % classification
                         else:
                             classification = '\\multicolumn{1}{l}{%s}' % classification
@@ -203,7 +203,8 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
                             % (num_benchmarks + fudge, vm)
                     else:
                         vm_cell = ''
-                    if 'inconsistent' in classification:
+                    if (STYLE_SYMBOLS['inconsistent'] in classification and
+                         STYLE_SYMBOLS['no steady state'] in classification):
                         row_add = [BLANK_CELL, vm_cell, classification]
                     else:
                         row_add = [BLANK_CELL, vm_cell, classification, last_cpt,
