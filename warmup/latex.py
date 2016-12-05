@@ -20,6 +20,9 @@ def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
 
 
 __MACROS = """
+%
+% blankheight.
+%
 \\newlength{\\blankheight}
 \\settototalheight{\\blankheight}{
 $\\begin{array}{rr}
@@ -28,6 +31,25 @@ $\\begin{array}{rr}
 \end{array}$
 }
 
+
+%
+% Benchmark names.
+%
+\\newcommand{\\binarytrees}{\\emph{binary trees}\\xspace}
+\\newcommand{\\richards}{\\emph{Richards}\\xspace}
+\\newcommand{\\spectralnorm}{\\emph{spectralnorm}\\xspace}
+\\newcommand{\\nbody}{\\emph{n-body}\\xspace}
+\\newcommand{\\fasta}{\\emph{fasta}\\xspace}
+\\newcommand{\\fannkuch}{\\emph{fannkuch redux}\\xspace}
+\\newcommand{\\bencherthree}{Linux$_\\mathrm{4790K}$\\xspace}
+\\newcommand{\\bencherfive}{Linux$_\\mathrm{4790}$\\xspace}
+\\newcommand{\\benchersix}{OpenBSD$_\\mathrm{4790}$\\xspace}
+\\newcommand{\\bencherseven}{Linux$_\\mathrm{E3-1240v5}$\\xspace}
+
+
+%
+% Sparklines.
+%
 \\DeclareRobustCommand{\\flatc}{%
 \\setlength{\\sparklinethickness}{0.4pt}%
 \\begin{sparkline}{1.5}
@@ -80,24 +102,29 @@ $\\begin{array}{rr}
 \\end{sparkline}\\xspace}
 """
 
-DEFAULT_DOCOPTS = '12pt, a4paper'
+DEFAULT_DOCOPTS = '10pt, a4paper'
 
 __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
-\documentclass[%s]{article}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{booktabs}
-\usepackage{calc}
-\usepackage{mathtools}
-\usepackage{multicol}
-\usepackage{multirow}
-\usepackage{rotating}
-\usepackage{sparklines}
-\usepackage{xspace}
+\\documentclass[%s]{article}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{booktabs}
+\\usepackage{calc}
+\\usepackage[margin=1.0cm]{geometry}
+\\usepackage{mathtools}
+\\usepackage{multicol}
+\\usepackage{multirow}
+\\usepackage{rotating}
+\\usepackage{sparklines}
+\\usepackage{xspace}
+
+
 %s
 \\title{%s}
 \\begin{document}
-\maketitle
+\\maketitle
+\\thispagestyle{empty}
+\\pagestyle{empty}
 """ % (doc_opts, __MACROS, title)
 
 __LATEX_SECTION = lambda section: """
