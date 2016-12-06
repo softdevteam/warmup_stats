@@ -5,7 +5,6 @@ Plot data from Krun results file(s).
 
 import argparse
 import datetime
-import glob
 import math
 import matplotlib
 matplotlib.use('Agg')
@@ -24,7 +23,7 @@ from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_margin_to_axes, compute_grid_offsets
 from warmup.plotting import format_yticks_scientific, get_unified_yrange, style_axis
-from warmup.vm_instruments import INSTRUMENTATION_PARSERS, merge_instr_data
+from warmup.vm_instruments import INSTRUMENTATION_PARSERS
 
 seaborn.set_palette('colorblind')
 seaborn.set_style('whitegrid', {'lines.linewidth': 1.0, 'axes.linewidth': 1.0})
@@ -99,7 +98,7 @@ PERF_YTICK_FORMAT = '%.1f'
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_RECT = (0.675, 0.82, 0.3, 0.15)
-INSET_TICK_FONTSIZE = 14
+INSET_TICK_FONTSIZE = 8
 
 # Default (PDF) font sizes
 TICK_FONTSIZE = 8
@@ -298,12 +297,11 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             print('Saved: %s' % outfile)
 
 
-def add_inset_to_axis(axis, rect):
+def add_inset_to_axis(fig, axis, rect):
     """Adds a new axis to an existing axis, located at rect.
     rect should be a 4-tuple of (left, bottom, width, height) all relative
     to the axis.
     """
-    fig = axis.figure
     left, bottom, width, height = rect
     def transform(coord):
         return fig.transFigure.inverted().transform(
@@ -536,7 +534,7 @@ def draw_process_exec(grid_cell, data, cycles_data,
     # Margin MUST be adjusted after plotting is complete.
     add_margin_to_axes(axis1, x=0.02, y=0.02)
     # Return lines and labels so that we can draw a single legend for the page.
-    return handles_labels
+    return axis1, handles_labels
 
 
 def draw_page(is_interactive, executions, cycles_executions,
@@ -597,6 +595,9 @@ def draw_page(is_interactive, executions, cycles_executions,
 
     fig = pyplot.figure()
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
+    # Keep a list of all the axes that wallclock times are drawn on, in case
+    # we later need to draw an inset onto each one.
+    wallclock_axes = list()
 
     index, row, col = 0, 0, 0
     cycles_data, instr_data = None, None
@@ -621,12 +622,13 @@ def draw_page(is_interactive, executions, cycles_executions,
         # Get axis and draw plot.
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
-        handles, labels = draw_process_exec(inner_grid, data, cycles_data,
+        wc_axis, (handles, labels) = draw_process_exec(inner_grid, data, cycles_data,
                               instr_data, instr_y_ranges,
                               titles[index], x_bounds, [y_min, y_max], window_size,
                               outliers_exec, unique_exec, common_exec, changepoint_exec,
                               changepoint_mean_exec, median, tukey, core_cycles,
                               cycles_ylimits)
+        wallclock_axes.append(wc_axis)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -640,8 +642,8 @@ def draw_page(is_interactive, executions, cycles_executions,
     if inset_xlimit is not None:
         index, row, col = 0, 0, 0
         while index < n_execs:
-            axis = outer_grid[row, col]
-            inset = add_inset_to_axis(axis, INSET_RECT)
+            axis = wallclock_axes[index]
+            inset = add_inset_to_axis(fig, axis, INSET_RECT)
             inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
             inset.grid(False)  # Too many lines and y-ticks looks very messy.
             inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
