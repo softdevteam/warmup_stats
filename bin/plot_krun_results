@@ -100,6 +100,8 @@ PERF_YTICK_FORMAT = '%.1f'
 INSET_DEFAULT_WIDTH = 0.4
 INSET_DEFAULT_HEIGHT = 0.25
 INSET_PADDING = 0.035
+INSET_MIN_ITERS = 50
+INSET_MAX_ITERS = 150
 INSET_TICK_FONTSIZE = 8
 
 # Default (PDF) font sizes
@@ -641,36 +643,62 @@ def draw_page(is_interactive, executions, cycles_executions,
 
     # Draw an inset, if required. This MUST be done after adjusting subplots,
     # so that we can calculate the correct bounding box for the inset.
+    def collide_rect((left, bottom, width, height), x_bounds, y_bounds, data):
+        size = x_bounds[1] - x_bounds[0]
+        x_left, x_right = int(size * left), int(size * (left + width))
+        y_low = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
+        maximum_y = max(data[x_left:x_right])
+        if maximum_y > y_low:  # Largest datum > bottom of inset.
+            return True
+        return False
     if inset:
         index, row, col = 0, 0, 0
         while index < n_execs:
             axis = wallclock_axes[index]
-            inset_rect = (1.0 - INSET_DEFAULT_WIDTH - INSET_PADDING,
-                          1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING,
-                          INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
-            inset = add_inset_to_axis(fig, axis, inset_rect)
-            inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
-            inset.grid(False)  # Too many lines and y-ticks looks very messy.
-            inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
-            inset.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
-            inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
-            inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
-            # Which iterations go in the inset? By default the first 2.5%.
-            one_pc = len(executions[index][x_bounds[0]:x_bounds[1]]) / 100.0  # 1% of the iterations.
-            inset_xlimit = (0, int(one_pc * 2.5))
-            # If all the changepoints occur at the start of the process exec,
-            # include them all and a few extra executions.
-            if changepoints and changepoints[index]:
-                if changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0):
-                    inset_xlimit = (0, (changepoints[index][x_bounds[0]:x_bounds[1]][-1]
-                                        + int(one_pc * 2.0)))
-            # Clamp the extent of the inset.
-            if inset_xlimit[1] > 150:
-                inset_xlimit = (0, 150)
-            inset.plot(range(*inset_xlimit),  # Plot subset of the data.
-                       executions[index][inset_xlimit[0]:inset_xlimit[1]],
-                       color=LINE_COLOUR, linewidth=PLOT_LINE_WIDTH,
-                       zorder=ZORDER_DATA)
+            # Find a rectangle that will not collide with data.
+            inset_collides = False
+            for fudge in (0.0, 0.1, 0.2):
+                rect = (1.0 - INSET_DEFAULT_WIDTH - fudge - INSET_PADDING,
+                      1.0 - INSET_DEFAULT_HEIGHT - fudge - INSET_PADDING,
+                      INSET_DEFAULT_WIDTH - fudge, INSET_DEFAULT_HEIGHT - fudge)
+                inset_collides = collide_rect(rect, x_bounds, (y_min, y_max),
+                                              executions[index][x_bounds[0]:x_bounds[1]])
+                if not inset_collides:
+                    break
+            if not inset_collides:
+                # Create and style the inset.
+                inset = add_inset_to_axis(fig, axis, rect)
+                inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
+                inset.grid(False)
+                inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
+                inset.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
+                inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
+                inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
+                # Which iterations go in the inset? By default the first 2.5%.
+                one_pc = len(executions[index][x_bounds[0]:x_bounds[1]]) / 100.0  # 1% of the iterations.
+                inset_xlimit = (0, int(one_pc * 2.5))
+                # If all the changepoints occur at the start of the process exec,
+                # include them all and a few extra executions.
+                if changepoints and changepoints[index]:
+                    if changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0):
+                        inset_xlimit = (0, (changepoints[index][x_bounds[0]:x_bounds[1]][-1]
+                                            + int(one_pc * 2.0)))
+                # Clamp the extent of the inset.
+                if inset_xlimit[1] < INSET_MIN_ITERS:
+                    inset_xlimit = (0, min(INSET_MIN_ITERS, x_bounds[1] - x_bounds[0]))
+                elif inset_xlimit[1] > INSET_MAX_ITERS:
+                    inset_xlimit = (0, min(INSET_MAX_ITERS, x_bounds[1] - x_bounds[0]))
+                inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
+                # Plot a subset of the data on the inset.
+                start, end = x_bounds[0] + inset_xlimit[0], x_bounds[0] + inset_xlimit[1] + 1
+                inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1),
+                           executions[index][start:end], color=LINE_COLOUR,
+                           linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
+                pyplot.draw()  # Force xticklabels to be drawn.
+                labels = [label.get_text() for label in inset.get_xticklabels()]
+                if not labels[-1]:  # Sometimes the last label is empty.
+                    labels = labels[0:-1]
+                inset.set_xticklabels([str(int(label) + x_bounds[0]) for label in labels])
             col += 1
             if col == MAX_SUBPLOTS_PER_ROW:
                 col = 0
