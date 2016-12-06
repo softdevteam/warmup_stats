@@ -671,7 +671,7 @@ def draw_page(is_interactive, executions, cycles_executions,
                 inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
                 inset.grid(False)
                 inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
-                inset.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter(YTICK_FORMAT))
+                format_yticks_scientific(inset)
                 inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
                 inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
                 # Which iterations go in the inset? By default the first 2.5%.
