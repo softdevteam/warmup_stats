@@ -100,7 +100,7 @@ def main(data_dcts, window_size, latex_file, num_splits, with_preamble=False):
                     median_t, error_t = bootstrap_confidence_interval(time_to_steadys)
                     time_to_steady = format_median_error(median_t, error_t, brief=True)
                 else:  # No changepoints in any process executions.
-                    mean_last_cpt = format_median_error(median, 0, as_integer=True)
+                    mean_last_cpt = format_median_error(0, 0, as_integer=True)
                     time_to_steady = ''
             # Add summary for this benchmark.
             summary_data[vm][bench] = {'style': reported_category,
