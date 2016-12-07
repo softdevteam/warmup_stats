@@ -19,8 +19,7 @@ from warmup.statistics import bootstrap_confidence_interval
 
 
 TITLE = 'Summary of benchmark classifications'
-TABLE_FORMAT_START = 'l'
-TABLE_FORMAT_PER_SPLIT = 'p{.5em}p{5pt}crrr'
+TABLE_FORMAT = 'll@{\hspace{0cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
 TABLE_HEADINGS_START1 = '\\multicolumn{1}{c}{\\multirow{2}{*}{}}&'
 TABLE_HEADINGS_START2 = '&'
 TABLE_HEADINGS1 = '&&\\multicolumn{1}{c}{} &\\multicolumn{1}{c}{Steady}&\\multicolumn{1}{c}{Steady}&\\multicolumn{1}{c}{Steady}'
@@ -148,7 +147,6 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
         heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1] * num_splits)
         heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2] * num_splits)
         heads = '%s\\\\%s' % (heads1, heads2)
-        fmt = TABLE_FORMAT_START + TABLE_FORMAT_PER_SPLIT * num_splits
         fp.write(\
 """
 {
@@ -156,7 +154,7 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
 \\toprule
 %s \\\\
 \\midrule
-""" % (fmt, heads))
+""" % (TABLE_FORMAT, heads))
 
         split_row_idx = 0
         for row_vms in zip(*splits):
@@ -179,14 +177,10 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
                         time_steady = this_summary['time_to_steady_state']
                         last_mean = this_summary['last_mean']
 
-                        if (STYLE_SYMBOLS['inconsistent'] in classification and
-                              STYLE_SYMBOLS['no steady state'] in classification):
-                            classification = '\\multicolumn{4}{l}{%s}' % classification
-                        else:
-                            classification = '\\multicolumn{1}{l}{%s}' % classification
-                            if 'flatc' in classification:
-                                last_cpt = BLANK_CELL
-                                time_steady = BLANK_CELL
+                        classification = '\\multicolumn{1}{l}{%s}' % classification
+                        if classification == STYLE_SYMBOLS['flat']:
+                            last_cpt = BLANK_CELL
+                            time_steady = BLANK_CELL
                     if last_cpt == '':
                         last_cpt = BLANK_CELL
                     if time_steady == '':
@@ -205,12 +199,8 @@ def write_results_as_latex(machine, all_benchs, summary, steady_state, tex_file,
                             % (num_benchmarks + fudge, vm)
                     else:
                         vm_cell = ''
-                    if (STYLE_SYMBOLS['inconsistent'] in classification and
-                         STYLE_SYMBOLS['no steady state'] in classification):
-                        row_add = [BLANK_CELL, vm_cell, classification]
-                    else:
-                        row_add = [BLANK_CELL, vm_cell, classification, last_cpt,
-                                   time_steady, last_mean]
+                    row_add = [BLANK_CELL, vm_cell, classification, last_cpt,
+                               time_steady, last_mean]
                     if not row:  # first bench in this row, needs the vm column
                         row.insert(0, escape(bench))
                     row.extend(row_add)
