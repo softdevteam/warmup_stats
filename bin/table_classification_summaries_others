@@ -276,7 +276,7 @@ def create_cli_parser():
     parser.add_argument('--outfile', '-o', action='store', dest='latex_file',
                         type=str, help='Name of the LaTeX file to write to.',
                         required=True)
-    parser.add_argument('--num_splits', '-s', action='store',
+    parser.add_argument('--num-splits', '-s', action='store',
                         type=int, help='Number of horizontal splits.',
                         default=1)
     parser.add_argument('--with-preamble', action='store_true',
