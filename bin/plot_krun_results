@@ -835,8 +835,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
             for key in data['wallclock_times']:
                 bmark = key.split(':')[0]
                 if len(data['wallclock_times'][key]) == 0:
-                    print('WARNING: Skipping: %s from %s (no executions)' %
-                          (key, machine))
+                    print('Skipping: %s:%s (no executions)' % (machine, key))
                 else:
                     if key not in data_dictionary['data']:
                         data_dictionary['data'][key] = dict()
@@ -848,6 +847,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['common_outliers'][key] = dict()
                         data_dictionary['unique_outliers'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
+                    print ('Found: %s:%s (%d executions).' % (machine, key,
+                                            len(data['wallclock_times'][key])))
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
