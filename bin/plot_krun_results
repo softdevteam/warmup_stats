@@ -1084,14 +1084,16 @@ def create_cli_parser():
                              "'start,end'. Samples start from 0. e.g. "
                              "'-x 100,130' will show samples in the range "
                              "100 to 130.")
-    parser.add_argument('--inset',
+    parser.add_argument('--no-inset',
                         action='store_true',
                         dest='inset',
                         default=False,
-                        help='Place a small chart plotting a small number of '
-                             'values in an inset inside each plot. This is '
-                             'intended to make it easier to see detail during '
-                             'the warm-up phase of each benchmark.')
+                        help='Do not place a small chart plotting the first few '
+                             'values of each process execution in an thumbnail '
+                             'inside each plot. The inset is intended to make it '
+                             'easier to see detail during the warm-up phase of '
+                             'each benchmark. Insets will not be drawn over '
+                             'data measurements.')
     parser.add_argument('--with-outliers',
                         action='store_true',
                         dest='outliers',
@@ -1225,7 +1227,7 @@ if __name__ == '__main__':
          options.changepoint_means,
          median=options.median,
          tukey=options.tukey,
-         inset=options.inset,
+         inset=not options.inset,
          one_page=options.one_page,
          legend_off=options.legend_off,
          core_cycles=core_cycles,
