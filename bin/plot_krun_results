@@ -99,7 +99,7 @@ PERF_YTICK_FORMAT = '%.1f'
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_DEFAULT_WIDTH = 0.4
 INSET_DEFAULT_HEIGHT = 0.25
-INSET_PADDING = 0.035
+INSET_PADDING = 0.045
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
 INSET_TICK_FONTSIZE = 8
@@ -646,21 +646,30 @@ def draw_page(is_interactive, executions, cycles_executions,
     def collide_rect((left, bottom, width, height), x_bounds, y_bounds, data):
         size = x_bounds[1] - x_bounds[0]
         x_left, x_right = int(size * left), int(size * (left + width))
-        y_low = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
+        # inset_top and inset_bottom here are values in seconds, since we need
+        # to know where these two will lie on the y-axis. 'left' and 'bottom'
+        # are ratios between 0.0 and 1.0 (inclusive).
+        inset_top = (y_bounds[1] - y_bounds[0]) * (1 - bottom) + y_bounds[0]
+        inset_bottom = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
+        minimum_y = min(data[x_left:x_right])
         maximum_y = max(data[x_left:x_right])
-        if maximum_y > y_low:  # Largest datum > bottom of inset.
+        if ((bottom > 0.5 and maximum_y > inset_bottom) or
+               (bottom < 0.5 and minimum_y > inset_top)):
             return True
         return False
     if inset:
         index, row, col = 0, 0, 0
         while index < n_execs:
             axis = wallclock_axes[index]
-            # Find a rectangle that will not collide with data.
+            # Find a rectangle that will not collide with data. Start top-right
+            # and work left, then try bottom-right and work left.
             inset_collides = False
-            for fudge in (0.0, 0.1, 0.2):
-                rect = (1.0 - INSET_DEFAULT_WIDTH - fudge - INSET_PADDING,
-                      1.0 - INSET_DEFAULT_HEIGHT - fudge - INSET_PADDING,
-                      INSET_DEFAULT_WIDTH - fudge, INSET_DEFAULT_HEIGHT - fudge)
+            left_offsets = [x / 10.0 for x in xrange(6)] * 2
+            bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING] * (len(left_offsets) / 2))
+                             + ([INSET_PADDING * 2] * (len(left_offsets) / 2)))
+            for left_offset, bottom in zip(left_offsets, bottom_values):
+                rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
+                        bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
                 inset_collides = collide_rect(rect, x_bounds, (y_min, y_max),
                                               executions[index][x_bounds[0]:x_bounds[1]])
                 if not inset_collides:
