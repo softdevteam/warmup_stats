@@ -99,7 +99,7 @@ PERF_YTICK_FORMAT = '%.1f'
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_DEFAULT_WIDTH = 0.4
 INSET_DEFAULT_HEIGHT = 0.25
-INSET_PADDING = 0.035
+INSET_PADDING = 0.045
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
 INSET_TICK_FONTSIZE = 8
@@ -646,21 +646,30 @@ def draw_page(is_interactive, executions, cycles_executions,
     def collide_rect((left, bottom, width, height), x_bounds, y_bounds, data):
         size = x_bounds[1] - x_bounds[0]
         x_left, x_right = int(size * left), int(size * (left + width))
-        y_low = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
+        # inset_top and inset_bottom here are values in seconds, since we need
+        # to know where these two will lie on the y-axis. 'left' and 'bottom'
+        # are ratios between 0.0 and 1.0 (inclusive).
+        inset_top = (y_bounds[1] - y_bounds[0]) * (1 - bottom) + y_bounds[0]
+        inset_bottom = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
+        minimum_y = min(data[x_left:x_right])
         maximum_y = max(data[x_left:x_right])
-        if maximum_y > y_low:  # Largest datum > bottom of inset.
+        if ((bottom > 0.5 and maximum_y > inset_bottom) or
+               (bottom < 0.5 and minimum_y > inset_top)):
             return True
         return False
     if inset:
         index, row, col = 0, 0, 0
         while index < n_execs:
             axis = wallclock_axes[index]
-            # Find a rectangle that will not collide with data.
+            # Find a rectangle that will not collide with data. Start top-right
+            # and work left, then try bottom-right and work left.
             inset_collides = False
-            for fudge in (0.0, 0.1, 0.2):
-                rect = (1.0 - INSET_DEFAULT_WIDTH - fudge - INSET_PADDING,
-                      1.0 - INSET_DEFAULT_HEIGHT - fudge - INSET_PADDING,
-                      INSET_DEFAULT_WIDTH - fudge, INSET_DEFAULT_HEIGHT - fudge)
+            left_offsets = [x / 10.0 for x in xrange(6)] * 2
+            bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING] * (len(left_offsets) / 2))
+                             + ([INSET_PADDING * 2] * (len(left_offsets) / 2)))
+            for left_offset, bottom in zip(left_offsets, bottom_values):
+                rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
+                        bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
                 inset_collides = collide_rect(rect, x_bounds, (y_min, y_max),
                                               executions[index][x_bounds[0]:x_bounds[1]])
                 if not inset_collides:
@@ -835,8 +844,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
             for key in data['wallclock_times']:
                 bmark = key.split(':')[0]
                 if len(data['wallclock_times'][key]) == 0:
-                    print('WARNING: Skipping: %s from %s (no executions)' %
-                          (key, machine))
+                    print('Skipping: %s:%s (no executions)' % (machine, key))
                 else:
                     if key not in data_dictionary['data']:
                         data_dictionary['data'][key] = dict()
@@ -848,6 +856,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['common_outliers'][key] = dict()
                         data_dictionary['unique_outliers'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
+                    print ('Found: %s:%s (%d executions).' % (machine, key,
+                                            len(data['wallclock_times'][key])))
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
@@ -1084,14 +1094,16 @@ def create_cli_parser():
                              "'start,end'. Samples start from 0. e.g. "
                              "'-x 100,130' will show samples in the range "
                              "100 to 130.")
-    parser.add_argument('--inset',
+    parser.add_argument('--no-inset',
                         action='store_true',
                         dest='inset',
                         default=False,
-                        help='Place a small chart plotting a small number of '
-                             'values in an inset inside each plot. This is '
-                             'intended to make it easier to see detail during '
-                             'the warm-up phase of each benchmark.')
+                        help='Do not place a small chart plotting the first few '
+                             'values of each process execution in an thumbnail '
+                             'inside each plot. The inset is intended to make it '
+                             'easier to see detail during the warm-up phase of '
+                             'each benchmark. Insets will not be drawn over '
+                             'data measurements.')
     parser.add_argument('--with-outliers',
                         action='store_true',
                         dest='outliers',
@@ -1225,7 +1237,7 @@ if __name__ == '__main__':
          options.changepoint_means,
          median=options.median,
          tukey=options.tukey,
-         inset=options.inset,
+         inset=not options.inset,
          one_page=options.one_page,
          legend_off=options.legend_off,
          core_cycles=core_cycles,
