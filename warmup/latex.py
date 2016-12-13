@@ -182,19 +182,20 @@ def escape(word):
 def format_median_error(median, error, as_integer=False, brief=False):
     if as_integer:
         median_s = '%d' % int(median)
-        error_s = '%d' % int(error)
+        error_s = '(%d,' % int(error[0]), '%d)' % int(error[1])
     elif brief:
         median_s = '%.2f' % median
-        error_s = '%.3f' % error
+        error_s = '(%.3f,' % error[0], '%.3f)' % error[1]
     else:
         median_s = '%.5f' % median
-        error_s = '%.6f' % error
+        error_s = '(%.6f,' % error[0], '%.6f)' % error[1]
     return """$
-\\begin{array}{rr}
+\\begin{array}{rlr}
 \\scriptstyle{%s} \\\\[-6pt]
-\\scriptscriptstyle{\\pm%s}
+\\scriptscriptstyle{%s}\\\\[-6pt]
+\\scriptscriptstyle{%s}
 \\end{array}
-$"""  % (median_s, error_s)
+$"""  % (median_s, error_s[0], error_s[1])
 
 
 def preamble(title, doc_opts=DEFAULT_DOCOPTS):

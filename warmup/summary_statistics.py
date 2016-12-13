@@ -4,7 +4,7 @@ from collections import Counter, OrderedDict
 from warmup.html import HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
 from warmup.latex import end_document, end_table, escape, format_median_error
 from warmup.latex import get_latex_symbol_map, preamble, STYLE_SYMBOLS
-from warmup.statistics import bootstrap_confidence_interval
+from warmup.statistics import  median_iqr
 
 
 TITLE = 'Summary of benchmark classifications'
@@ -28,8 +28,7 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
     keys = sorted(data_dictionaries[machine]['wallclock_times'].keys())
     for key in sorted(keys):
         wallclock_times = data_dictionaries[machine]['wallclock_times'][key]
-        if len(wallclock_times) == 0:
-            print ('WARNING: Skipping: %s from %s (no executions)' %
+        if len(wallclock_times) == 0:            print ('WARNING: Skipping: %s from %s (no executions)' %
                    (key, machine))
         elif len(wallclock_times[0]) == 0:
             print('WARNING: Skipping: %s from %s (benchmark crashed)' %
@@ -104,14 +103,14 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
             elif categories_set == set(['flat']):
                 median_iter, error_iter = None, None
                 median_time_to_steady, error_time_to_steady = None, None
-                median_time, error_time = bootstrap_confidence_interval(steady_state_means)
+                median_time, error_time =  median_iqr(steady_state_means)
             else:
-                median_time, error_time = bootstrap_confidence_interval(steady_state_means)
+                median_time, error_time =  median_iqr(steady_state_means)
                 if steady_iters:
-                    median_iter, error_iter = bootstrap_confidence_interval(steady_iters)
+                    median_iter, error_iter =  median_iqr(steady_iters)
                     median_iter = int(math.ceil(median_iter))
-                    error_iter = int(math.ceil(error_iter))
-                    median_time_to_steady, error_time_to_steady = bootstrap_confidence_interval(time_to_steadys)
+                    error_iter = int(math.ceil(error_iter[0])), int(math.ceil(error_iter[1]))
+                    median_time_to_steady, error_time_to_steady =  median_iqr(time_to_steadys)
                 else:  # No changepoints in any process executions.
                     assert False  # Should be handled by elif clause above.
             # Add summary for this benchmark.
