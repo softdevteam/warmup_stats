@@ -76,9 +76,12 @@ def main(data_dcts, window_size, latex_file, num_splits, with_preamble=False):
                 else:  # Flat execution, no changepoints.
                     time_to_steadys.append(0.0)
             # Average all information.
-            category, occurences = Counter(categories).most_common()[0]
-            if occurences == n_pexecs:
-                reported_category = STYLE_SYMBOLS[category]
+            if len(set(categories)) == 1 and len(categories) == n_pexecs:
+                reported_category = STYLE_SYMBOLS[categories[0]]
+            elif len(set(categories)) == 1:
+                # Consistent benchmark, but some process execs failed with error.
+                reported_category = ' %s\\scriptsize{($%d$)}' % \
+                                    (STYLE_SYMBOLS[categories[0]], len(categories))
             else:
                 reported_category = STYLE_SYMBOLS['inconsistent']
                 cat_counts = list()
