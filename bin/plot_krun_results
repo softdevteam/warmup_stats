@@ -653,8 +653,8 @@ def draw_page(is_interactive, executions, cycles_executions,
         inset_bottom = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
         minimum_y = min(data[x_left:x_right])
         maximum_y = max(data[x_left:x_right])
-        if ((bottom > 0.5 and maximum_y > inset_bottom) or
-               (bottom < 0.5 and minimum_y > inset_top)):
+        if ((bottom > 0.5 and maximum_y > inset_bottom) or  # inset at top of chart
+               (bottom < 0.5 and minimum_y < inset_top)):   # inset at bottom
             return True
         return False
     if inset:
