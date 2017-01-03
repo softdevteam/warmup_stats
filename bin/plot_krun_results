@@ -15,14 +15,15 @@ import os.path
 import seaborn
 import sys
 
-from matplotlib import gridspec, pyplot
+from matplotlib import gridspec, pyplot, tight_layout
 from matplotlib.collections import LineCollection
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
-from warmup.plotting import add_margin_to_axes, compute_grid_offsets
-from warmup.plotting import format_yticks_scientific, get_unified_yrange, style_axis
+from warmup.plotting import add_inset_to_axis, add_margin_to_axes, axis_to_figure_transform
+from warmup.plotting import collide_rect, compute_grid_offsets, format_yticks_scientific
+from warmup.plotting import get_unified_yrange, style_axis
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS
 
 seaborn.set_palette('colorblind')
@@ -279,17 +280,15 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             changepoints = only_uncrashed(all_changepoints[index])
             changepoint_means = only_uncrashed(all_changepoint_means[index])
 
-            rv = draw_page(is_interactive, wct_page, cycles_page,
+            fig = draw_page(is_interactive, wct_page, cycles_page,
                                          instr_page, subplot_titles,
                                          window_size, xlimits, outliers,
                                          unique, common, changepoints,
                                          changepoint_means, median, tukey,
                                          inset, legend_off, core_cycles,
                                          cycles_ylimits)
-            if rv is not None:
-                fig, export_size = rv
+            if fig is not None:
                 if not is_interactive:
-                    fig.set_size_inches(*export_size)
                     pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
                                 bbox_inches='tight')
                     pyplot.close()
@@ -299,20 +298,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         if not is_interactive:
             pdf.close()
             print('Saved: %s' % outfile)
-
-
-def add_inset_to_axis(fig, axis, rect):
-    """Adds a new axis to an existing axis, located at rect.
-    rect should be a 4-tuple of (left, bottom, width, height) all relative
-    to the axis.
-    """
-    left, bottom, width, height = rect
-    def transform(coord):
-        return fig.transFigure.inverted().transform(
-            axis.transAxes.transform(coord))
-    fig_left, fig_bottom = transform((left, bottom))
-    fig_width, fig_height = transform([width, height]) - transform([0, 0])
-    return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height])
 
 
 def _get_scatter_points_within_bounds(scatter, x_bounds):
@@ -598,6 +583,11 @@ def draw_page(is_interactive, executions, cycles_executions,
         instr_y_ranges = None
 
     fig = pyplot.figure()
+    # Set figure size here, so all later coordinates are correct.
+    if not is_interactive:
+        export_size = (EXPORT_SIZE_INCHES[0] * n_cols, EXPORT_SIZE_INCHES[1] * n_rows)
+        fig.set_size_inches(*export_size)
+
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
     # Keep a list of all the axes that wallclock times are drawn on, in case
     # we later need to draw an inset onto each one.
@@ -643,21 +633,8 @@ def draw_page(is_interactive, executions, cycles_executions,
 
     # Draw an inset, if required. This MUST be done after adjusting subplots,
     # so that we can calculate the correct bounding box for the inset.
-    def collide_rect((left, bottom, width, height), x_bounds, y_bounds, data):
-        size = x_bounds[1] - x_bounds[0]
-        x_left, x_right = int(size * left), int(size * (left + width))
-        # inset_top and inset_bottom here are values in seconds, since we need
-        # to know where these two will lie on the y-axis. 'left' and 'bottom'
-        # are ratios between 0.0 and 1.0 (inclusive).
-        inset_top = (y_bounds[1] - y_bounds[0]) * (1 - bottom) + y_bounds[0]
-        inset_bottom = (y_bounds[1] - y_bounds[0]) * bottom + y_bounds[0]
-        minimum_y = min(data[x_left:x_right])
-        maximum_y = max(data[x_left:x_right])
-        if ((bottom > 0.5 and maximum_y > inset_bottom) or  # inset at top of chart
-               (bottom < 0.5 and minimum_y < inset_top)):   # inset at bottom
-            return True
-        return False
     if inset:
+        fig_renderer = tight_layout.get_renderer(fig)
         index, row, col = 0, 0, 0
         while index < n_execs:
             axis = wallclock_axes[index]
@@ -670,8 +647,8 @@ def draw_page(is_interactive, executions, cycles_executions,
             for left_offset, bottom in zip(left_offsets, bottom_values):
                 rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
                         bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
-                inset_collides = collide_rect(rect, x_bounds, (y_min, y_max),
-                                              executions[index][x_bounds[0]:x_bounds[1]])
+                inset_collides = collide_rect(rect, fig, axis,
+                                     executions[index][x_bounds[0]:x_bounds[1]])
                 if not inset_collides:
                     break
             if not inset_collides:
@@ -708,6 +685,22 @@ def draw_page(is_interactive, executions, cycles_executions,
                 if not labels[-1]:  # Sometimes the last label is empty.
                     labels = labels[0:-1]
                 inset.set_xticklabels([str(int(float(label)) + x_bounds[0]) for label in labels])
+                # Code below by Ben Schmidt http://stackoverflow.com/questions/41462693/
+                inset_tight_bbox = inset.get_tightbbox(fig_renderer)
+                inv_transform = axis.transAxes.inverted()
+                xmin, ymin = inv_transform.transform(inset.bbox.min)
+                xmin_tight, ymin_tight = inv_transform.transform(inset_tight_bbox.min)
+                xmax, ymax = inv_transform.transform(inset.bbox.max)
+                xmax_tight, ymax_tight = inv_transform.transform(inset_tight_bbox.max)
+                # Shift actual axis bounds inwards by 'margin' so that new
+                # size + margin is original axis bounds.
+                xmin_new = xmin + (xmin - xmin_tight)
+                ymin_new = ymin + (ymin - ymin_tight)
+                xmax_new = xmax - (xmax_tight - xmax)
+                ymax_new = ymax - (ymax_tight - ymax)
+                [x_fig, y_fig] = axis_to_figure_transform(fig, axis, [xmin_new, ymin_new])
+                [x2_fig, y2_fig] = axis_to_figure_transform(fig, axis, [xmax_new, ymax_new])
+                inset.set_position([x_fig, y_fig, x2_fig - x_fig, y2_fig - y_fig])
             col += 1
             if col == MAX_SUBPLOTS_PER_ROW:
                 col = 0
@@ -734,9 +727,7 @@ def draw_page(is_interactive, executions, cycles_executions,
     else:
         # Return the figure to be saved in a multipage PDF.
         # Caller MUST close pyplot.
-        export_size = (EXPORT_SIZE_INCHES[0] * n_cols,
-                       EXPORT_SIZE_INCHES[1] * n_rows)
-        return fig, export_size
+        return fig
 
 
 def set_pdf_metadata(pdf_document):
