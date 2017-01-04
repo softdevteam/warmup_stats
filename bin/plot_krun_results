@@ -707,7 +707,7 @@ def draw_page(is_interactive, executions, cycles_executions,
                 labels = [label.get_text() for label in inset.get_xticklabels()]
                 if not labels[-1]:  # Sometimes the last label is empty.
                     labels = labels[0:-1]
-                inset.set_xticklabels([str(int(label) + x_bounds[0]) for label in labels])
+                inset.set_xticklabels([str(int(float(label)) + x_bounds[0]) for label in labels])
             col += 1
             if col == MAX_SUBPLOTS_PER_ROW:
                 col = 0
