@@ -19,16 +19,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from warmup.krun_results import read_krun_results_file, write_krun_results_file
 
 
-# In several places we need to determine whether the absolute difference between
-# two segment means is over a given threshold. ABSOLUTE_DELTA is that threshold.
-ABSOLUTE_DELTA = 0.001
-
-
 class Segment(object):
     """A single segment between two changepoints.
     """
 
-    def __init__(self, start, end, mean, variance, data, outliers):
+    def __init__(self, delta, start, end, mean, variance, data, outliers):
+        self.delta = delta
         self.start = start
         self.end = end
         self.mean = mean
@@ -56,7 +52,7 @@ class Segment(object):
         """
         assert isinstance(other, Segment)
         if ((self.upper_ci < other.lower_ci or other.upper_ci < self.lower_ci)
-            and math.fabs(self.mean - other.mean) > ABSOLUTE_DELTA):
+            and math.fabs(self.mean - other.mean) > self.delta):
             return False
         return True
 
@@ -69,7 +65,8 @@ class Segments(object):
     """A list of Segments for a whole run sequence.
     """
 
-    def __init__(self, length, steady_state, cpts, means, variances, data, outliers):
+    def __init__(self, delta, length, steady_state, cpts, means, variances, data, outliers):
+        self.delta = delta
         self.length = length  # Length of original data with outliers.
         assert self.length == len(data)
         self.data = data
@@ -78,7 +75,7 @@ class Segments(object):
         self.segments = list()
         assert len(means) == len(variances) == len(cpts)
         if len(means) == 1:  # No changepoints.
-            segment = Segment(0, self.length - 1, means[0], variances[0], data,
+            segment = Segment(delta, 0, self.length - 1, means[0], variances[0], data,
                               outliers)
             self.segments.append(segment)
         else:
@@ -86,15 +83,15 @@ class Segments(object):
                 segment = None
                 if index == 0:
                     s_out = [out for out in outliers if out <= cpts[index]]
-                    segment = Segment(0, cpts[index], means[index],
+                    segment = Segment(delta, 0, cpts[index], means[index],
                                   variances[index], data[:cpts[index]+1], s_out)
                 else:
                     s_out = list()
                     for out in outliers:
                          if out > (cpts[index - 1]) and out <= cpts[index]:
                              s_out.append(out - cpts[index - 1] - 1)
-                    segment = Segment(cpts[index - 1], cpts[index], means[index],
-                                  variances[index],
+                    segment = Segment(delta, cpts[index - 1], cpts[index],
+                                  means[index], variances[index],
                                   data[cpts[index - 1]+1:cpts[index]+1], s_out)
                 self.segments.append(segment)
         assert cpts[:-1] == [s.end for s in self.segments][:-1]
@@ -173,7 +170,7 @@ class Segments(object):
         # classification. Instead, of using a confidence interval, we consider
         # the absolute difference between the means of first two segments.
         if len(self.segments) >= 2:
-            if math.fabs(self.segments[0].mean - self.segments[1].mean) < ABSOLUTE_DELTA:
+            if math.fabs(self.segments[0].mean - self.segments[1].mean) < self.delta:
                 self._merge_segment(0)
 
     def get_classification(self):
@@ -197,7 +194,7 @@ class Segments(object):
         return classification
 
 
-def main(in_files, steady_state):
+def main(in_files, steady_state, delta):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -226,7 +223,7 @@ def main(in_files, steady_state):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, p_exec, steady_state, outliers)
+                segments = get_segments(cpt, delta, p_exec, steady_state, outliers)
                 segments.merge_overlapping_segments()
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
@@ -244,7 +241,7 @@ def main(in_files, steady_state):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, data, steady_state, outliers):
+def get_segments(cpt, delta, data, steady_state, outliers):
     p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
@@ -267,7 +264,7 @@ def get_segments(cpt, data, steady_state, outliers):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(length, steady_state, c_points, means, variances, data, outliers)
+    return Segments(delta, length, steady_state, c_points, means, variances, data, outliers)
 
 
 def create_output_filename(in_file_name):
@@ -301,14 +298,17 @@ the output of this script will be a new file named:
 
 Example usage:
     $ python %s results1.json.bz2
-    $ python %s  --steady 500 results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    $ python %s  --steady 500 --delta 0.001 results1.json.bz2 results2.json.bz2\n""" % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
     parser.add_argument('--steady', '-s', action='store', dest='steady_state',
                         default=500, type=int, metavar='N',
-                        help=('Expact a steady state should be reached before '
+                        help=('Expect a steady state should be reached before '
                               'the last N iterations.'))
+    parser.add_argument('--delta', '-d', action='store', dest='delta',
+                        default=0.001, type=float, metavar='D',
+                        help=('Segments whose means differ by D .'))
     return parser
 
 
@@ -318,4 +318,4 @@ if __name__ == '__main__':
     print ('Marking changepoints and classifications, expecting a steady state '
            'to be reached before the last %d iterations.' %
            options.steady_state)
-    main(options.json_files[0], options.steady_state)
+    main(options.json_files[0], options.steady_state, options.delta)
