@@ -127,7 +127,7 @@ class Segments(object):
         var_ = self._pooled_variances(first.variance, first.mean, first.n,
                           second.variance, second.mean, second.n)
         # Merge segment 1 and 2
-        merged = Segment(first.start, second.end, mean, var_,
+        merged = Segment(self.delta, first.start, second.end, mean, var_,
                      first.data + second.data, first.outliers + second.outliers)
         # Replace segment 1 with the merged segment.
         self.segments[index] = merged
