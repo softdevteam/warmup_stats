@@ -47,6 +47,11 @@ def collide_rect((left, bottom, width, height), fig, axis, data):
     x_right_float, _ = axis_data_transform(axis, left + width, 0, inverse=False)
     x_left = int(math.floor(x_left_float))
     x_right = int(math.ceil(x_right_float))
+    # Clamp x values.
+    if x_left < 0:
+        x_left = 0
+    if x_right >= len(data):
+        x_right = len(data) - 1
     # Next find the highest and lowest y-value in that segment of data.
     minimum_y = min(data[int(x_left):int(x_right)])
     maximum_y = max(data[int(x_left):int(x_right)])

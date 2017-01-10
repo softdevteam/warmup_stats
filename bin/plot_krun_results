@@ -99,7 +99,7 @@ PERF_YTICK_FORMAT = '%.1f'
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
 INSET_DEFAULT_WIDTH = 0.4
-INSET_DEFAULT_HEIGHT = 0.25
+INSET_DEFAULT_HEIGHT = 0.3
 INSET_PADDING = 0.045
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
