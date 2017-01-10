@@ -1,10 +1,84 @@
-# import numpy
+import math
+
 from matplotlib import pyplot
 from matplotlib.ticker import ScalarFormatter
 
 SPINE_LINESTYLE = 'solid'
 SPINE_LINEWIDTH = 1
 ZORDER_GRID = 1
+
+
+def axis_data_transform(axis, xin, yin, inverse=False):
+    """Translate axis and data coordinates.
+    If 'inverse' is True, data coordinates are translated to axis coordinates,
+    otherwise the transformation is reversed.
+
+    Code by Covich, from: http://stackoverflow.com/questions/29107800/
+    """
+    xlim = axis.get_xlim()
+    ylim = axis.get_ylim()
+    xdelta = xlim[1] - xlim[0]
+    ydelta = ylim[1] - ylim[0]
+    if not inverse:
+        xout =  xlim[0] + xin * xdelta
+        yout =  ylim[0] + yin * ydelta
+    else:
+        xdelta2 = xin - xlim[0]
+        ydelta2 = yin - ylim[0]
+        xout = xdelta2 / xdelta
+        yout = ydelta2 / ydelta
+    return xout, yout
+
+
+def axis_to_figure_transform(fig, axis, coord):
+    """Transform axis coordinates to figure coordinates.
+    Code by Ben Schmidt http://stackoverflow.com/questions/41462693/
+    """
+    return fig.transFigure.inverted().transform(axis.transAxes.transform(coord))
+
+
+def collide_rect((left, bottom, width, height), fig, axis, data):
+    """Determine whether a rectangle (in axis coordinates) collides with
+    any data (data coordinates, or seconds). We use the matplotlib transData
+    API to convert between display and data coordinates.
+    """
+    # Find the values on the x-axis of left and right edges of the rect.
+    x_left_float, _ = axis_data_transform(axis, left, 0, inverse=False)
+    x_right_float, _ = axis_data_transform(axis, left + width, 0, inverse=False)
+    x_left = int(math.floor(x_left_float))
+    x_right = int(math.ceil(x_right_float))
+    # Clamp x values.
+    if x_left < 0:
+        x_left = 0
+    if x_right >= len(data):
+        x_right = len(data) - 1
+    # Next find the highest and lowest y-value in that segment of data.
+    minimum_y = min(data[int(x_left):int(x_right)])
+    maximum_y = max(data[int(x_left):int(x_right)])
+    # Next convert the bottom and top of the rect to data coordinates (seconds).
+    _, inset_top = axis_data_transform(axis, 0, bottom + height, inverse=False)
+    _, inset_bottom = axis_data_transform(axis, 0, bottom, inverse=False)
+    if bottom > 0.5:  # inset at top of chart
+        dist = math.fabs(inset_bottom - maximum_y)
+        if maximum_y > inset_bottom:
+            return True, dist
+        else:
+            return False, dist
+    elif bottom < 0.5:  # inset at bottom
+        dist = math.fabs(inset_top - minimum_y)
+        if minimum_y < inset_top:
+            return True, dist
+        else:
+            return False, dist
+    assert False  # Unreachable.
+
+
+def add_inset_to_axis(fig, axis, rect):
+    left, bottom, width, height = rect
+    fig_left, fig_bottom = axis_to_figure_transform(fig, axis, (left, bottom))
+    fig_width, fig_height = axis_to_figure_transform(fig, axis, [width, height]) \
+                                   - axis_to_figure_transform(fig, axis, [0, 0])
+    return fig.add_axes([fig_left, fig_bottom, fig_width, fig_height], frameon=True)
 
 
 def format_yticks_scientific(axis):
