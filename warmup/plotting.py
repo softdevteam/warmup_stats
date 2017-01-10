@@ -58,10 +58,19 @@ def collide_rect((left, bottom, width, height), fig, axis, data):
     # Next convert the bottom and top of the rect to data coordinates (seconds).
     _, inset_top = axis_data_transform(axis, 0, bottom + height, inverse=False)
     _, inset_bottom = axis_data_transform(axis, 0, bottom, inverse=False)
-    if ((bottom > 0.5 and maximum_y > inset_bottom) or  # inset at top of chart
-           (bottom < 0.5 and minimum_y < inset_top)):   # inset at bottom
-        return True
-    return False
+    if bottom > 0.5:  # inset at top of chart
+        dist = math.fabs(inset_bottom - maximum_y)
+        if maximum_y > inset_bottom:
+            return True, dist
+        else:
+            return False, dist
+    elif bottom < 0.5:  # inset at bottom
+        dist = math.fabs(inset_top - minimum_y)
+        if minimum_y < inset_top:
+            return True, dist
+        else:
+            return False, dist
+    assert False  # Unreachable.
 
 
 def add_inset_to_axis(fig, axis, rect):

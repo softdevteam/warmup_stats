@@ -101,6 +101,7 @@ PERF_YTICK_FORMAT = '%.1f'
 INSET_DEFAULT_WIDTH = 0.4
 INSET_DEFAULT_HEIGHT = 0.3
 INSET_PADDING = 0.045
+INSET_DIST_DELTA = 0.01
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
 INSET_TICK_FONTSIZE = 8
@@ -644,16 +645,20 @@ def draw_page(is_interactive, executions, cycles_executions,
             left_offsets = [x / 10.0 for x in xrange(6)] * 2
             bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING] * (len(left_offsets) / 2))
                              + ([INSET_PADDING * 2] * (len(left_offsets) / 2)))
+            best_distance = -1.0
+            best_rect = None
             for left_offset, bottom in zip(left_offsets, bottom_values):
                 rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
                         bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
-                inset_collides = collide_rect(rect, fig, axis,
+                inset_collides, dist = collide_rect(rect, fig, axis,
                                      executions[index][x_bounds[0]:x_bounds[1]])
                 if not inset_collides:
-                    break
-            if not inset_collides:
+                    if not best_rect or round(dist - best_distance) >= INSET_DIST_DELTA:
+                        best_distance = dist
+                        best_rect = rect
+            if best_rect:
                 # Create and style the inset.
-                inset = add_inset_to_axis(fig, axis, rect)
+                inset = add_inset_to_axis(fig, axis, best_rect)
                 inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
                 inset.grid(False)
                 inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
