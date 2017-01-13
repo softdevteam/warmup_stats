@@ -383,6 +383,11 @@ def draw_process_exec(grid_cell, data, cycles_data,
     # Draw change points and means between them, optionally.
     if changepoint_means:
         means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
+        if x_bounds[0] > 0:
+            for index, changepoint in enumerate(changepoints):
+                if changepoint < x_bounds[0]:
+                    del changepoint_means[index]
+                    del changepoints[index]
         assert len(changepoints) == len(changepoint_means) - 1
         for index, x_location in enumerate(changepoints):
             # Draw changepoint.
@@ -390,18 +395,18 @@ def draw_process_exec(grid_cell, data, cycles_data,
                          zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
                          linewidth=LINE_WIDTH)
             if index == 0:
-                means.append([(0, changepoint_means[0]),
+                means.append([(x_bounds[0], changepoint_means[0]),
                              (x_location, changepoint_means[0])])
             else:
                 means.append([(changepoints[index - 1], changepoint_means[index]),
                              (x_location, changepoint_means[index])])
         if len(changepoints) == 0:
             # No changepoints in this execution, but we want to draw the mean.
-            means.append([(0, changepoint_means[-1]),
-                         (len(data_narray), changepoint_means[-1])])
+            means.append([(x_bounds[0], changepoint_means[-1]),
+                         (x_bounds[1], changepoint_means[-1])])
         else:
             means.append([(changepoints[-1], changepoint_means[-1]),
-                         (len(data_narray), changepoint_means[-1])])
+                         (x_bounds[1], changepoint_means[-1])])
         # Add changepoint means to chart, on top of all other splines.
         assert len(means) == len(changepoint_means)
         lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
@@ -410,6 +415,10 @@ def draw_process_exec(grid_cell, data, cycles_data,
         axis1.add_collection(lines)
     # Draw changepoints as blobs, without changepoint means.
     if changepoints and not changepoint_means:
+        if x_bounds[0] > 0:
+            for index, changepoint in enumerate(changepoints):
+                if changepoint < x_bounds[0]:
+                    del changepoints[index]
         axis1.scatter(changepoints, [y_range[0] for _ in changepoints],
                       c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
                       zorder=ZORDER_CHANGEPOINTS)
