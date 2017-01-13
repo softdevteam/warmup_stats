@@ -383,6 +383,11 @@ def draw_process_exec(grid_cell, data, cycles_data,
     # Draw change points and means between them, optionally.
     if changepoint_means:
         means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
+        if x_bounds[0] > 0:
+            for index, changepoint in enumerate(changepoints):
+                if changepoint < x_bounds[0]:
+                    del changepoint_means[index]
+                    del changepoints[index]
         assert len(changepoints) == len(changepoint_means) - 1
         for index, x_location in enumerate(changepoints):
             # Draw changepoint.
@@ -390,18 +395,18 @@ def draw_process_exec(grid_cell, data, cycles_data,
                          zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
                          linewidth=LINE_WIDTH)
             if index == 0:
-                means.append([(0, changepoint_means[0]),
+                means.append([(x_bounds[0], changepoint_means[0]),
                              (x_location, changepoint_means[0])])
             else:
                 means.append([(changepoints[index - 1], changepoint_means[index]),
                              (x_location, changepoint_means[index])])
         if len(changepoints) == 0:
             # No changepoints in this execution, but we want to draw the mean.
-            means.append([(0, changepoint_means[-1]),
-                         (len(data_narray), changepoint_means[-1])])
+            means.append([(x_bounds[0], changepoint_means[-1]),
+                         (x_bounds[1], changepoint_means[-1])])
         else:
             means.append([(changepoints[-1], changepoint_means[-1]),
-                         (len(data_narray), changepoint_means[-1])])
+                         (x_bounds[1], changepoint_means[-1])])
         # Add changepoint means to chart, on top of all other splines.
         assert len(means) == len(changepoint_means)
         lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
@@ -410,6 +415,10 @@ def draw_process_exec(grid_cell, data, cycles_data,
         axis1.add_collection(lines)
     # Draw changepoints as blobs, without changepoint means.
     if changepoints and not changepoint_means:
+        if x_bounds[0] > 0:
+            for index, changepoint in enumerate(changepoints):
+                if changepoint < x_bounds[0]:
+                    del changepoints[index]
         axis1.scatter(changepoints, [y_range[0] for _ in changepoints],
                       c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
                       zorder=ZORDER_CHANGEPOINTS)
@@ -418,7 +427,7 @@ def draw_process_exec(grid_cell, data, cycles_data,
         medians = list()
         pc_bands = (list(), list())
         for index, datum in enumerate(data[x_bounds[0]:x_bounds[1]]):
-            window = get_window(index, window_size, data[x_bounds[0]:x_bounds[1]])
+            window = get_window(index + x_bounds[0], window_size, data)
             if not window:
                 medians.append(numpy.nan)
             else:
@@ -552,6 +561,9 @@ def draw_page(is_interactive, executions, cycles_executions,
     else:
         try:
             xlimits_start, xlimits_stop = [int(x) for x in xlimits.split(',')]
+            if xlimits_start < 0 or xlimits_stop > len(executions[0]):
+                fatal_error('You specified %s as xlimits, but your data contains'
+                            ' iterations between 0 and %d' % (xlimits, len(executions[0])))
         except ValueError:
             fatal_error('Invalid xlimits pair: %s' % xlimits)
 
@@ -651,7 +663,7 @@ def draw_page(is_interactive, executions, cycles_executions,
                 rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
                         bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
                 inset_collides, dist = collide_rect(rect, fig, axis,
-                                     executions[index][x_bounds[0]:x_bounds[1]])
+                                     executions[index], x_bounds)
                 if not inset_collides:
                     if not best_rect or round(dist - best_distance) >= INSET_DIST_DELTA:
                         best_distance = dist
@@ -667,11 +679,12 @@ def draw_page(is_interactive, executions, cycles_executions,
                 inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
                 # Which iterations go in the inset? By default the first 2.5%.
                 one_pc = len(executions[index][x_bounds[0]:x_bounds[1]]) / 100.0  # 1% of the iterations.
-                inset_xlimit = (0, int(one_pc * 2.5))
+                inset_xlimit = (x_bounds[0], x_bounds[0] + int(one_pc * 2.5))
                 # If all the changepoints occur at the start of the process exec,
                 # include them all and a few extra executions.
                 if changepoints and changepoints[index]:
-                    if changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0):
+                    if (changepoints[index][x_bounds[0]:x_bounds[1]] and
+                          changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0)):
                         inset_xlimit = (0, (changepoints[index][x_bounds[0]:x_bounds[1]][-1]
                                             + int(one_pc * 2.0)))
                 # Clamp the extent of the inset.

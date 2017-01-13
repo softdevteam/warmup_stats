@@ -37,7 +37,7 @@ def axis_to_figure_transform(fig, axis, coord):
     return fig.transFigure.inverted().transform(axis.transAxes.transform(coord))
 
 
-def collide_rect((left, bottom, width, height), fig, axis, data):
+def collide_rect((left, bottom, width, height), fig, axis, data, x_bounds):
     """Determine whether a rectangle (in axis coordinates) collides with
     any data (data coordinates, or seconds). We use the matplotlib transData
     API to convert between display and data coordinates.
@@ -47,30 +47,25 @@ def collide_rect((left, bottom, width, height), fig, axis, data):
     x_right_float, _ = axis_data_transform(axis, left + width, 0, inverse=False)
     x_left = int(math.floor(x_left_float))
     x_right = int(math.ceil(x_right_float))
-    # Clamp x values.
-    if x_left < 0:
-        x_left = 0
-    if x_right >= len(data):
-        x_right = len(data) - 1
+    # Clamp x values to data boundaries.
+    if x_left < x_bounds[0]:
+        x_left = x_bounds[0]
+    if x_right >= x_bounds[1]:
+        x_right = x_bounds[1]
     # Next find the highest and lowest y-value in that segment of data.
-    minimum_y = min(data[int(x_left):int(x_right)])
-    maximum_y = max(data[int(x_left):int(x_right)])
+    minimum_y = min(data[x_left:x_right])
+    maximum_y = max(data[x_left:x_right])
     # Next convert the bottom and top of the rect to data coordinates (seconds).
     _, inset_top = axis_data_transform(axis, 0, bottom + height, inverse=False)
     _, inset_bottom = axis_data_transform(axis, 0, bottom, inverse=False)
+    for datum in data[x_left:x_right]:
+        if datum >= inset_bottom and datum <= inset_top:
+            return True, -1.0
     if bottom > 0.5:  # inset at top of chart
         dist = math.fabs(inset_bottom - maximum_y)
-        if maximum_y > inset_bottom:
-            return True, dist
-        else:
-            return False, dist
     elif bottom < 0.5:  # inset at bottom
         dist = math.fabs(inset_top - minimum_y)
-        if minimum_y < inset_top:
-            return True, dist
-        else:
-            return False, dist
-    assert False  # Unreachable.
+    return False, dist
 
 
 def add_inset_to_axis(fig, axis, rect):
