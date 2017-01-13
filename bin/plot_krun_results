@@ -418,7 +418,7 @@ def draw_process_exec(grid_cell, data, cycles_data,
         medians = list()
         pc_bands = (list(), list())
         for index, datum in enumerate(data[x_bounds[0]:x_bounds[1]]):
-            window = get_window(index, window_size, data[x_bounds[0]:x_bounds[1]])
+            window = get_window(index + x_bounds[0], window_size, data)
             if not window:
                 medians.append(numpy.nan)
             else:
