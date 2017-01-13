@@ -552,6 +552,9 @@ def draw_page(is_interactive, executions, cycles_executions,
     else:
         try:
             xlimits_start, xlimits_stop = [int(x) for x in xlimits.split(',')]
+            if xlimits_start < 0 or xlimits_stop > len(executions[0]):
+                fatal_error('You specified %s as xlimits, but your data contains'
+                            ' iterations between 0 and %d' % (xlimits, len(executions[0])))
         except ValueError:
             fatal_error('Invalid xlimits pair: %s' % xlimits)
 
