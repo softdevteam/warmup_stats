@@ -663,7 +663,7 @@ def draw_page(is_interactive, executions, cycles_executions,
                 rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
                         bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
                 inset_collides, dist = collide_rect(rect, fig, axis,
-                                     executions[index][x_bounds[0]:x_bounds[1]])
+                                     executions[index], x_bounds)
                 if not inset_collides:
                     if not best_rect or round(dist - best_distance) >= INSET_DIST_DELTA:
                         best_distance = dist
@@ -679,11 +679,12 @@ def draw_page(is_interactive, executions, cycles_executions,
                 inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
                 # Which iterations go in the inset? By default the first 2.5%.
                 one_pc = len(executions[index][x_bounds[0]:x_bounds[1]]) / 100.0  # 1% of the iterations.
-                inset_xlimit = (0, int(one_pc * 2.5))
+                inset_xlimit = (x_bounds[0], x_bounds[0] + int(one_pc * 2.5))
                 # If all the changepoints occur at the start of the process exec,
                 # include them all and a few extra executions.
                 if changepoints and changepoints[index]:
-                    if changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0):
+                    if (changepoints[index][x_bounds[0]:x_bounds[1]] and
+                          changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0)):
                         inset_xlimit = (0, (changepoints[index][x_bounds[0]:x_bounds[1]][-1]
                                             + int(one_pc * 2.0)))
                 # Clamp the extent of the inset.
