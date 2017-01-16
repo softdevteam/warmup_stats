@@ -23,7 +23,7 @@ from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_inset_to_axis, add_margin_to_axes, axis_to_figure_transform
 from warmup.plotting import collide_rect, compute_grid_offsets, format_yticks_scientific
-from warmup.plotting import get_unified_yrange, style_axis
+from warmup.plotting import get_unified_yrange, min_no_outliers, max_no_outliers, style_axis
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS
 
 seaborn.set_palette('colorblind')
@@ -93,6 +93,9 @@ ZORDER_MARKERS = 20
 # Gap between right-hand y-axes.
 TWINX_OFFSET = 1.1
 
+# Padding for unified y-limits.
+Y_LIM_PADDING = 0.002
+
 # Use a fixed y-range for the aperf/mperf data.
 PERF_YRANGE = (0.0, 1.2)
 PERF_YTICK_FORMAT = '%.1f'
@@ -105,6 +108,11 @@ INSET_DIST_DELTA = 0.01
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
 INSET_TICK_FONTSIZE = 8
+
+# Zoomed in plot of measurement data.
+ZOOM_PROPORTION = 0.02
+ZOOM_EXTRA_Y_LIM_PADDING = 0.1
+ZOOM_OUTLIER_SIZE = 8
 
 # Default (PDF) font sizes
 TICK_FONTSIZE = 8
@@ -171,6 +179,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     instr_pages = list()
     all_outliers, all_common, all_unique = list(), list(), list()
     all_changepoints, all_changepoint_means = list(), list()
+    all_classifications = list()
 
     # By default, each benchmark from each machine is placed on a separate
     # page. If the --one-page switch has been passed in, then we place
@@ -182,6 +191,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         instr_page = list()
         page_common, page_unique, page_outlier = list(), list(), list()
         page_changepoints, page_changepoint_means = list(), list()
+        page_classifications = list()
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
                 for index, run_seq in enumerate(data_dcts['data'][key][machine]):
@@ -208,12 +218,15 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     if changepoints:
                         page_changepoints.append(data_dcts['changepoints'][key][machine][index])
                         page_changepoint_means.append(None)
+                        page_classifications.append(data_dcts['classifications'][key][machine][index])
                     if changepoint_means:
                         page_changepoints.append(data_dcts['changepoints'][key][machine][index])
                         page_changepoint_means.append(data_dcts['changepoint_means'][key][machine][index])
+                        page_classifications.append(data_dcts['classifications'][key][machine][index])
                     else:
                         page_changepoints.append(None)
                         page_changepoint_means.append(None)
+                        page_classifications.append(None)
         pages.append(page)
         cycles_pages.append(cycles_page)
         instr_pages.append(instr_page)
@@ -223,6 +236,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         all_unique.append(page_unique)
         all_changepoints.append(page_changepoints)
         all_changepoint_means.append(page_changepoint_means)
+        all_classifications.append(page_classifications)
     else:  # Create multiple pages.
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
@@ -243,12 +257,15 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 if changepoints:
                     all_changepoints.append(data_dcts['changepoints'][key][machine])
                     all_changepoint_means.append(None)
+                    all_classifications.append(data_dcts['classifications'][key][machine])
                 elif changepoint_means:
                     all_changepoints.append(data_dcts['changepoints'][key][machine])
                     all_changepoint_means.append(data_dcts['changepoint_means'][key][machine])
+                    all_classifications.append(data_dcts['classifications'][key][machine])
                 else:
                     all_changepoints.append(None)
                     all_changepoint_means.append(None)
+                    all_classifications.append(None)
 
     # Draw each page and display (interactive mode) or save to disk.
     try:
@@ -280,14 +297,15 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             unique = only_uncrashed(all_unique[index])
             changepoints = only_uncrashed(all_changepoints[index])
             changepoint_means = only_uncrashed(all_changepoint_means[index])
+            classifications = only_uncrashed(all_classifications[index])
 
             fig = draw_page(is_interactive, wct_page, cycles_page,
                                          instr_page, subplot_titles,
                                          window_size, xlimits, outliers,
                                          unique, common, changepoints,
-                                         changepoint_means, median, tukey,
-                                         inset, legend_off, core_cycles,
-                                         cycles_ylimits)
+                                         changepoint_means, classifications,
+                                         median, tukey, inset, legend_off,
+                                         core_cycles, cycles_ylimits)
             if fig is not None:
                 if not is_interactive:
                     pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
@@ -312,10 +330,10 @@ def _get_scatter_points_within_bounds(scatter, x_bounds):
     return x_vals, y_vals
 
 
-def draw_process_exec(grid_cell, data, cycles_data,
-                 instr_data, instr_y_ranges, title, x_bounds, y_range, window_size,
+def draw_process_exec(grid_cell, data, cycles_data, instr_data, instr_y_ranges,
+                      title, x_bounds, y_range, y_range_zoom, window_size,
                  outliers, unique, common, changepoints, changepoint_means,
-                 median, tukey, core_cycles, cycles_ylimits):
+                 classification, median, tukey, core_cycles, cycles_ylimits):
     iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
     # Marshal data into numpy arrays.
     data_narray = numpy.array(data[x_bounds[0]:x_bounds[1]])
@@ -342,6 +360,8 @@ def draw_process_exec(grid_cell, data, cycles_data,
         n_rows += len(core_cycles)
     if instr_data:
         n_rows += len(instr_data_narrays)
+    if y_range_zoom[0] != None:
+        n_rows += 1
     if n_rows == 1:  # Only create another gridspec if we have to.
         inner_grid = None
     else:
@@ -458,9 +478,6 @@ def draw_process_exec(grid_cell, data, cycles_data,
         y_range[0], y_range[1], GRID_MINOR_Y_DIVS)
     style_axis(axis1, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
     format_yticks_scientific(axis1)
-    # Plot title goes above the top subplot.
-    if not cycles_data:
-        axis1.set_title(title, fontsize=TITLE_FONT_SIZE)
     # Axis labels.
     axis1.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
     axis1.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE)
@@ -529,6 +546,45 @@ def draw_process_exec(grid_cell, data, cycles_data,
                 if not cycles_data:
                     axis.set_title(title, fontsize=TITLE_FONT_SIZE)
             row += 1
+    # Add zoomed in chart.
+    if y_range_zoom[0] != None:
+        axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
+        axis.autoscale(enable=False, axis='both') # Set x/y-limits manually.
+        pyplot.setp(axis.get_xticklabels(), visible=False)
+        ymin_zoom, ymax_zoom = y_range_zoom
+        axis.set_ylim(ymin_zoom, ymax_zoom)
+        axis.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
+                   zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
+        # Style axes and grid.
+        y_ax = axis.get_yaxis()
+        y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
+        major_yticks = compute_grid_offsets(ymin_zoom, ymax_zoom, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
+        minor_yticks = compute_grid_offsets(ymin_zoom, ymax_zoom, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
+        style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+        format_yticks_scientific(axis)
+        axis.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE, color=LINE_COLOUR)
+        axis.yaxis.set_label_position('right')
+        # Add extra padding just outside the major yticks.
+        add_margin_to_axes(axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
+        # Draw change points and means between them, optionally.
+        if changepoint_means:
+            for index, x_location in enumerate(changepoints):
+                axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
+                             zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
+                             linewidth=LINE_WIDTH)
+            lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
+                                   zorder=ZORDER_CHANGEPOINTS,
+                                   linewidths=[LINE_WIDTH for _ in xrange(len(means))])
+            axis.add_collection(lines)
+        # Draw outliers, optionally.
+        if outliers:
+            axis.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
+                         marker=OUTLIER_MARKER, s=ZOOM_OUTLIER_SIZE,
+                         label='Outliers', zorder=ZORDER_MARKERS)
+        # Plot title goes above the top subplot (only once).
+        if not cycles_data and not instr_data:
+            axis.set_title(title, fontsize=TITLE_FONT_SIZE)
+        row += 1
     axis1.set_ylim(y_range)
     # Margin MUST be adjusted after plotting is complete.
     add_margin_to_axes(axis1, x=0.02, y=0.02)
@@ -538,8 +594,8 @@ def draw_process_exec(grid_cell, data, cycles_data,
 
 def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
-              outliers, unique, common, changepoints, changepoint_means, median,
-              tukey, inset=False, legend_off=True, core_cycles=(0,1,2,3),
+              outliers, unique, common, changepoints, changepoint_means, classifications,
+              median, tukey, inset=False, legend_off=True, core_cycles=(0,1,2,3),
               cycles_ylimits=None):
     """Plot a page of benchmarks.
     """
@@ -568,7 +624,27 @@ def draw_page(is_interactive, executions, cycles_executions,
             fatal_error('Invalid xlimits pair: %s' % xlimits)
 
     # Find the min and max y values across all wallclock time plots for this page.
-    y_min, y_max = get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=0.02)
+    y_min, y_max = get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=Y_LIM_PADDING)
+
+    # Find y-limits for a zoomed-in plot for each execution on this page.
+    y_range_zoom = list()
+    if xlimits_start > 0:  # We are already 'zoomed in'.
+        y_range_zoom = [(None, None)] * len(executions)
+    else:
+        for index in xrange(len(executions)):
+            if window_size > 0:
+                first_n = window_size
+            else:
+                first_n = int(len(executions[index]) * ZOOM_PROPORTION)
+            if outliers:
+                y_zoom_min = min_no_outliers(executions[index], outliers[index],
+                                             start_from=first_n)
+                y_zoom_max = max_no_outliers(executions[index], outliers[index],
+                                             start_from=first_n)
+            else:
+                y_zoom_min = min(executions[index][first_n:])
+                y_zoom_max = max(executions[index][first_n:])
+            y_range_zoom.append((y_zoom_min, y_zoom_max))
 
     # Get unified y-ranges for the instrumentation data. Each VM may have more
     # more than one set of instrumentation data (e.g. GC events, JIT
@@ -591,7 +667,7 @@ def draw_page(is_interactive, executions, cycles_executions,
         for chart_data in instr_data_by_instrument:
             chart_data_stripped = [x for x in chart_data if x is not None]
             instr_y_ranges.append(get_unified_yrange(chart_data_stripped, xlimits_start,
-                                                     xlimits_stop, padding=0.02))
+                                                     xlimits_stop, padding=Y_LIM_PADDING))
     else:
         instr_y_ranges = None
 
@@ -610,6 +686,7 @@ def draw_page(is_interactive, executions, cycles_executions,
     cycles_data, instr_data = None, None
     outliers_exec, unique_exec, common_exec = None, None, None
     changepoint_exec, changepoint_mean_exec = None, None
+    classification_exec = None
     while index < n_execs:
         data = executions[index]
         if cycles_executions:
@@ -624,17 +701,20 @@ def draw_page(is_interactive, executions, cycles_executions,
             common_exec = common[index]
         if changepoints:
             changepoint_exec = changepoints[index]
+            classification_exec = classifications[index]
         if changepoint_means:
             changepoint_mean_exec = changepoint_means[index]
+            classification_exec = classifications[index]
         # Get axis and draw plot.
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
         wc_axis, (handles, labels) = draw_process_exec(inner_grid, data, cycles_data,
                               instr_data, instr_y_ranges,
-                              titles[index], x_bounds, [y_min, y_max], window_size,
+                              titles[index], x_bounds, [y_min, y_max],
+                              y_range_zoom[index], window_size,
                               outliers_exec, unique_exec, common_exec, changepoint_exec,
-                              changepoint_mean_exec, median, tukey, core_cycles,
-                              cycles_ylimits)
+                              changepoint_mean_exec, classification_exec,
+                              median, tukey, core_cycles, cycles_ylimits)
         wallclock_axes.append(wc_axis)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
@@ -783,8 +863,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
     data_dictionary = {'data': dict(),  'cycles_counts': dict(),
                        'instr_data': dict(),  # Per-VM information.
                        'changepoints': dict(), 'changepoint_means': dict(),
-                       'all_outliers': dict(), 'common_outliers': dict(),
-                       'unique_outliers': dict(),
+                       'classifications': dict(), 'all_outliers': dict(),
+                       'common_outliers': dict(), 'unique_outliers': dict(),
                       }
 
     plot_titles = dict()  # All subplot titles.
@@ -868,6 +948,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['instr_data'][key] = dict()
                         data_dictionary['changepoints'][key] = dict()
                         data_dictionary['changepoint_means'][key] = dict()
+                        data_dictionary['classifications'][key] = dict()
                         data_dictionary['all_outliers'][key] = dict()
                         data_dictionary['common_outliers'][key] = dict()
                         data_dictionary['unique_outliers'][key] = dict()
@@ -889,9 +970,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     if changepoints:
                         data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
                         data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
+                        data_dictionary['classifications'][key][machine] = data['classifications'][key]
                     else:
                         data_dictionary['changepoints'][key][machine] = None
                         data_dictionary['changepoint_means'][key][machine] = None
+                        data_dictionary['classifications'][key][machine] = None
                     if outliers or unique_outliers:
                         data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
                         data_dictionary['common_outliers'][key][machine] = data['common_outliers'][key]
@@ -961,9 +1044,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     if changepoints:
                         data_dictionary['changepoints'][key][machine] = list()
                         data_dictionary['changepoint_means'][key][machine] = list()
+                        data_dictionary['classifications'][key][machine] = list()
                     else:
                         data_dictionary['changepoints'][key][machine] = None
                         data_dictionary['changepoint_means'][key][machine] = None
+                        data_dictionary['classifications'][key][machine] = None
                     if outliers or unique_outliers:
                         data_dictionary['all_outliers'][key][machine] = list()
                         data_dictionary['common_outliers'][key][machine] = list()
@@ -1006,6 +1091,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             if changepoints:
                                 data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
                                 data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
+                                data_dictionary['classifications'][key][machine].append(data['classifications'][key][p_exec])
                             if outliers or unique_outliers:
                                 data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
                                 data_dictionary['common_outliers'][key][machine].append(data['common_outliers'][key][p_exec])
@@ -1240,6 +1326,15 @@ if __name__ == '__main__':
                             options.benchmarks, options.wallclock,
                             options.outliers, options.unique_outliers,
                             options.changepoints or options.changepoint_means)
+
+    first_key = data['data'].keys()[0]
+    first_mc = data['data'][data['data'].keys()[0]].keys()[0]
+    first_pexec = data['data'][first_key][first_mc][0]
+    if options. window_size >= len(first_pexec):  # Assume all execs are the same length
+        fatal_error('Window size (%d) must be strictly less than the number '
+                    'of iterations in each process execution (%d). Use '
+                    '-w or --window on the command line.' %
+                    (options.window_size, len(first_pexec)))
 
     main(options.outfile is None,
          data,

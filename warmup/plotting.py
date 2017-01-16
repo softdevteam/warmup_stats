@@ -8,6 +8,22 @@ SPINE_LINEWIDTH = 1
 ZORDER_GRID = 1
 
 
+def min_no_outliers(data, outliers, start_from=0):
+    minimum = float('inf')  # start_from may be in outliers.
+    for index in xrange(start_from, len(data)):
+        if index not in outliers and data[index] < minimum:
+            minimum = data[index]
+    return minimum
+
+
+def max_no_outliers(data, outliers, start_from=0):
+    maximum = float('-inf')  # start_from may be in outliers.
+    for index in xrange(start_from, len(data)):
+        if index not in outliers and data[index] > maximum:
+            maximum = data[index]
+    return maximum
+
+
 def axis_data_transform(axis, xin, yin, inverse=False):
     """Translate axis and data coordinates.
     If 'inverse' is True, data coordinates are translated to axis coordinates,
