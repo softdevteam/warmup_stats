@@ -23,7 +23,7 @@ from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_inset_to_axis, add_margin_to_axes, axis_to_figure_transform
 from warmup.plotting import collide_rect, compute_grid_offsets, format_yticks_scientific
-from warmup.plotting import get_unified_yrange, min_no_outliers, max_no_outliers, style_axis
+from warmup.plotting import get_unified_yrange, style_axis, zoom_y_min, zoom_y_max
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS
 
 seaborn.set_palette('colorblind')
@@ -637,10 +637,8 @@ def draw_page(is_interactive, executions, cycles_executions,
             else:
                 first_n = int(len(executions[index]) * ZOOM_PROPORTION)
             if outliers:
-                y_zoom_min = min_no_outliers(executions[index], outliers[index],
-                                             start_from=first_n)
-                y_zoom_max = max_no_outliers(executions[index], outliers[index],
-                                             start_from=first_n)
+                y_zoom_min = zoom_y_min(executions[index], outliers[index], start_from=first_n)
+                y_zoom_max = zoom_y_max(executions[index], outliers[index], start_from=first_n)
             else:
                 y_zoom_min = min(executions[index][first_n:])
                 y_zoom_max = max(executions[index][first_n:])
