@@ -684,6 +684,8 @@ class ProcessExecChart(object):
             inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1),
                        self.wallclock_data[start:end], color=LINE_COLOUR,
                        linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
+            self._plot_outliers(inset, large_markers=False)
+            self._plot_changepoints(inset, large_markers=False)
             pyplot.draw()  # Force xticklabels to be drawn.
             if self.x_bounds[0] > 0:
                 labels = [label.get_text() for label in inset.get_xticklabels()]
