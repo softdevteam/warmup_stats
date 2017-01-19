@@ -1,11 +1,29 @@
 import math
+import numpy
 
 from matplotlib import pyplot
 from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 
 SPINE_LINESTYLE = 'solid'
 SPINE_LINEWIDTH = 1
+
+ZOOM_PERCENTILE_MIN = 10.0
+ZOOM_PERCENTILE_MAX = 90.0
+
 ZORDER_GRID = 1
+
+def zoom_y_min(data, outliers, start_from=0):
+    array = numpy.array(data)
+    numpy.delete(array, outliers)
+    numpy.delete(array, range(0, start_from))
+    return numpy.percentile(array, ZOOM_PERCENTILE_MIN)
+
+
+def zoom_y_max(data, outliers, start_from=0):
+    array = numpy.array(data)
+    numpy.delete(array, outliers)
+    numpy.delete(array, range(0, start_from))
+    return numpy.percentile(array, ZOOM_PERCENTILE_MAX)
 
 
 def axis_data_transform(axis, xin, yin, inverse=False):
