@@ -851,7 +851,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         instr_data = False
         filename_root = filename[:-len('_results.json.bz2')]
         instr_dir = os.path.dirname(filename) + filename_root + '_instr_data'
-        data_dictionary['instr_data'] = dict()
+        if 'instr_data' not in data_dictionary:
+            data_dictionary['instr_data'] = dict()
         if os.path.isdir(instr_dir):
             print 'Collecting instrumentation data for %s from %s.' % \
                 (filename, instr_dir)
