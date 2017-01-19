@@ -330,269 +330,319 @@ def _get_scatter_points_within_bounds(scatter, x_bounds):
     return x_vals, y_vals
 
 
-def draw_process_exec(grid_cell, data, cycles_data, instr_data, instr_y_ranges,
-                      title, x_bounds, y_range, y_range_zoom, window_size,
-                 outliers, unique, common, changepoints, changepoint_means, classification,
+class ProcessExecChart(object):
+    """This class represents a plot, or stack of plots for a single process execution.
+    """
+
+    def __init__(self, grid_cell, data, cycles_data, instr_data, instr_y_ranges,
+                 title, x_bounds, y_range, y_range_zoom, window_size, outliers,
+                 unique, common, changepoints, changepoint_means, classification,
                  median, tukey, core_cycles, cycles_ylimits):
-    iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
-    # Marshal data into numpy arrays.
-    data_narray = numpy.array(data[x_bounds[0]:x_bounds[1]])
-    cycle_data_narrays = list()
-    if cycles_data:
-        if cycles_ylimits:
-            cycles_min, cycles_max = cycles_ylimits
-        else:
-            if core_cycles is None:
-                core_cycles = range(len(cycles_data))
-            cycles_min, cycles_max = float('inf'), float('-inf')
-            for core in core_cycles:
-                cycles_min = min(min(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_min)
-                cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), cycles_max)
-        for core in core_cycles:  # For each core specified on command line.
-            cycle_data_narrays.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
-    instr_data_narrays = list()
-    if instr_data:
-        for chart_data in instr_data:
-            instr_data_narrays.append(numpy.array(chart_data.data))
-    # Calculate the number of plots needed.
-    n_rows = 1
-    if cycles_data:
-        n_rows += len(core_cycles)
-    if instr_data:
-        n_rows += len(instr_data_narrays)
-    if y_range_zoom[0] != None:
-        n_rows += 1
-    if n_rows == 1:  # Only create another gridspec if we have to.
-        inner_grid = None
-    else:
-        # Spring constraints for grid cell heights
-        heights = [.25] * (n_rows - 1)
-        heights.append(1)
-        inner_grid = gridspec.GridSpecFromSubplotSpec(n_rows, 1, grid_cell,
-                                                      height_ratios=heights,
-                                                      hspace=0.2)
-    # Collect handles and labels, so that we can draw one legend per page.
-    handles_labels = [list(), list()]
-    # Plot wall clock times.
-    if n_rows == 1:
-        axis1 = pyplot.subplot(grid_cell)
-    else:
-        axis1 = pyplot.subplot(inner_grid[n_rows - 1, 0])
-    axis1.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
-               zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
-    # If there are outliers, highlight them.
-    axis1.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
-    if outliers is not None:
-        outliers_x, outliers_y = _get_scatter_points_within_bounds(outliers, x_bounds)
-        axis1.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
-                     marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers', zorder=ZORDER_MARKERS)
-    if unique is not None:
-        unique_x, unique_y = _get_scatter_points_within_bounds(unique, x_bounds)
-        pc_unique = float(len(unique_y) - window_size) / float(len(data_narray)) * 100.0
-        axis1.scatter(unique_x, data_narray[unique_y], c=UNIQUE_COLOR,
-                     marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
-                     label=('Unique outliers (${%.2f}\\%%$)' % pc_unique),
-                     zorder=ZORDER_MARKERS)
-    if common is not None:
-        common_x, common_y = _get_scatter_points_within_bounds(common, x_bounds)
-        pc_common = float(len(common_y)) / float(len(data_narray)) * 100.0
-        axis1.scatter(common_x, data_narray[common_y], c=COMMON_COLOR,
-                     marker=COMMON_MARKER, s=COMMON_SIZE,
-                     label=('Common outliers (${%.2f}\\%%$)' % pc_common),
-                     zorder=ZORDER_MARKERS)
-    # Draw change points and means between them, optionally.
-    if changepoint_means:
-        means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
-        if x_bounds[0] > 0:
-            for index, changepoint in enumerate(changepoints):
-                if changepoint < x_bounds[0]:
-                    del changepoint_means[index]
-                    del changepoints[index]
-        assert len(changepoints) == len(changepoint_means) - 1
-        for index, x_location in enumerate(changepoints):
-            # Draw changepoint.
-            axis1.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
-                         zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
-                         linewidth=LINE_WIDTH)
-            if index == 0:
-                means.append([(x_bounds[0], changepoint_means[0]),
-                             (x_location, changepoint_means[0])])
+        self.grid_cell = grid_cell
+        self.title = title
+        self.window_size = window_size
+        self.x_bounds = x_bounds
+        self.iterations = numpy.array(xrange(x_bounds[0], x_bounds[1]))
+        self.y_range = y_range
+        self.y_range_zoom = y_range_zoom
+        self.outliers = outliers
+        self.unique = unique
+        self.common = common
+        self.changepoints = changepoints
+        self.changepoint_means = changepoint_means
+        self.classification = classification
+        self.median = median
+        self.tukey = tukey
+        self.core_cycles = core_cycles
+        self.cycles_ylimits = cycles_ylimits
+        self.instr_y_ranges = instr_y_ranges
+        # Marshal data into numpy arrays.
+        self.wallclock_data = numpy.array(data[x_bounds[0]:x_bounds[1]])
+        self.cycles_data = list()
+        if cycles_data:
+            if cycles_ylimits:
+                self.cycles_min, self.cycles_max = cycles_ylimits
             else:
-                means.append([(changepoints[index - 1], changepoint_means[index]),
-                             (x_location, changepoint_means[index])])
-        if len(changepoints) == 0:
-            # No changepoints in this execution, but we want to draw the mean.
-            means.append([(x_bounds[0], changepoint_means[-1]),
-                         (x_bounds[1], changepoint_means[-1])])
+                if self.core_cycles is None:
+                    self.core_cycles = range(len(cycles_data))
+                self.cycles_min, self.cycles_max = float('inf'), float('-inf')
+                for core in self.core_cycles:
+                    self.cycles_min = min(min(cycles_data[core][x_bounds[0]:x_bounds[1]]), self.cycles_min)
+                    self.cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), self.cycles_max)
+            for core in self.core_cycles:  # For each core specified on command line.
+                self.cycles_data.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
+        self.instr_data = list()
+        if instr_data:
+            for chart_data in instr_data:
+                self.instr_data.append(numpy.array(chart_data.data))
+        # Generate medians and Tukey interval, if necessary.
+        self.medians = None
+        self.tukey_interval = (None, None)
+        if self.median or self.tukey:
+            self.medians = list()
+            self.tukey_interval = (list(), list())
+            for index, datum in enumerate(self.wallclock_data[self.x_bounds[0]:self.x_bounds[1]]):
+                window = get_window(index + self.x_bounds[0], self.window_size, data)
+                if not window:
+                    self.medians.append(numpy.nan)
+                else:
+                    self.medians.append(numpy.median(window))
+                if self.tukey and not window:
+                    self.tukey_interval[0].append(numpy.nan)
+                    self.tukey_interval[1].append(numpy.nan)
+                elif self.tukey and window:
+                    band = (3 * (numpy.percentile(window, 90.0) -
+                                 numpy.percentile(window, 10.0)))
+                    self.tukey_interval[0].append(self.medians[index] - band)
+                    self.tukey_interval[1].append(self.medians[index] + band)
+        # Calculate the number of plots needed.
+        self.n_rows = 1
+        if cycles_data:
+            self.n_rows += len(self.core_cycles)
+        if instr_data:
+            self.n_rows += len(self.instr_data)
+        if y_range_zoom[0] != None:
+            self.n_rows += 1
+        if self.n_rows == 1:  # Only create another gridspec if we have to.
+            self.inner_grid = None
         else:
-            means.append([(changepoints[-1], changepoint_means[-1]),
-                         (x_bounds[1], changepoint_means[-1])])
-        # Add changepoint means to chart, on top of all other splines.
-        assert len(means) == len(changepoint_means)
-        lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
-                               zorder=ZORDER_CHANGEPOINTS,
-                               linewidths=[LINE_WIDTH for _ in xrange(len(means))])
-        axis1.add_collection(lines)
-    # Draw changepoints as blobs, without changepoint means.
-    if changepoints and not changepoint_means:
-        if x_bounds[0] > 0:
-            for index, changepoint in enumerate(changepoints):
-                if changepoint < x_bounds[0]:
-                    del changepoints[index]
-        axis1.scatter(changepoints, [y_range[0] for _ in changepoints],
-                      c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
-                      zorder=ZORDER_CHANGEPOINTS)
-    # Draw a rolling median (optionally).
-    if median or tukey:
-        medians = list()
-        pc_bands = (list(), list())
-        for index, datum in enumerate(data[x_bounds[0]:x_bounds[1]]):
-            window = get_window(index + x_bounds[0], window_size, data)
-            if not window:
-                medians.append(numpy.nan)
+            # Spring constraints for grid cell heights
+            heights = [.25] * (self.n_rows - 1)
+            heights.append(1)
+            self.inner_grid = gridspec.GridSpecFromSubplotSpec(self.n_rows, 1,
+                              self.grid_cell, height_ratios=heights, hspace=0.2)
+        # Collect handles and labels, so that we can draw one legend per page.
+        self.handles_labels = [list(), list()]
+        # Scaffold axes.
+        self.wallclock_axis = None
+        self.cycles_axes = None
+        self.instr_axes = None
+        self.zoomed_axis = None
+        self.inset = None
+
+    def plot_stack(self):
+        self.plot_wallclock_times()
+        self.row = 0
+        if self.cycles_data:
+            self.plot_cycles_data()
+        if self.instr_data:
+            self.plot_instr_data()
+        if self.y_range_zoom[0] != None:
+            self.plot_zoomed_data()
+
+    def plot_wallclock_times(self):
+        # Plot wall clock times.
+        if self.n_rows == 1:
+            self.wallclock_axis = pyplot.subplot(self.grid_cell)
+        else:
+            self.wallclock_axis = pyplot.subplot(self.inner_grid[self.n_rows - 1, 0])
+        self.wallclock_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
+                        color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
+        # If there are outliers, highlight them.
+        self.wallclock_axis.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
+        self.wallclock_axis.set_ylim(self.y_range)
+        # Margin MUST be adjusted after plotting is complete.
+        add_margin_to_axes(self.wallclock_axis, x=0.02, y=0.02)
+        if self.outliers is not None:
+            outliers_x, outliers_y = _get_scatter_points_within_bounds(self.outliers, self.x_bounds)
+            self.wallclock_axis.scatter(outliers_x, self.wallclock_data[outliers_y], color=OUTLIER_COLOR,
+                              marker=OUTLIER_MARKER, s=OUTLIER_SIZE, label='Outliers',
+                              zorder=ZORDER_MARKERS)
+        if self.unique is not None:
+            unique_x, unique_y = _get_scatter_points_within_bounds(self.unique, self.x_bounds)
+            pc_unique = float(len(unique_y) - self.window_size) / float(len(self.wallclock_data)) * 100.0
+            self.wallclock_axis.scatter(unique_x, self.wallclock_data[unique_y], c=UNIQUE_COLOR,
+                               marker=UNIQUE_MARKER, s=UNIQUE_SIZE,
+                               label=('Unique outliers (${%.2f}\\%%$)' % pc_unique),
+                               zorder=ZORDER_MARKERS)
+        if self.common is not None:
+            common_x, common_y = _get_scatter_points_within_bounds(self.common, self.x_bounds)
+            pc_common = float(len(common_y)) / float(len(self.wallclock_data)) * 100.0
+            self.wallclock_axis.scatter(common_x, self.wallclock_data[common_y], c=COMMON_COLOR,
+                         marker=COMMON_MARKER, s=COMMON_SIZE,
+                         label=('Common outliers (${%.2f}\\%%$)' % pc_common),
+                         zorder=ZORDER_MARKERS)
+        # Draw change points and means between them, optionally.
+        if self.changepoint_means:
+            self.segment_means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
+            if self.x_bounds[0] > 0:
+                for index, changepoint in enumerate(self.changepoints):
+                    if changepoint < self.x_bounds[0]:
+                        del self.changepoint_means[index]
+                        del self.changepoints[index]
+            assert len(self.changepoints) == len(self.changepoint_means) - 1
+            for index, x_location in enumerate(self.changepoints):
+                # Draw changepoint.
+                self.wallclock_axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
+                                   zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
+                                   linewidth=LINE_WIDTH)
+                if index == 0:
+                    self.segment_means.append([(self.x_bounds[0], self.changepoint_means[0]),
+                                 (x_location, self.changepoint_means[0])])
+                else:
+                    self.segment_means.append([(self.changepoints[index - 1], self.changepoint_means[index]),
+                                 (x_location, self.changepoint_means[index])])
+            if len(self.changepoints) == 0:
+                # No changepoints in this execution, but we want to draw the mean.
+                self.segment_means.append([(self.x_bounds[0], self.changepoint_means[-1]),
+                             (self.x_bounds[1], self.changepoint_means[-1])])
             else:
-                medians.append(numpy.median(window))
-            if tukey and not window:
-                pc_bands[0].append(numpy.nan)
-                pc_bands[1].append(numpy.nan)
-            elif tukey and window:
-                band = (3 * (numpy.percentile(window, 90.0) -
-                             numpy.percentile(window, 10.0)))
-                pc_bands[0].append(medians[index] - band)
-                pc_bands[1].append(medians[index] + band)
-        if median:  # Plot the median.
-            axis1.plot(iterations, medians, label='Median',
-                       zorder=ZORDER_MEDIAN, linewidth=PLOT_LINE_WIDTH)
-        if tukey:  # Fill between the Tukey band.
-            axis1.fill_between(iterations, pc_bands[0], pc_bands[1], alpha=FILL_ALPHA,
-                               facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
-                               zorder=ZORDER_FILL_REGION)
-    # Re-style the chart.
-    major_xticks = compute_grid_offsets(
-        x_bounds[0], x_bounds[1], GRID_MAJOR_X_DIVS)
-    minor_xticks = compute_grid_offsets(
-        x_bounds[0],x_bounds[1], GRID_MINOR_X_DIVS)
-    major_yticks = compute_grid_offsets(
-        y_range[0], y_range[1], GRID_MAJOR_Y_DIVS)
-    minor_yticks = compute_grid_offsets(
-        y_range[0], y_range[1], GRID_MINOR_Y_DIVS)
-    style_axis(axis1, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-    format_yticks_scientific(axis1)
-    # Axis labels.
-    axis1.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
-    axis1.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE)
-    axis1.yaxis.set_label_position('right')
-    # Add all items to page legend.
-    handles, labels = axis1.get_legend_handles_labels()
-    handles_labels[0] += handles
-    handles_labels[1] += labels
-    # Plot title goes above the top subplot (only once).
-    if not cycles_data and not instr_data and y_range_zoom[0] == None:
-        axis1.set_title(title, fontsize=TITLE_FONT_SIZE)
-    # Other charts.
-    row = 0
-    # Add core cycles data on another set of charts.
-    if cycles_data:
-        for core in xrange(len(cycle_data_narrays)):
-            axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
-            pyplot.setp(axis.get_xticklabels(), visible=False)
-            axis.set_ylim(cycles_min, cycles_max)
-            axis.plot(iterations, cycle_data_narrays[core],
-                      color=CYCLES_COLOR, label=('Core %d cycles' % core_cycles[core]),
+                self.segment_means.append([(self.changepoints[-1], self.changepoint_means[-1]),
+                             (self.x_bounds[1], self.changepoint_means[-1])])
+            # Add changepoint means to chart, on top of all other splines.
+            assert len(self.segment_means) == len(self.changepoint_means)
+            lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
+                                   zorder=ZORDER_CHANGEPOINTS,
+                                   linewidths=[LINE_WIDTH for _ in xrange(len(self.segment_means))])
+            self.wallclock_axis.add_collection(lines)
+        # Draw changepoints as blobs, without changepoint means.
+        if self.changepoints and not self.changepoint_means:
+            if self.x_bounds[0] > 0:
+                for index, changepoint in enumerate(self.changepoints):
+                    if self.changepoint < self.x_bounds[0]:
+                        del self.changepoints[index]
+            self.wallclock_axis.scatter(self.changepoints, [self.y_range[0] for _ in self.changepoints],
+                              c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
+                              zorder=ZORDER_CHANGEPOINTS)
+        if self.median:  # Plot the median.
+            self.plot_median(self.wallclock_axis)
+        if self.tukey:  # Fill between the Tukey band.
+            self.plot_tukey_interval(self.wallclock_axis)
+        # Re-style the chart.
+        self.major_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1], GRID_MAJOR_X_DIVS)
+        self.minor_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1], GRID_MINOR_X_DIVS)
+        major_yticks = compute_grid_offsets(self.y_range[0], self.y_range[1], GRID_MAJOR_Y_DIVS)
+        minor_yticks = compute_grid_offsets(self.y_range[0], self.y_range[1], GRID_MINOR_Y_DIVS)
+        style_axis(self.wallclock_axis, self.major_xticks, self.minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+        format_yticks_scientific(self.wallclock_axis)
+        # Axis labels.
+        self.wallclock_axis.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
+        self.wallclock_axis.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE)
+        self.wallclock_axis.yaxis.set_label_position('right')
+        # Add all items to page legend.
+        handles, labels = self.wallclock_axis.get_legend_handles_labels()
+        self.handles_labels[0] += handles
+        self.handles_labels[1] += labels
+        # Plot title goes above the top subplot (only once).
+        if not self.cycles_data and not self.instr_data and self.y_range_zoom[0] == None:
+            self.wallclock_axis.set_title(self.title, fontsize=TITLE_FONT_SIZE)
+
+    def plot_median(self, axis):
+        axis.plot(self.iterations, self.medians, label='Median', zorder=ZORDER_MEDIAN,
+                  linewidth=PLOT_LINE_WIDTH)
+
+    def plot_tukey_interval(self, axis):
+        axis.fill_between(self.iterations, self.tukey_interval[0], self.tukey_interval[1],
+                          alpha=FILL_ALPHA, facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
+                          zorder=ZORDER_FILL_REGION)
+
+    def plot_cycles_data(self):
+        """Add core cycles data on another set of charts."""
+        self.cycles_axes = [None] * len(self.cycles_data)
+        for core in xrange(len(self.cycles_data)):
+            self.cycles_axes[core] = pyplot.subplot(self.inner_grid[self.row, 0],
+                                                    sharex=self.wallclock_axis)
+            pyplot.setp(self.cycles_axes[core].get_xticklabels(), visible=False)
+            self.cycles_axes[core].set_ylim(self.cycles_min, self.cycles_max)
+            self.cycles_axes[core].set_ylim(self.cycles_ylimits)
+            self.cycles_axes[core].plot(self.iterations, self.cycles_data[core],
+                      color=CYCLES_COLOR, label=('Core %d cycles' % self.core_cycles[core]),
                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
             # Style axes and grid.
-            y_ax = axis.get_yaxis()
+            y_ax = self.cycles_axes[core].get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-            axis.set_ylabel('CC #%d' % core_cycles[core], fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
-            axis.yaxis.set_label_position('right')
-            ymin, ymax = axis.get_ylim()
+            self.cycles_axes[core].set_ylabel('CC #%d' % self.core_cycles[core],
+                                      fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
+            self.cycles_axes[core].yaxis.set_label_position('right')
+            ymin, ymax = self.cycles_axes[core].get_ylim()
             major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
             minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-            style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-            format_yticks_scientific(axis)
+            style_axis(self.cycles_axes[core], self.major_xticks, self.minor_xticks,
+                       major_yticks, minor_yticks, TICK_FONTSIZE)
+            format_yticks_scientific(self.cycles_axes[core])
             if core == 0:
                 # Add all items to page legend (only once).
-                handles, labels = axis.get_legend_handles_labels()
-                handles_labels[0] += handles
-                handles_labels[1].append('Normalised core cycles')
+                handles, labels = self.cycles_axes[core].get_legend_handles_labels()
+                self.handles_labels[0] += handles
+                self.handles_labels[1].append('Normalised core cycles')
                 # Plot title goes above the top subplot (only once).
-                axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-            row += 1
-    # Add any VM instrumentation data on another set of charts.
-    if instr_data:
+                self.cycles_axes[core].set_title(self.title, fontsize=TITLE_FONT_SIZE)
+            self.row += 1
+
+    def plot_instr_data(self):
+        """Add any VM instrumentation data on another set of charts."""
         legend_texts = set()
-        for index in xrange(len(instr_data_narrays)):
-            legend_texts.add(instr_data[index].legend_text)
-        for index in xrange(len(instr_data_narrays)):
-            axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
-            pyplot.setp(axis.get_xticklabels(), visible=False)
-            axis.plot(iterations, instr_data_narrays[index],
-                        color=INSTR_COLOR, label=(instr_data[index].title),
+        self.instr_axes = [None] * len(self.instr_data)
+        for index in xrange(len(self.instr_data)):
+            legend_texts.add(self.instr_data[index].legend_text)
+        for index in xrange(len(self.instr_data)):
+            self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0], sharex=self.wallclock_axis)
+            pyplot.setp(self.axis.get_xticklabels(), visible=False)
+            self.instr_axes[index].plot(self.iterations, self.instr_data[index],
+                        color=INSTR_COLOR, label=(self.instr_data[index].title),
                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
-            y_ax = axis.get_yaxis()
+            y_ax = self.instr_axes[index].get_yaxis()
             y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
-            axis.set_ylabel(instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
-            axis.yaxis.set_label_position('right')
-            axis.set_ylim(instr_y_ranges[index])
-            major_yticks = compute_grid_offsets(instr_y_ranges[index][0],
-                                   instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
-            minor_yticks = compute_grid_offsets(instr_y_ranges[index][0],
-                                   instr_y_ranges[index][1], GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-            style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-            format_yticks_scientific(axis)
+            self.instr_axes[index].set_ylabel(self.instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
+            self.instr_axes[index].yaxis.set_label_position('right')
+            self.instr_axes[index].set_ylim(self.instr_y_ranges[index])
+            major_yticks = compute_grid_offsets(self.instr_y_ranges[index][0],
+                                   self.instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
+            minor_yticks = compute_grid_offsets(self.instr_y_ranges[index][0],
+                                   self.instr_y_ranges[index][1], GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
+            style_axis(self.instr_axes[index], self.major_xticks, self.minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+            format_yticks_scientific(self.instr_axes[index])
             if index == 0:
                 # Add all items to page legend (only once).
-                handles, labels = axis.get_legend_handles_labels()
-                handles_labels[0] += handles
-                handles_labels[1].append(', '.join(legend_texts))
+                handles, labels = self.instr_axes[index].get_legend_handles_labels()
+                self.handles_labels[0] += handles
+                self.handles_labels[1].append(', '.join(legend_texts))
                 # Plot title goes above the top subplot (only once).
-                if not cycles_data:
-                    axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-            row += 1
-    # Add zoomed in chart.
-    if y_range_zoom[0] != None:
-        axis = pyplot.subplot(inner_grid[row, 0], sharex=axis1)
-        axis.autoscale(enable=False, axis='both') # Set x/y-limits manually.
-        pyplot.setp(axis.get_xticklabels(), visible=False)
-        ymin_zoom, ymax_zoom = y_range_zoom
-        axis.set_ylim(ymin_zoom, ymax_zoom)
-        axis.plot(iterations, data_narray, label='Measurement', color=LINE_COLOUR,
-                   zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
+                if not self.cycles_data:
+                    self.instr_axes[index].set_title(self.title, fontsize=TITLE_FONT_SIZE)
+            self.row += 1
+
+    def plot_zoomed_data(self):
+        """Add zoomed in chart with wallclock data."""
+        self.zoomed_axis = pyplot.subplot(self.inner_grid[self.row, 0], sharex=self.wallclock_axis)
+        self.zoomed_axis.autoscale(enable=False, axis='both') # Set x/y-limits manually.
+        pyplot.setp(self.zoomed_axis.get_xticklabels(), visible=False)
+        ymin_zoom, ymax_zoom = self.y_range_zoom
+        self.zoomed_axis.set_ylim(ymin_zoom, ymax_zoom)
+        self.zoomed_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
+                  color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
         # Style axes and grid.
-        y_ax = axis.get_yaxis()
+        y_ax = self.zoomed_axis.get_yaxis()
         y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
         major_yticks = compute_grid_offsets(ymin_zoom, ymax_zoom, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
         minor_yticks = compute_grid_offsets(ymin_zoom, ymax_zoom, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-        style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-        format_yticks_scientific(axis)
-        axis.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE, color=LINE_COLOUR)
-        axis.yaxis.set_label_position('right')
+        style_axis(self.zoomed_axis, self.major_xticks, self.minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
+        format_yticks_scientific(self.zoomed_axis)
+        self.zoomed_axis.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE, color=LINE_COLOUR)
+        self.zoomed_axis.yaxis.set_label_position('right')
         # Add extra padding just outside the major yticks.
-        add_margin_to_axes(axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
+        add_margin_to_axes(self.zoomed_axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
         # Draw change points and means between them, optionally.
-        if changepoint_means:
-            for index, x_location in enumerate(changepoints):
-                axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
+        if self.changepoint_means:
+            for index, x_location in enumerate(self.changepoints):
+                self.zoomed_axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
                              zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
                              linewidth=LINE_WIDTH)
-            lines = LineCollection(means, color=CHANGEPOINT_LINE_COLOR,
+            lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
                                    zorder=ZORDER_CHANGEPOINTS,
-                                   linewidths=[LINE_WIDTH for _ in xrange(len(means))])
-            axis.add_collection(lines)
+                                   linewidths=[LINE_WIDTH
+                                   for _ in xrange(len(self.segment_means))])
+            self.zoomed_axis.add_collection(lines)
         # Draw outliers, optionally.
-        if outliers:
-            axis.scatter(outliers_x, data_narray[outliers_y], color=OUTLIER_COLOR,
+        if self.outliers:
+            outliers_x, outliers_y = _get_scatter_points_within_bounds(self.outliers, self.x_bounds)
+            self.zoomed_axis.scatter(outliers_x, self.wallclock_data[outliers_y], color=OUTLIER_COLOR,
                          marker=OUTLIER_MARKER, s=ZOOM_OUTLIER_SIZE,
                          label='Outliers', zorder=ZORDER_MARKERS)
         # Plot title goes above the top subplot (only once).
-        if not cycles_data and not instr_data:
-            axis.set_title(title, fontsize=TITLE_FONT_SIZE)
-        row += 1
-    axis1.set_ylim(y_range)
-    # Margin MUST be adjusted after plotting is complete.
-    add_margin_to_axes(axis1, x=0.02, y=0.02)
-    # Return lines and labels so that we can draw a single legend for the page.
-    return axis1, handles_labels
+        if not self.cycles_data and not self.instr_data:
+            self.zoomed_axis.set_title(self.title, fontsize=TITLE_FONT_SIZE)
+        self.row += 1
 
 
 def draw_page(is_interactive, executions, cycles_executions,
@@ -682,6 +732,7 @@ def draw_page(is_interactive, executions, cycles_executions,
     # Keep a list of all the axes that wallclock times are drawn on, in case
     # we later need to draw an inset onto each one.
     wallclock_axes = list()
+    p_exec_charts = list()
 
     index, row, col = 0, 0, 0
     cycles_data, instr_data = None, None
@@ -709,14 +760,14 @@ def draw_page(is_interactive, executions, cycles_executions,
         # Get axis and draw plot.
         inner_grid = outer_grid[row, col]
         x_bounds = [xlimits_start, xlimits_stop]
-        wc_axis, (handles, labels) = draw_process_exec(inner_grid, data, cycles_data,
-                              instr_data, instr_y_ranges,
-                              titles[index], x_bounds, [y_min, y_max],
-                              y_range_zoom[index], window_size,
-                              outliers_exec, unique_exec, common_exec, changepoint_exec,
-                              changepoint_mean_exec, classification_exec,
-                              median, tukey, core_cycles, cycles_ylimits)
-        wallclock_axes.append(wc_axis)
+        p_exec_charts.append(ProcessExecChart(inner_grid, data, cycles_data,
+                 instr_data, instr_y_ranges, titles[index], x_bounds, [y_min, y_max],
+                 y_range_zoom[index], window_size, outliers_exec, unique_exec,
+                 common_exec, changepoint_exec, changepoint_mean_exec,
+                 classification_exec, median, tukey, core_cycles, cycles_ylimits))
+        p_exec_charts[index].plot_stack()
+
+        wallclock_axes.append(p_exec_charts[index].wallclock_axis)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
@@ -816,13 +867,13 @@ def draw_page(is_interactive, executions, cycles_executions,
     if tukey:  # Add Tukey band to legend.
         fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
                                               alpha=FILL_ALPHA)
-        handles.append(fill_patch)
-        labels.append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
+        p_exec_charts[0].handles_labels[0].append(fill_patch)
+        p_exec_charts[0].handles_labels[1].append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
 
     # One legend per page.
     if not legend_off:
-        fig.legend(handles, labels, loc='upper center', fontsize=LEGEND_FONTSIZE,
-                   ncol=10, borderaxespad=0)
+        fig.legend(p_exec_charts[0].handles_labels[0], p_exec_charts[0].handles_labels[1],
+                   loc='upper center', fontsize=LEGEND_FONTSIZE, ncol=10, borderaxespad=0)
 
     if is_interactive:
         mng = pyplot.get_current_fig_manager()
