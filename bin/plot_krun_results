@@ -264,7 +264,11 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 ret = list()
                 for i in xrange(len(page)):
                     if page[i]:
-                        ret.append(data[i])
+                        try:
+                            ret.append(data[i])
+                        except IndexError:
+                            # Absent data
+                            ret.append([])
                     else:
                         if data == page:  # Stops repeated printing of warning.
                             print("WARNING: requested pexec crashed: "
