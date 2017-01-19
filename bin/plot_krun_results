@@ -633,6 +633,86 @@ class ProcessExecChart(object):
             self.zoomed_axis.set_title(self.title, fontsize=TITLE_FONT_SIZE)
         self.row += 1
 
+    def plot_inset(self, axis, fig):
+        """Draw an inset containing the early iterations of the wallclock data.
+        This MUST be done after adjusting subplots, so that we can calculate
+        the correct bounding box for the inset."""
+        fig_renderer = tight_layout.get_renderer(fig)
+        # Find a rectangle that will not collide with data. Start top-right
+        # and work left, then try bottom-right and work left.
+        inset_collides = False
+        left_offsets = [x / 10.0 for x in xrange(6)] * 2
+        bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING] * (len(left_offsets) / 2))
+                         + ([INSET_PADDING * 2] * (len(left_offsets) / 2)))
+        best_distance = -1.0
+        best_rect = None
+        for left_offset, bottom in zip(left_offsets, bottom_values):
+            rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
+                    bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
+            inset_collides, dist = collide_rect(rect, fig, axis, self.wallclock_data, self.x_bounds)
+            if not inset_collides:
+                if not best_rect or round(dist - best_distance) >= INSET_DIST_DELTA:
+                    best_distance = dist
+                    best_rect = rect
+        if best_rect:
+            inset = add_inset_to_axis(fig, axis, best_rect)
+            y_min, y_max = self.y_range
+            inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
+            inset.grid(False)
+            inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
+            format_yticks_scientific(inset)
+            inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
+            inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
+            # Which iterations go in the inset? By default the first 2.5%.
+            one_pc = len(self.wallclock_data[self.x_bounds[0]:self.x_bounds[1]]) / 100.0  # 1%.
+            inset_xlimit = (self.x_bounds[0], self.x_bounds[0] + int(one_pc * 2.5))
+            # If all the changepoints occur at the start of the process exec,
+            # include them all and a few extra executions.
+            if self.changepoints:
+                if (self.changepoints[self.x_bounds[0]:self.x_bounds[1]] and
+                      self.changepoints[self.x_bounds[0]:self.x_bounds[1]][-1] <= int(one_pc * 5.0)):
+                    inset_xlimit = (0, (self.changepoints[self.x_bounds[0]:self.x_bounds[1]][-1]
+                                        + int(one_pc * 2.0)))
+            # Clamp the extent of the inset.
+            if inset_xlimit[1] < INSET_MIN_ITERS:
+                inset_xlimit = (0, min(INSET_MIN_ITERS, self.x_bounds[1] - self.x_bounds[0]))
+            elif inset_xlimit[1] > INSET_MAX_ITERS:
+                inset_xlimit = (0, min(INSET_MAX_ITERS, self.x_bounds[1] - self.x_bounds[0]))
+            inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
+            # Plot a subset of the data on the inset.
+            start, end = self.x_bounds[0] + inset_xlimit[0], self.x_bounds[0] + inset_xlimit[1] + 1
+            inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1),
+                       self.wallclock_data[start:end], color=LINE_COLOUR,
+                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
+            pyplot.draw()  # Force xticklabels to be drawn.
+            if self.x_bounds[0] > 0:
+                labels = [label.get_text() for label in inset.get_xticklabels()]
+                if not labels[-1]:  # Sometimes the last label is empty.
+                    labels = labels[0:-1]
+                new_xticklabels = list()
+                for label in labels:
+                    if label == '':
+                        new_xticklabels.append('')
+                    else:
+                        new_xticklabels.append(str(int(float(label)) + self.x_bounds[0]))
+                inset.set_xticklabels(new_xticklabels)
+            # Code below by Ben Schmidt http://stackoverflow.com/questions/41462693/
+            inset_tight_bbox = inset.get_tightbbox(fig_renderer)
+            inv_transform = axis.transAxes.inverted()
+            xmin, ymin = inv_transform.transform(inset.bbox.min)
+            xmin_tight, ymin_tight = inv_transform.transform(inset_tight_bbox.min)
+            xmax, ymax = inv_transform.transform(inset.bbox.max)
+            xmax_tight, ymax_tight = inv_transform.transform(inset_tight_bbox.max)
+            # Shift actual axis bounds inwards by 'margin' so that new
+            # size + margin is original axis bounds.
+            xmin_new = xmin + (xmin - xmin_tight)
+            ymin_new = ymin + (ymin - ymin_tight)
+            xmax_new = xmax - (xmax_tight - xmax)
+            ymax_new = ymax - (ymax_tight - ymax)
+            [x_fig, y_fig] = axis_to_figure_transform(fig, axis, [xmin_new, ymin_new])
+            [x2_fig, y2_fig] = axis_to_figure_transform(fig, axis, [xmax_new, ymax_new])
+            inset.set_position([x_fig, y_fig, x2_fig - x_fig, y2_fig - y_fig])
+
 
 def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
@@ -712,17 +792,13 @@ def draw_page(is_interactive, executions, cycles_executions,
         instr_y_ranges = None
 
     fig = pyplot.figure()
-    # Set figure size here, so all later coordinates are correct.
+    # Set figure size here, so coordinates are correct before we draw insets.
     if not is_interactive:
         export_size = (EXPORT_SIZE_INCHES[0] * n_cols, EXPORT_SIZE_INCHES[1] * n_rows)
         fig.set_size_inches(*export_size)
 
     outer_grid = gridspec.GridSpec(n_rows, n_cols)
-    # Keep a list of all the axes that wallclock times are drawn on, in case
-    # we later need to draw an inset onto each one.
-    wallclock_axes = list()
-    p_exec_charts = list()
-
+    p_exec_charts = list()  # ProcessExecChart objects for this page.
     index, row, col = 0, 0, 0
     cycles_data, instr_data = None, None
     outliers_exec, unique_exec, common_exec = None, None, None
@@ -755,115 +831,25 @@ def draw_page(is_interactive, executions, cycles_executions,
                  common_exec, changepoint_exec, changepoint_mean_exec,
                  classification_exec, median, tukey, core_cycles, cycles_ylimits))
         p_exec_charts[index].plot_stack()
-
-        wallclock_axes.append(p_exec_charts[index].wallclock_axis)
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
             col = 0
             row += 1
         index = row * MAX_SUBPLOTS_PER_ROW + col
-
+    # Update page grid before drawing insets, to ensure bounding boxes are correct.
     outer_grid.update(**SUBPLOT_PARAMS)
-
-    # Draw an inset, if required. This MUST be done after adjusting subplots,
-    # so that we can calculate the correct bounding box for the inset.
     if inset:
-        fig_renderer = tight_layout.get_renderer(fig)
-        index, row, col = 0, 0, 0
-        while index < n_execs:
-            axis = wallclock_axes[index]
-            # Find a rectangle that will not collide with data. Start top-right
-            # and work left, then try bottom-right and work left.
-            inset_collides = False
-            left_offsets = [x / 10.0 for x in xrange(6)] * 2
-            bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING] * (len(left_offsets) / 2))
-                             + ([INSET_PADDING * 2] * (len(left_offsets) / 2)))
-            best_distance = -1.0
-            best_rect = None
-            for left_offset, bottom in zip(left_offsets, bottom_values):
-                rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
-                        bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
-                inset_collides, dist = collide_rect(rect, fig, axis,
-                                     executions[index], x_bounds)
-                if not inset_collides:
-                    if not best_rect or round(dist - best_distance) >= INSET_DIST_DELTA:
-                        best_distance = dist
-                        best_rect = rect
-            if best_rect:
-                # Create and style the inset.
-                inset = add_inset_to_axis(fig, axis, best_rect)
-                inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
-                inset.grid(False)
-                inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
-                format_yticks_scientific(inset)
-                inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
-                inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
-                # Which iterations go in the inset? By default the first 2.5%.
-                one_pc = len(executions[index][x_bounds[0]:x_bounds[1]]) / 100.0  # 1% of the iterations.
-                inset_xlimit = (x_bounds[0], x_bounds[0] + int(one_pc * 2.5))
-                # If all the changepoints occur at the start of the process exec,
-                # include them all and a few extra executions.
-                if changepoints and changepoints[index]:
-                    if (changepoints[index][x_bounds[0]:x_bounds[1]] and
-                          changepoints[index][x_bounds[0]:x_bounds[1]][-1] <= int(one_pc * 5.0)):
-                        inset_xlimit = (0, (changepoints[index][x_bounds[0]:x_bounds[1]][-1]
-                                            + int(one_pc * 2.0)))
-                # Clamp the extent of the inset.
-                if inset_xlimit[1] < INSET_MIN_ITERS:
-                    inset_xlimit = (0, min(INSET_MIN_ITERS, x_bounds[1] - x_bounds[0]))
-                elif inset_xlimit[1] > INSET_MAX_ITERS:
-                    inset_xlimit = (0, min(INSET_MAX_ITERS, x_bounds[1] - x_bounds[0]))
-                inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
-                # Plot a subset of the data on the inset.
-                start, end = x_bounds[0] + inset_xlimit[0], x_bounds[0] + inset_xlimit[1] + 1
-                inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1),
-                           executions[index][start:end], color=LINE_COLOUR,
-                           linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
-                pyplot.draw()  # Force xticklabels to be drawn.
-                if x_bounds[0] > 0:
-                    labels = [label.get_text() for label in inset.get_xticklabels()]
-                    if not labels[-1]:  # Sometimes the last label is empty.
-                        labels = labels[0:-1]
-                    new_xticklabels = list()
-                    for label in labels:
-                        if label == '':
-                            new_xticklabels.append('')
-                        else:
-                            new_xticklabels.append(str(int(float(label)) + x_bounds[0]))
-                    inset.set_xticklabels(new_xticklabels)
-                # Code below by Ben Schmidt http://stackoverflow.com/questions/41462693/
-                inset_tight_bbox = inset.get_tightbbox(fig_renderer)
-                inv_transform = axis.transAxes.inverted()
-                xmin, ymin = inv_transform.transform(inset.bbox.min)
-                xmin_tight, ymin_tight = inv_transform.transform(inset_tight_bbox.min)
-                xmax, ymax = inv_transform.transform(inset.bbox.max)
-                xmax_tight, ymax_tight = inv_transform.transform(inset_tight_bbox.max)
-                # Shift actual axis bounds inwards by 'margin' so that new
-                # size + margin is original axis bounds.
-                xmin_new = xmin + (xmin - xmin_tight)
-                ymin_new = ymin + (ymin - ymin_tight)
-                xmax_new = xmax - (xmax_tight - xmax)
-                ymax_new = ymax - (ymax_tight - ymax)
-                [x_fig, y_fig] = axis_to_figure_transform(fig, axis, [xmin_new, ymin_new])
-                [x2_fig, y2_fig] = axis_to_figure_transform(fig, axis, [xmax_new, ymax_new])
-                inset.set_position([x_fig, y_fig, x2_fig - x_fig, y2_fig - y_fig])
-            col += 1
-            if col == MAX_SUBPLOTS_PER_ROW:
-                col = 0
-                row += 1
-            index = row * MAX_SUBPLOTS_PER_ROW + col
-
+        for chart in p_exec_charts:
+            chart.plot_inset(chart.wallclock_axis, fig)
     if tukey:  # Add Tukey band to legend.
         fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
                                               alpha=FILL_ALPHA)
         p_exec_charts[0].handles_labels[0].append(fill_patch)
         p_exec_charts[0].handles_labels[1].append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
-
     # One legend per page.
     if not legend_off:
         fig.legend(p_exec_charts[0].handles_labels[0], p_exec_charts[0].handles_labels[1],
                    loc='upper center', fontsize=LEGEND_FONTSIZE, ncol=10, borderaxespad=0)
-
     if is_interactive:
         mng = pyplot.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
