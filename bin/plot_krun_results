@@ -395,6 +395,9 @@ class ProcessExecChart(object):
                                  numpy.percentile(window, 10.0)))
                     self.tukey_interval[0].append(self.medians[index] - band)
                     self.tukey_interval[1].append(self.medians[index] + band)
+        # Shared information for grid styles.
+        self.major_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1], GRID_MAJOR_X_DIVS)
+        self.minor_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1], GRID_MINOR_X_DIVS)
         # Calculate the number of plots needed.
         self.n_rows = 1
         if cycles_data:
@@ -422,27 +425,46 @@ class ProcessExecChart(object):
 
     def plot_stack(self):
         self.plot_wallclock_times()
-        self.row = 0
+        self.row = 0  # Number of smaller plots. Some methods add several charts.
         if self.cycles_data:
             self.plot_cycles_data()
         if self.instr_data:
             self.plot_instr_data()
         if self.y_range_zoom[0] != None:
             self.plot_zoomed_data()
+        add_margin_to_axes(self.wallclock_axis, x=0.02, y=0.02)
+
+    def style_axis(self, axis, y_range, x_label, y_label, color=LINE_COLOUR, smaller_plot=True):
+        axis.set_ylim(y_range)
+        if smaller_plot:
+            major_y_divs = GRID_MAJOR_Y_DIVS_SMALLER_PLOTS
+            minor_y_divs = GRID_MINOR_Y_DIVS_SMALLER_PLOTS
+        else:
+            major_y_divs = GRID_MAJOR_Y_DIVS
+            minor_y_divs = GRID_MINOR_Y_DIVS
+        major_yticks = compute_grid_offsets(y_range[0], y_range[1], major_y_divs)
+        minor_yticks = compute_grid_offsets(y_range[0], y_range[1], minor_y_divs)
+        style_axis(axis, self.major_xticks, self.minor_xticks, major_yticks,
+                   minor_yticks, TICK_FONTSIZE)
+        format_yticks_scientific(axis)
+        if x_label:
+            axis.set_xlabel(x_label, fontsize=AXIS_FONTSIZE)
+        if smaller_plot:
+            pyplot.setp(axis.get_xticklabels(), visible=False)
+            y_axis = axis.get_yaxis()
+            y_axis.set_tick_params(labelsize=TICK_FONTSIZE, colors=color, zorder=ZORDER_GRID)
+        axis.set_ylabel(y_label, fontsize=AXIS_FONTSIZE, color=color)
+        axis.yaxis.set_label_position('right')
 
     def plot_wallclock_times(self):
-        # Plot wall clock times.
         if self.n_rows == 1:
             self.wallclock_axis = pyplot.subplot(self.grid_cell)
         else:
             self.wallclock_axis = pyplot.subplot(self.inner_grid[self.n_rows - 1, 0])
         self.wallclock_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
                         color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
+        self.wallclock_axis.autoscale(enable=False, axis='both')
         # If there are outliers, highlight them.
-        self.wallclock_axis.autoscale(enable=False, axis='x') # Avoid scatter() changing xlimits.
-        self.wallclock_axis.set_ylim(self.y_range)
-        # Margin MUST be adjusted after plotting is complete.
-        add_margin_to_axes(self.wallclock_axis, x=0.02, y=0.02)
         if self.outliers is not None:
             outliers_x, outliers_y = _get_scatter_points_within_bounds(self.outliers, self.x_bounds)
             self.wallclock_axis.scatter(outliers_x, self.wallclock_data[outliers_y], color=OUTLIER_COLOR,
@@ -508,17 +530,8 @@ class ProcessExecChart(object):
             self.plot_median(self.wallclock_axis)
         if self.tukey:  # Fill between the Tukey band.
             self.plot_tukey_interval(self.wallclock_axis)
-        # Re-style the chart.
-        self.major_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1], GRID_MAJOR_X_DIVS)
-        self.minor_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1], GRID_MINOR_X_DIVS)
-        major_yticks = compute_grid_offsets(self.y_range[0], self.y_range[1], GRID_MAJOR_Y_DIVS)
-        minor_yticks = compute_grid_offsets(self.y_range[0], self.y_range[1], GRID_MINOR_Y_DIVS)
-        style_axis(self.wallclock_axis, self.major_xticks, self.minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-        format_yticks_scientific(self.wallclock_axis)
-        # Axis labels.
-        self.wallclock_axis.set_xlabel('In-process iteration', fontsize=AXIS_FONTSIZE)
-        self.wallclock_axis.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE)
-        self.wallclock_axis.yaxis.set_label_position('right')
+        self.style_axis(self.wallclock_axis, self.y_range, 'In-process iteration',
+                        'Time (secs)', smaller_plot=False)
         # Add all items to page legend.
         handles, labels = self.wallclock_axis.get_legend_handles_labels()
         self.handles_labels[0] += handles
@@ -542,24 +555,11 @@ class ProcessExecChart(object):
         for core in xrange(len(self.cycles_data)):
             self.cycles_axes[core] = pyplot.subplot(self.inner_grid[self.row, 0],
                                                     sharex=self.wallclock_axis)
-            pyplot.setp(self.cycles_axes[core].get_xticklabels(), visible=False)
-            self.cycles_axes[core].set_ylim(self.cycles_min, self.cycles_max)
-            self.cycles_axes[core].set_ylim(self.cycles_ylimits)
             self.cycles_axes[core].plot(self.iterations, self.cycles_data[core],
                       color=CYCLES_COLOR, label=('Core %d cycles' % self.core_cycles[core]),
                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
-            # Style axes and grid.
-            y_ax = self.cycles_axes[core].get_yaxis()
-            y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-            self.cycles_axes[core].set_ylabel('CC #%d' % self.core_cycles[core],
-                                      fontsize=AXIS_FONTSIZE, color=CYCLES_COLOR)
-            self.cycles_axes[core].yaxis.set_label_position('right')
-            ymin, ymax = self.cycles_axes[core].get_ylim()
-            major_yticks = compute_grid_offsets(ymin, ymax, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
-            minor_yticks = compute_grid_offsets(ymin, ymax, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-            style_axis(self.cycles_axes[core], self.major_xticks, self.minor_xticks,
-                       major_yticks, minor_yticks, TICK_FONTSIZE)
-            format_yticks_scientific(self.cycles_axes[core])
+            self.style_axis(self.cycles_axes[core], (self.cycles_min, self.cycles_max),
+                            None, 'CC #%d' % self.core_cycles[core], color=CYCLES_COLOR)
             if core == 0:
                 # Add all items to page legend (only once).
                 handles, labels = self.cycles_axes[core].get_legend_handles_labels()
@@ -576,22 +576,14 @@ class ProcessExecChart(object):
         for index in xrange(len(self.instr_data)):
             legend_texts.add(self.instr_data[index].legend_text)
         for index in xrange(len(self.instr_data)):
-            self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0], sharex=self.wallclock_axis)
-            pyplot.setp(self.axis.get_xticklabels(), visible=False)
+            self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0],
+                                                    sharex=self.wallclock_axis)
             self.instr_axes[index].plot(self.iterations, self.instr_data[index],
                         color=INSTR_COLOR, label=(self.instr_data[index].title),
                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
-            y_ax = self.instr_axes[index].get_yaxis()
-            y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=INSTR_COLOR)
-            self.instr_axes[index].set_ylabel(self.instr_data[index].title, fontsize=AXIS_FONTSIZE, color=INSTR_COLOR)
-            self.instr_axes[index].yaxis.set_label_position('right')
             self.instr_axes[index].set_ylim(self.instr_y_ranges[index])
-            major_yticks = compute_grid_offsets(self.instr_y_ranges[index][0],
-                                   self.instr_y_ranges[index][1], GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
-            minor_yticks = compute_grid_offsets(self.instr_y_ranges[index][0],
-                                   self.instr_y_ranges[index][1], GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-            style_axis(self.instr_axes[index], self.major_xticks, self.minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-            format_yticks_scientific(self.instr_axes[index])
+            self.style_axis(self.instr_axes[index], self.instr_y_ranges[index],
+                            None, self.instr_data[index].title, color=INSTR_COLOR)
             if index == 0:
                 # Add all items to page legend (only once).
                 handles, labels = self.instr_axes[index].get_legend_handles_labels()
@@ -607,20 +599,9 @@ class ProcessExecChart(object):
         self.zoomed_axis = pyplot.subplot(self.inner_grid[self.row, 0], sharex=self.wallclock_axis)
         self.zoomed_axis.autoscale(enable=False, axis='both') # Set x/y-limits manually.
         pyplot.setp(self.zoomed_axis.get_xticklabels(), visible=False)
-        ymin_zoom, ymax_zoom = self.y_range_zoom
-        self.zoomed_axis.set_ylim(ymin_zoom, ymax_zoom)
         self.zoomed_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
                   color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
-        # Style axes and grid.
-        y_ax = self.zoomed_axis.get_yaxis()
-        y_ax.set_tick_params(labelsize=TICK_FONTSIZE, colors=CYCLES_COLOR, zorder=ZORDER_GRID)
-        major_yticks = compute_grid_offsets(ymin_zoom, ymax_zoom, GRID_MAJOR_Y_DIVS_SMALLER_PLOTS)
-        minor_yticks = compute_grid_offsets(ymin_zoom, ymax_zoom, GRID_MINOR_Y_DIVS_SMALLER_PLOTS)
-        style_axis(self.zoomed_axis, self.major_xticks, self.minor_xticks, major_yticks, minor_yticks, TICK_FONTSIZE)
-        format_yticks_scientific(self.zoomed_axis)
-        self.zoomed_axis.set_ylabel('Time (secs)', fontsize=AXIS_FONTSIZE, color=LINE_COLOUR)
-        self.zoomed_axis.yaxis.set_label_position('right')
-        # Add extra padding just outside the major yticks.
+        self.style_axis(self.zoomed_axis, self.y_range_zoom, None, 'Time (secs)')
         add_margin_to_axes(self.zoomed_axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
         # Draw change points and means between them, optionally.
         if self.changepoint_means:
