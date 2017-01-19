@@ -224,7 +224,8 @@ def main(in_files, steady_state, delta):
                 else:
                     outliers = list()
                 segments = get_segments(cpt, delta, p_exec, steady_state, outliers)
-                segments.merge_overlapping_segments()
+                if delta > 0.0:
+                    segments.merge_overlapping_segments()
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
                 try:
@@ -308,7 +309,10 @@ Example usage:
                               'the last N iterations.'))
     parser.add_argument('--delta', '-d', action='store', dest='delta',
                         default=0.001, type=float, metavar='D',
-                        help=('Segments whose means differ by D .'))
+                        help=('Adjacent segments means must differ by D or be '
+                              'merged. If D <= 0 then no attempt will be made to '
+                              'merge adjacent segments (this is likely to be '
+                              'useful only in testing).'))
     return parser
 
 
