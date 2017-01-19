@@ -281,7 +281,11 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 ret = list()
                 for i in xrange(len(page)):
                     if page[i]:
-                        ret.append(data[i])
+                        try:
+                            ret.append(data[i])
+                        except IndexError:
+                            # Absent data
+                            ret.append([])
                     else:
                         if data == page:  # Stops repeated printing of warning.
                             print("WARNING: requested pexec crashed: "
@@ -928,7 +932,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         instr_data = False
         filename_root = filename[:-len('_results.json.bz2')]
         instr_dir = os.path.dirname(filename) + filename_root + '_instr_data'
-        data_dictionary['instr_data'] = dict()
+        if 'instr_data' not in data_dictionary:
+            data_dictionary['instr_data'] = dict()
         if os.path.isdir(instr_dir):
             print 'Collecting instrumentation data for %s from %s.' % \
                 (filename, instr_dir)
