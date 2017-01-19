@@ -346,15 +346,38 @@ class ProcessExecChart(object):
             self.common = self._get_scatter_points_within_bounds(common, self.x_bounds)
         else:
             self.common = None
+        # Marshal changepoint data.
         self.changepoints = changepoints
         self.changepoint_means = changepoint_means
         self.classification = classification
+        if self.changepoint_means:
+            self.segment_means = list()  # ((x0, y0), (x1, y1)) pairs.
+            if self.x_bounds[0] > 0:
+                for index, changepoint in enumerate(self.changepoints):
+                    if changepoint < self.x_bounds[0]:
+                        del self.changepoint_means[index]
+                        del self.changepoints[index]
+            assert len(self.changepoints) == len(self.changepoint_means) - 1
+            for index, x_location in enumerate(self.changepoints):
+                if index == 0:
+                    self.segment_means.append([(self.x_bounds[0], self.changepoint_means[0]),
+                                 (x_location, self.changepoint_means[0])])
+                else:
+                    self.segment_means.append([(self.changepoints[index - 1], self.changepoint_means[index]),
+                                 (x_location, self.changepoint_means[index])])
+            if len(self.changepoints) == 0:
+                self.segment_means.append([(self.x_bounds[0], self.changepoint_means[-1]),
+                             (self.x_bounds[1], self.changepoint_means[-1])])
+            else:
+                self.segment_means.append([(self.changepoints[-1], self.changepoint_means[-1]),
+                             (self.x_bounds[1], self.changepoint_means[-1])])
+            assert len(self.segment_means) == len(self.changepoint_means)
         self.median = median
         self.tukey = tukey
         self.core_cycles = core_cycles
         self.cycles_ylimits = cycles_ylimits
         self.instr_y_ranges = instr_y_ranges
-        # Marshal data into numpy arrays.
+        # Marshal measurement data into numpy arrays.
         self.wallclock_data = numpy.array(data[x_bounds[0]:x_bounds[1]])
         self.cycles_data = list()
         if cycles_data:
@@ -472,49 +495,8 @@ class ProcessExecChart(object):
         self.wallclock_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
                         color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
         self.wallclock_axis.autoscale(enable=False, axis='both')
+        self._plot_changepoints(self.wallclock_axis, large_markers=True)
         self._plot_outliers(self.wallclock_axis, large_markers=True)
-        # Draw change points and means between them, optionally.
-        if self.changepoint_means:
-            self.segment_means = list()  # Draw means between ((x0, y0), (x1, y1)) pairs.
-            if self.x_bounds[0] > 0:
-                for index, changepoint in enumerate(self.changepoints):
-                    if changepoint < self.x_bounds[0]:
-                        del self.changepoint_means[index]
-                        del self.changepoints[index]
-            assert len(self.changepoints) == len(self.changepoint_means) - 1
-            for index, x_location in enumerate(self.changepoints):
-                # Draw changepoint.
-                self.wallclock_axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
-                                   zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
-                                   linewidth=LINE_WIDTH)
-                if index == 0:
-                    self.segment_means.append([(self.x_bounds[0], self.changepoint_means[0]),
-                                 (x_location, self.changepoint_means[0])])
-                else:
-                    self.segment_means.append([(self.changepoints[index - 1], self.changepoint_means[index]),
-                                 (x_location, self.changepoint_means[index])])
-            if len(self.changepoints) == 0:
-                # No changepoints in this execution, but we want to draw the mean.
-                self.segment_means.append([(self.x_bounds[0], self.changepoint_means[-1]),
-                             (self.x_bounds[1], self.changepoint_means[-1])])
-            else:
-                self.segment_means.append([(self.changepoints[-1], self.changepoint_means[-1]),
-                             (self.x_bounds[1], self.changepoint_means[-1])])
-            # Add changepoint means to chart, on top of all other splines.
-            assert len(self.segment_means) == len(self.changepoint_means)
-            lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
-                                   zorder=ZORDER_CHANGEPOINTS,
-                                   linewidths=[LINE_WIDTH for _ in xrange(len(self.segment_means))])
-            self.wallclock_axis.add_collection(lines)
-        # Draw changepoints as blobs, without changepoint means.
-        if self.changepoints and not self.changepoint_means:
-            if self.x_bounds[0] > 0:
-                for index, changepoint in enumerate(self.changepoints):
-                    if self.changepoint < self.x_bounds[0]:
-                        del self.changepoints[index]
-            self.wallclock_axis.scatter(self.changepoints, [self.y_range[0] for _ in self.changepoints],
-                              c=LINE_COLOUR, marker=OUTLIER_MARKER, s=OUTLIER_SIZE,
-                              zorder=ZORDER_CHANGEPOINTS)
         if self.median:  # Plot the median.
             self.plot_median(self.wallclock_axis)
         if self.tukey:  # Fill between the Tukey band.
@@ -565,6 +547,30 @@ class ProcessExecChart(object):
                          color=COMMON_COLOR, marker=common_marker, s=size,
                          label=('Common outliers (${%.2f}\\%%$)' % pc_common),
                          zorder=ZORDER_MARKERS)
+
+    def _plot_changepoints(self, axis, large_markers=True):
+        if large_markers:
+            size = OUTLIER_SIZE
+        else:
+            size = ZOOM_OUTLIER_SIZE
+        if self.changepoint_means:
+            for index, x_location in enumerate(self.changepoints):
+                axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
+                             zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
+                             linewidth=LINE_WIDTH)
+            lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
+                                   zorder=ZORDER_CHANGEPOINTS,
+                                   linewidths=[LINE_WIDTH
+                                   for _ in xrange(len(self.segment_means))])
+            axis.add_collection(lines)
+        if self.changepoints and not self.changepoint_means:
+            if self.x_bounds[0] > 0:
+                for index, changepoint in enumerate(self.changepoints):
+                    if self.changepoint < self.x_bounds[0]:
+                        del self.changepoints[index]
+            axis.scatter(self.changepoints, [self.y_range[0] for _ in self.changepoints],
+                              c=LINE_COLOUR, marker=OUTLIER_MARKER, s=size,
+                              zorder=ZORDER_CHANGEPOINTS)
 
     def plot_cycles_data(self):
         """Add core cycles data on another set of charts."""
@@ -620,17 +626,7 @@ class ProcessExecChart(object):
                   color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
         self.style_axis(self.zoomed_axis, self.y_range_zoom, None, 'Time (secs)')
         add_margin_to_axes(self.zoomed_axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
-        # Draw change points and means between them, optionally.
-        if self.changepoint_means:
-            for index, x_location in enumerate(self.changepoints):
-                self.zoomed_axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
-                             zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
-                             linewidth=LINE_WIDTH)
-            lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
-                                   zorder=ZORDER_CHANGEPOINTS,
-                                   linewidths=[LINE_WIDTH
-                                   for _ in xrange(len(self.segment_means))])
-            self.zoomed_axis.add_collection(lines)
+        self._plot_changepoints(self.zoomed_axis, large_markers=False)
         self._plot_outliers(self.zoomed_axis, large_markers=False)
         # Plot title goes above the top subplot (only once).
         if not self.cycles_data and not self.instr_data:
