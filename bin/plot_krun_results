@@ -1066,6 +1066,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     data_dictionary['all_outliers'][key] = dict()
                     data_dictionary['common_outliers'][key] = dict()
                     data_dictionary['unique_outliers'][key] = dict()
+                    data_dictionary['classifications'][key] = dict()
 
                 if machine not in data_dictionary['data'][key]:
                     data_dictionary['data'][key][machine] = list()
