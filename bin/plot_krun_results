@@ -69,13 +69,13 @@ PLOT_LINE_WIDTH = 0.4
 
 OUTLIER_MARKER = 'o'
 OUTLIER_COLOR = 'r'
-OUTLIER_SIZE = 80
+OUTLIER_SIZE = 50
 UNIQUE_COLOR = 'g'
 UNIQUE_MARKER = 'o'
-UNIQUE_SIZE = 80
+UNIQUE_SIZE = 50
 COMMON_COLOR = 'r'
 COMMON_MARKER = '*'
-COMMON_SIZE = 80
+COMMON_SIZE = 50
 CYCLES_COLOR = 'black'
 PERF_COLOR = 'black'
 INSTR_COLOR = 'black'
@@ -89,6 +89,7 @@ ZORDER_FILL_REGION = 7
 ZORDER_MEDIAN = 8
 ZORDER_CHANGEPOINTS = 10
 ZORDER_MARKERS = 20
+ZORDER_INSET_BACKGROUND = 30
 
 # Gap between right-hand y-axes.
 TWINX_OFFSET = 1.1
@@ -718,6 +719,21 @@ class ProcessExecChart(object):
             [x_fig, y_fig] = axis_to_figure_transform(fig, axis, [xmin_new, ymin_new])
             [x2_fig, y2_fig] = axis_to_figure_transform(fig, axis, [xmax_new, ymax_new])
             inset.set_position([x_fig, y_fig, x2_fig - x_fig, y2_fig - y_fig])
+            # Paint a white background behind the inset. This ensures that
+            # tick labels are not painted over grid lines and changepoints.
+            # Unfortunately, the space that the renderer allows for tick labels
+            # is larger than our formatter uses, so we adjust it here.
+            tick_space_x_min = (xmin_tight - xmin_new) * 0.6
+            tick_space_x_max = (xmax_tight - xmax_new)
+            tick_space_y_min = (ymin_tight - ymin_new) * 0.6
+            tick_space_y_max = (ymax_tight - ymax_new)
+            xmin_bg = xmin_new + tick_space_x_min
+            xmax_bg = xmax_new + tick_space_x_max
+            ymax_bg = ymax_new + tick_space_y_max
+            ymin_bg = ymin_new + tick_space_y_min
+            axis.add_patch(pyplot.Rectangle([xmin_bg, ymin_bg], xmax_bg - xmin_bg, ymax_bg - ymin_bg,
+                           transform=axis.transAxes, color='white',
+                           zorder=ZORDER_INSET_BACKGROUND))
 
 
 def draw_page(is_interactive, executions, cycles_executions,
