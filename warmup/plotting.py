@@ -77,11 +77,13 @@ def collide_rect((left, bottom, width, height), fig, axis, data, x_bounds):
     _, inset_top = axis_data_transform(axis, 0, bottom + height, inverse=False)
     _, inset_bottom = axis_data_transform(axis, 0, bottom, inverse=False)
     for datum in data[x_left:x_right]:
-        if datum >= inset_bottom and datum <= inset_top:
+        if ((datum >= inset_bottom and datum <= inset_top) or  # Inside rect.
+            (bottom > 0.5 and datum >= inset_top) or           # Above rect.
+            (bottom < 0.5 and datum <= inset_bottom)):         # Below rect.
             return True, -1.0
-    if bottom > 0.5:  # inset at top of chart
+    if bottom > 0.5:  # Inset at top of chart.
         dist = math.fabs(inset_bottom - maximum_y)
-    elif bottom < 0.5:  # inset at bottom
+    elif bottom < 0.5:  # Inset at bottom.
         dist = math.fabs(inset_top - minimum_y)
     return False, dist
 
