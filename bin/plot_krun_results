@@ -15,13 +15,13 @@ import os.path
 import seaborn
 import sys
 
-from matplotlib import gridspec, pyplot, tight_layout
+from matplotlib import gridspec, pyplot
 from matplotlib.collections import LineCollection
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
-from warmup.plotting import add_inset_to_axis, add_margin_to_axes, axis_to_figure_transform
+from warmup.plotting import add_inset_to_axis, add_margin_to_axes
 from warmup.plotting import collide_rect, compute_grid_offsets, format_yticks_scientific
 from warmup.plotting import get_unified_yrange, style_axis, zoom_y_min, zoom_y_max
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS
@@ -102,9 +102,10 @@ PERF_YRANGE = (0.0, 1.2)
 PERF_YTICK_FORMAT = '%.1f'
 
 # Inset placement (left, bottom, width, height) relative to subplot axis.
-INSET_DEFAULT_WIDTH = 0.4
-INSET_DEFAULT_HEIGHT = 0.3
-INSET_PADDING = 0.045
+INSET_DEFAULT_WIDTH = 0.3
+INSET_DEFAULT_HEIGHT = 0.2
+INSET_PADDING = 0.06
+INSET_TICK_SPACE = 0.07
 INSET_DIST_DELTA = 0.01
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
@@ -642,25 +643,35 @@ class ProcessExecChart(object):
         """Draw an inset containing the early iterations of the wallclock data.
         This MUST be done after adjusting subplots, so that we can calculate
         the correct bounding box for the inset."""
-        fig_renderer = tight_layout.get_renderer(fig)
         # Find a rectangle that will not collide with data. Start top-right
-        # and work left, then try bottom-right and work left.
+        # and work left, then try bottom-right and work left. INSET_PADDING
+        # is added because we add a little padding to the whole chart so that
+        # the first and last data points are visible. We add INSET_TICK_SPACE
+        # to account for the x and y tick labels which matplotlib does not
+        # include in fig.add_axes.
         inset_collides = False
         left_offsets = [x / 10.0 for x in xrange(6)] * 2
-        bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING] * (len(left_offsets) / 2))
-                         + ([INSET_PADDING * 2] * (len(left_offsets) / 2)))
+        bottom_values = (([1.0 - INSET_DEFAULT_HEIGHT - INSET_PADDING - INSET_TICK_SPACE] * (len(left_offsets) / 2))
+                         + ([INSET_PADDING * 2 + INSET_TICK_SPACE] * (len(left_offsets) / 2)))
         best_distance = -1.0
         best_rect = None
         for left_offset, bottom in zip(left_offsets, bottom_values):
-            rect = (1.0 - INSET_DEFAULT_WIDTH - left_offset - INSET_PADDING,
-                    bottom, INSET_DEFAULT_WIDTH, INSET_DEFAULT_HEIGHT)
+            rect = [1.0 - left_offset - INSET_DEFAULT_WIDTH - INSET_PADDING - INSET_TICK_SPACE,
+                    bottom, INSET_DEFAULT_WIDTH + INSET_TICK_SPACE, INSET_DEFAULT_HEIGHT + INSET_TICK_SPACE]
             inset_collides, dist = collide_rect(rect, fig, axis, self.wallclock_data, self.x_bounds)
             if not inset_collides:
                 if not best_rect or round(dist - best_distance) >= INSET_DIST_DELTA:
                     best_distance = dist
                     best_rect = rect
         if best_rect:
-            inset = add_inset_to_axis(fig, axis, best_rect)
+            # Draw a white background in the inflated rectangle.
+            axis.add_patch(pyplot.Rectangle(best_rect[:2], best_rect[2], best_rect[3],
+                           transform=axis.transAxes, color='white',
+                           zorder=ZORDER_INSET_BACKGROUND))
+            # Remove tick spacing before placing inset on axis.
+            inset = add_inset_to_axis(fig, axis, [best_rect[0] + INSET_TICK_SPACE,
+                best_rect[1] + INSET_TICK_SPACE, best_rect[2] - INSET_TICK_SPACE - (INSET_PADDING / 2),
+                best_rect[3] - INSET_TICK_SPACE - (INSET_PADDING / 2)])
             y_min, y_max = self.y_range
             inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
             inset.grid(False)
@@ -703,37 +714,6 @@ class ProcessExecChart(object):
                     else:
                         new_xticklabels.append(str(int(float(label)) + self.x_bounds[0]))
                 inset.set_xticklabels(new_xticklabels)
-            # Code below by Ben Schmidt http://stackoverflow.com/questions/41462693/
-            inset_tight_bbox = inset.get_tightbbox(fig_renderer)
-            inv_transform = axis.transAxes.inverted()
-            xmin, ymin = inv_transform.transform(inset.bbox.min)
-            xmin_tight, ymin_tight = inv_transform.transform(inset_tight_bbox.min)
-            xmax, ymax = inv_transform.transform(inset.bbox.max)
-            xmax_tight, ymax_tight = inv_transform.transform(inset_tight_bbox.max)
-            # Shift actual axis bounds inwards by 'margin' so that new
-            # size + margin is original axis bounds.
-            xmin_new = xmin + (xmin - xmin_tight)
-            ymin_new = ymin + (ymin - ymin_tight)
-            xmax_new = xmax - (xmax_tight - xmax)
-            ymax_new = ymax - (ymax_tight - ymax)
-            [x_fig, y_fig] = axis_to_figure_transform(fig, axis, [xmin_new, ymin_new])
-            [x2_fig, y2_fig] = axis_to_figure_transform(fig, axis, [xmax_new, ymax_new])
-            inset.set_position([x_fig, y_fig, x2_fig - x_fig, y2_fig - y_fig])
-            # Paint a white background behind the inset. This ensures that
-            # tick labels are not painted over grid lines and changepoints.
-            # Unfortunately, the space that the renderer allows for tick labels
-            # is larger than our formatter uses, so we adjust it here.
-            tick_space_x_min = (xmin_tight - xmin_new) * 0.6
-            tick_space_x_max = (xmax_tight - xmax_new)
-            tick_space_y_min = (ymin_tight - ymin_new) * 0.6
-            tick_space_y_max = (ymax_tight - ymax_new)
-            xmin_bg = xmin_new + tick_space_x_min
-            xmax_bg = xmax_new + tick_space_x_max
-            ymax_bg = ymax_new + tick_space_y_max
-            ymin_bg = ymin_new + tick_space_y_min
-            axis.add_patch(pyplot.Rectangle([xmin_bg, ymin_bg], xmax_bg - xmin_bg, ymax_bg - ymin_bg,
-                           transform=axis.transAxes, color='white',
-                           zorder=ZORDER_INSET_BACKGROUND))
 
 
 def draw_page(is_interactive, executions, cycles_executions,
