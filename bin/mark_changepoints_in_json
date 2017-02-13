@@ -65,13 +65,15 @@ class Segments(object):
     """A list of Segments for a whole run sequence.
     """
 
-    def __init__(self, delta, length, steady_state, cpts, means, variances, data, outliers):
+    def __init__(self, delta, half_bound, steady_state, length, cpts, means,
+                 variances, data, outliers):
         self.delta = delta
+        self.half_bound = half_bound
+        self.steady_state = steady_state
         self.length = length  # Length of original data with outliers.
         assert self.length == len(data)
         self.data = data
         self.outliers = outliers
-        self.steady_state = steady_state
         self.segments = list()
         assert len(means) == len(variances) == len(cpts)
         if len(means) == 1:  # No changepoints.
@@ -174,27 +176,29 @@ class Segments(object):
                 self._merge_segment(0)
 
     def get_classification(self):
-        """Return the classification for this run sequence.
-        """
-        classification = ''
-        # Flat -> no changepoints.
-        if len(self.segments) == 1:
-            classification = 'flat'
-        # No steady state -> there are changes after we expect steady state.
-        elif self.segments[-1].start > (self.length - self.steady_state):
-            classification = 'no steady state'
-        # Warmup -> first segment mean is highest and last is the lowest.
-        elif (self.segments[-1].start <= (self.length - self.steady_state) and
-              self.segments[-1].mean == min(self.segments, key=lambda s: s.mean).mean):
+        """Return a classification for this run sequence."""
+
+        upper_bound = 1.0 + self.half_bound
+        lower_bound = 1.0 - self.half_bound
+        classification = 'flat'
+        last_segment = self.segments[-1]  # Hopefully the steady state segment.
+        for index in xrange(len(self.segments) - 2, -1, -1):
+            current_segment = self.segments[index]
+            if (current_segment.mean > last_segment.mean * lower_bound and
+                current_segment.mean < last_segment.mean * upper_bound):
+                continue
+            elif current_segment.end > (self.length - self.steady_state):
+                classification = 'no steady state'
+                break
+            elif current_segment.mean < last_segment.mean * lower_bound:
+                classification = 'slowdown'
+                break
+            assert current_segment.mean > last_segment.mean * upper_bound
             classification = 'warmup'
-        # Slowdown (b) -> no warmup and no changepoints after we expect a
-        #                 steady state.
-        else:
-            classification = 'slowdown'
         return classification
 
 
-def main(in_files, steady_state, delta):
+def main(in_files, delta, half_bound, steady_state):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -223,7 +227,8 @@ def main(in_files, steady_state, delta):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, delta, p_exec, steady_state, outliers)
+                segments = get_segments(cpt, delta, half_bound, steady_state,
+                                        p_exec, outliers)
                 if delta > 0.0:
                     segments.merge_overlapping_segments()
                 changepoints[bench].append(segments.changepoints)
@@ -242,7 +247,7 @@ def main(in_files, steady_state, delta):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, delta, data, steady_state, outliers):
+def get_segments(cpt, delta, half_bound, steady_state, data, outliers):
     p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
@@ -265,7 +270,7 @@ def get_segments(cpt, delta, data, steady_state, outliers):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(delta, length, steady_state, c_points, means, variances, data, outliers)
+    return Segments(delta, half_bound, steady_state, length, c_points, means, variances, data, outliers)
 
 
 def create_output_filename(in_file_name):
@@ -299,7 +304,7 @@ the output of this script will be a new file named:
 
 Example usage:
     $ python %s results1.json.bz2
-    $ python %s  --steady 500 --delta 0.001 results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    $ python %s  --steady 500 --delta 0.001 --bound 0.001 results1.json.bz2 results2.json.bz2\n""" % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
@@ -313,6 +318,10 @@ Example usage:
                               'merged. If D <= 0 then no attempt will be made to '
                               'merge adjacent segments (this is likely to be '
                               'useful only in testing).'))
+    parser.add_argument('--bound', '-b', action='store', dest='half_bound',
+                        default=0.001, type=float, metavar='B',
+                        help=('Adjacent segments must differ by more than B%% in '
+                              'order to be considered a warmup or slowdown.'))
     return parser
 
 
@@ -322,4 +331,4 @@ if __name__ == '__main__':
     print ('Marking changepoints and classifications, expecting a steady state '
            'to be reached before the last %d iterations.' %
            options.steady_state)
-    main(options.json_files[0], options.steady_state, options.delta)
+    main(options.json_files[0], options.delta, options.half_bound, options.steady_state)
