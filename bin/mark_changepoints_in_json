@@ -38,9 +38,10 @@ class Segments(object):
     """A list of Segments for a whole run sequence.
     """
 
-    def __init__(self, half_bound, steady_state, length, cpts, means, variances,
+    def __init__(self, half_bound, delta, steady_state, length, cpts, means, variances,
                  data, outliers):
         self.half_bound = half_bound
+        self.delta = delta
         self.steady_state = steady_state
         self.length = length  # Length of original data with outliers.
         assert self.length == len(data)
@@ -85,28 +86,27 @@ class Segments(object):
 
     def get_classification(self):
         """Return a classification for this run sequence."""
-
-        upper_bound = 1.0 + self.half_bound
-        lower_bound = 1.0 - self.half_bound
+        lower_bound = min(self.segments[-1].mean * (1.0 - self.half_bound),
+                          self.segments[-1].mean - self.delta)
+        upper_bound = max(self.segments[-1].mean * (1.0 + self.half_bound),
+                          self.segments[-1].mean + self.delta)
         classification = 'flat'
-        last_segment = self.segments[-1]  # Hopefully the steady state segment.
         for index in xrange(len(self.segments) - 2, -1, -1):
             current_segment = self.segments[index]
-            if (current_segment.mean > last_segment.mean * lower_bound and
-                current_segment.mean < last_segment.mean * upper_bound):
+            if (current_segment.mean >= lower_bound and current_segment.mean <= upper_bound):
                 continue
             elif current_segment.end > (self.length - self.steady_state):
                 classification = 'no steady state'
                 break
-            elif current_segment.mean < last_segment.mean * lower_bound:
+            elif current_segment.mean < lower_bound:
                 classification = 'slowdown'
                 break
-            assert current_segment.mean > last_segment.mean * upper_bound
+            assert current_segment.mean > upper_bound
             classification = 'warmup'
         return classification
 
 
-def main(in_files, half_bound, steady_state):
+def main(in_files, half_bound, delta, steady_state):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -135,7 +135,7 @@ def main(in_files, half_bound, steady_state):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, half_bound, steady_state, p_exec, outliers)
+                segments = get_segments(cpt, half_bound, delta, steady_state, p_exec, outliers)
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
                 try:
@@ -152,7 +152,7 @@ def main(in_files, half_bound, steady_state):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, half_bound, steady_state, data, outliers):
+def get_segments(cpt, half_bound, delta, steady_state, data, outliers):
     p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
@@ -175,7 +175,7 @@ def get_segments(cpt, half_bound, steady_state, data, outliers):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(half_bound, steady_state, length, c_points, means, variances, data, outliers)
+    return Segments(half_bound, delta, steady_state, length, c_points, means, variances, data, outliers)
 
 
 def create_output_filename(in_file_name):
@@ -221,13 +221,19 @@ Example usage:
                         default=0.001, type=float, metavar='B',
                         help=('Adjacent segments must differ by more than B%% in '
                               'order to be considered a warmup or slowdown.'))
+    parser.add_argument('--delta', '-d', action='store', dest='delta',
+                        default=0.001, type=float, metavar='D',
+                        help=('Segments must differ by more than Ds from the '
+                              'last (steady state) segment in order to be '
+                              'considered a warmup or slowdown.'))
     return parser
 
 
 if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
-    print ('Marking changepoints and classifications, expecting a steady state '
-           'to be reached before the last %d iterations.' %
-           options.steady_state)
-    main(options.json_files[0], options.half_bound, options.steady_state)
+    print ('Marking changepoints and classifications.\nExpecting a steady state '
+           'to be reached before the last %d iterations.\nUsing a half bound of %.3f%% '
+           'and a fixed bound of %.3fs.' %
+           (options.steady_state, options.half_bound, options.delta))
+    main(options.json_files[0], options.half_bound, options.delta, options.steady_state)
