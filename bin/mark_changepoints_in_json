@@ -4,7 +4,6 @@ Write changepoint and classification information into JSON files.
 """
 
 import argparse
-import math
 import numpy
 import os
 import os.path
@@ -23,38 +22,12 @@ class Segment(object):
     """A single segment between two changepoints.
     """
 
-    def __init__(self, delta, start, end, mean, variance, data, outliers):
-        self.delta = delta
+    def __init__(self, start, end, mean, variance, data, outliers):
         self.start = start
         self.end = end
         self.mean = mean
         self.variance = variance
         self.data = data
-        # Remove outliers before calculating confidence interval.
-        segment_data = data[:]
-        for outlier in sorted(outliers, reverse=True):
-            del segment_data[outlier]
-        self.outliers = outliers
-        # Use a robust method (inter-quartile range) to calculate a confidence
-        # interval. We use IQR because it is robust to outliers and non-normal
-        # distributions of data, and in practice we found it generates slightly
-        # thinner than the Tukey interval used by mark_outliers_in_json. This
-        # helps prevent specious merging of segments which can lead to a
-        # misclassification.
-        q1, q3 = numpy.percentile(segment_data, 25.0), numpy.percentile(segment_data, 75.0)
-        self.iqr = q3 - q1
-        self.lower_ci = q1 - 1.5 * self.iqr
-        self.upper_ci = q3 + 1.5 * self.iqr
-
-    def overlaps_with(self, other):
-        """Return True if the confidence interval of 'other' segment overlaps
-        with this segment, and False otherwise.
-        """
-        assert isinstance(other, Segment)
-        if ((self.upper_ci < other.lower_ci or other.upper_ci < self.lower_ci)
-            and math.fabs(self.mean - other.mean) > self.delta):
-            return False
-        return True
 
     @property
     def n(self):
@@ -65,9 +38,8 @@ class Segments(object):
     """A list of Segments for a whole run sequence.
     """
 
-    def __init__(self, delta, half_bound, steady_state, length, cpts, means,
-                 variances, data, outliers):
-        self.delta = delta
+    def __init__(self, half_bound, steady_state, length, cpts, means, variances,
+                 data, outliers):
         self.half_bound = half_bound
         self.steady_state = steady_state
         self.length = length  # Length of original data with outliers.
@@ -77,7 +49,7 @@ class Segments(object):
         self.segments = list()
         assert len(means) == len(variances) == len(cpts)
         if len(means) == 1:  # No changepoints.
-            segment = Segment(delta, 0, self.length - 1, means[0], variances[0], data,
+            segment = Segment(0, self.length - 1, means[0], variances[0], data,
                               outliers)
             self.segments.append(segment)
         else:
@@ -85,14 +57,14 @@ class Segments(object):
                 segment = None
                 if index == 0:
                     s_out = [out for out in outliers if out <= cpts[index]]
-                    segment = Segment(delta, 0, cpts[index], means[index],
+                    segment = Segment(0, cpts[index], means[index],
                                   variances[index], data[:cpts[index]+1], s_out)
                 else:
                     s_out = list()
                     for out in outliers:
                          if out > (cpts[index - 1]) and out <= cpts[index]:
                              s_out.append(out - cpts[index - 1] - 1)
-                    segment = Segment(delta, cpts[index - 1], cpts[index],
+                    segment = Segment(cpts[index - 1], cpts[index],
                                   means[index], variances[index],
                                   data[cpts[index - 1]+1:cpts[index]+1], s_out)
                 self.segments.append(segment)
@@ -110,70 +82,6 @@ class Segments(object):
         if len(self.segments) == 1:
             return list()
         return [segment.end for segment in self.segments][:-1]
-
-    def _pooled_means(self, mu0, n0, mu1, n1):
-        return (mu0 * n0 + mu1 * n1) / (n0+n1)
-
-    def _pooled_variances(self, var0, mu0, n0, var1, mu1, n1):
-        mu01_sq = math.pow(self._pooled_means(mu0, n0, mu1, n1), 2)
-        mu0_sq = math.pow(mu0, 2)
-        mu1_sq = math.pow(mu1, 2)
-        return (((n0 * (var0 + mu0_sq) + n1 * (var1 + mu1_sq)) / (n0 + n1)) -
-                 mu01_sq)
-
-    def _merge_segment(self, index):
-        """Merge an individual segment with its neighbour."""
-        first = self.segments[index]
-        second = self.segments[index + 1]
-        mean = self._pooled_means(first.mean, first.n, second.mean, second.n)
-        var_ = self._pooled_variances(first.variance, first.mean, first.n,
-                          second.variance, second.mean, second.n)
-        # Merge segment 1 and 2
-        merged = Segment(self.delta, first.start, second.end, mean, var_,
-                     first.data + second.data, first.outliers + second.outliers)
-        # Replace segment 1 with the merged segment.
-        self.segments[index] = merged
-        # Delete segment 2.
-        del self.segments[index + 1]
-
-    def merge_overlapping_segments(self):
-        """Merge adjacent segments whose confidence intervals overlap.
-
-        We do not consider the first segment initially because in a classic
-        warm-up execution, the first segment will be short, and will a much
-        larger mean than other segments, and therefore any measure of variation
-        will be very large . If we include the first segment in the
-        overlaps_with_last_segment calculations, many warm-up executions will be
-        classified as flat. Instead we consider the first segment separately,
-        and use an absolute measure of difference between it and any subsequent
-        segment means.
-        """
-        if len(self.segments) > 2:
-            i = 1
-            to_merge = list()
-            while i < len(self.segments) - 1:
-                orig_i = i
-                for j in range(orig_i + 1, len(self.segments)):
-                    no_overlap = False
-                    for k in range(orig_i, j):
-                        if not self.segments[k].overlaps_with(self.segments[j]):
-                            no_overlap = True
-                            break
-                    i += 1
-                    if no_overlap:
-                        break
-                    to_merge.append(j - 1)
-            if to_merge:
-                for index in sorted(to_merge, reverse=True):
-                    self._merge_segment(index)
-        # In a classic "warmup", the first segment may have only a small number
-        # of data (possibly one datum). So a confidence interval in this case
-        # will be wide, and will overlap with all later segments, leaving a flat
-        # classification. Instead, of using a confidence interval, we consider
-        # the absolute difference between the means of first two segments.
-        if len(self.segments) >= 2:
-            if math.fabs(self.segments[0].mean - self.segments[1].mean) < self.delta:
-                self._merge_segment(0)
 
     def get_classification(self):
         """Return a classification for this run sequence."""
@@ -198,7 +106,7 @@ class Segments(object):
         return classification
 
 
-def main(in_files, delta, half_bound, steady_state):
+def main(in_files, half_bound, steady_state):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -227,10 +135,7 @@ def main(in_files, delta, half_bound, steady_state):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, delta, half_bound, steady_state,
-                                        p_exec, outliers)
-                if delta > 0.0:
-                    segments.merge_overlapping_segments()
+                segments = get_segments(cpt, half_bound, steady_state, p_exec, outliers)
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
                 try:
@@ -247,7 +152,7 @@ def main(in_files, delta, half_bound, steady_state):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, delta, half_bound, steady_state, data, outliers):
+def get_segments(cpt, half_bound, steady_state, data, outliers):
     p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
@@ -270,7 +175,7 @@ def get_segments(cpt, delta, half_bound, steady_state, data, outliers):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(delta, half_bound, steady_state, length, c_points, means, variances, data, outliers)
+    return Segments(half_bound, steady_state, length, c_points, means, variances, data, outliers)
 
 
 def create_output_filename(in_file_name):
@@ -304,7 +209,7 @@ the output of this script will be a new file named:
 
 Example usage:
     $ python %s results1.json.bz2
-    $ python %s  --steady 500 --delta 0.001 --bound 0.001 results1.json.bz2 results2.json.bz2\n""" % (script, script))
+    $ python %s  --steady 500 --bound 0.001 results1.json.bz2 results2.json.bz2\n""" % (script, script))
     parser = argparse.ArgumentParser(description)
     parser.add_argument('json_files', nargs='+', action='append', default=[],
                         type=str, help='One or more Krun result files.')
@@ -312,12 +217,6 @@ Example usage:
                         default=500, type=int, metavar='N',
                         help=('Expect a steady state should be reached before '
                               'the last N iterations.'))
-    parser.add_argument('--delta', '-d', action='store', dest='delta',
-                        default=0.001, type=float, metavar='D',
-                        help=('Adjacent segments means must differ by D or be '
-                              'merged. If D <= 0 then no attempt will be made to '
-                              'merge adjacent segments (this is likely to be '
-                              'useful only in testing).'))
     parser.add_argument('--bound', '-b', action='store', dest='half_bound',
                         default=0.001, type=float, metavar='B',
                         help=('Adjacent segments must differ by more than B%% in '
@@ -331,4 +230,4 @@ if __name__ == '__main__':
     print ('Marking changepoints and classifications, expecting a steady state '
            'to be reached before the last %d iterations.' %
            options.steady_state)
-    main(options.json_files[0], options.delta, options.half_bound, options.steady_state)
+    main(options.json_files[0], options.half_bound, options.steady_state)
