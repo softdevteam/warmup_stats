@@ -4,7 +4,8 @@ STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
     'no steady state': '\\nosteadystate',
     'slowdown': '\\slowdown',
     'warmup': '\\warmup',
-    'inconsistent': '\\inconsistent',
+    'good inconsistent': '\\goodinconsistent',
+    'bad inconsistent': '\\badinconsistent',
 }
 
 
@@ -87,17 +88,29 @@ $\\begin{array}{rr}
        1.0 0.8
        /%
 \\end{sparkline}\\xspace}
-\\DeclareRobustCommand{\\inconsistent}{%
+\\DeclareRobustCommand{\\badinconsistent}{%
 \\setlength{\\sparklinethickness}{0.4pt}%
 \\begin{sparkline}{1.5}
-\\spark 0.0 0.55
-       1.0 0.55
+\\spark 0.1 0.4
+       0.9 0.4
        /%
-\\spark 0.0 0.2
-       1.0 0.2
+\\spark 0.1 0.2
+       0.9 0.2
        /%
-\\spark 0.1 0.75
+\\spark 0.1 0.6
        0.9 0.0
+       /%
+\\end{sparkline}\\xspace}
+\\DeclareRobustCommand{\\goodinconsistent}{%
+\\setlength{\\sparklinethickness}{0.4pt}%
+\\begin{sparkline}{1.5}
+\\spark 0.0 0.8
+       0.5 0.8
+       0.5 0.0
+       1.0 0.0
+       /%
+\\spark 0.0 0.4
+       1.0 0.4
        /%
 \\end{sparkline}\\xspace}
 """
