@@ -146,7 +146,8 @@ def main(in_files, half_bound, delta, steady_state):
         krun_data[filename]['changepoints'] = changepoints
         krun_data[filename]['changepoint_means'] = changepoint_means
         krun_data[filename]['classifications'] = classifications
-        krun_data[filename]['steady_state_expected'] = steady_state
+        krun_data[filename]['classifier'] = { 'half_bound':half_bound,
+                                              'delta':delta, 'steady':steady_state }
         new_filename = create_output_filename(filename)
         print 'Writing out: %s' % new_filename
         write_krun_results_file(krun_data[filename], new_filename)
