@@ -27,6 +27,10 @@ _BLANK_BENCHMARK = { 'wallclock_times': dict(), # Measurement data.
                     'reboots': 0, 'starting_temperatures': list(),
                     'eta_estimates': list(), 'error_flag': list(), }
 
+_SKIP_OUTER_KEYS = ['audit', 'reboots', 'mperf_counts', 'aperf_counts',
+                    'eta_estimates', 'starting_temperatures', 'core_cycle_counts',
+                    'config', 'error_flag', 'window_size']
+
 
 def csv_to_krun_json(in_files, language, vm, uname):
     for filename in in_files:
@@ -90,6 +94,47 @@ def copy_results(key, p_execs, from_results, to_results):
         to_results['all_outliers'][key].append(from_results['all_outliers'][key][p_exec])
         to_results['unique_outliers'][key].append(from_results['unique_outliers'][key][p_exec])
         to_results['common_outliers'][key].append(from_results['common_outliers'][key][p_exec])
+
+
+def parse_krun_file_with_changepoints(json_files):
+    data_dictionary = dict()
+    classifier = None  # steady, delta, half_bound values used by classifer.
+    window_size = None
+    for filename in json_files:
+        assert os.path.exists(filename), 'File %s does not exist.' % filename
+        data = read_krun_results_file(filename)
+        assert 'classifications' in data, 'Please run mark_changepoints_in_json before re-running this script.'
+        machine_name = data['audit']['uname'].split(' ')[1]
+        if '.' in machine_name:  # Remove domain, if there is one.
+            machine_name = machine_name.split('.')[0]
+        if machine_name not in data_dictionary:
+            data_dictionary[machine_name] = data
+        else:  # We may have two datasets from the same machine.
+            for outer_key in data:
+                if outer_key in _SKIP_OUTER_KEYS:
+                    continue
+                elif outer_key == 'classifier':
+                    assert data_dictionary[machine_name][outer_key] == data[outer_key]
+                    continue
+                for key in data[outer_key]:
+                    assert key not in data_dictionary[machine_name][outer_key]
+                    if key not in data_dictionary[machine_name][outer_key]:
+                        data_dictionary[machine_name][outer_key][key] = dict()
+                    data_dictionary[machine_name][outer_key][key] = data[outer_key][key]
+        if classifier is None:
+            classifier = data['classifier']
+        else:
+            assert classifier == data['classifier'], \
+                   ('Cannot summarise categories generated with different '
+                    'command-line options for steady-state-expected, half_bound '
+                    'or delta. Please re-run the mark_changepoints_in_json script.')
+        if window_size is None:
+            window_size = data['window_size']
+        else:
+            assert window_size == data['window_size'], \
+                   ('Cannot summarise categories generated with different window-size '
+                    'options. Please re-run the mark_outliers_in_json script.')
+    return classifier, data_dictionary
 
 
 def read_krun_results_file(results_file):
