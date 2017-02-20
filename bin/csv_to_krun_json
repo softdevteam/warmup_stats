@@ -5,47 +5,16 @@ other scripts here.
 """
 
 import argparse
-import csv
 import os
 import os.path
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from warmup.krun_results import write_krun_results_file
+from warmup.krun_results import csv_to_krun_json
 
 
 def main(in_files, language, vm, uname):
-    for filename in in_files:
-        data_dictionary = { 'wallclock_times': dict(), # Measurement data.
-                   'core_cycle_counts': dict(),
-                   'aperf_counts': dict(),
-                   'mperf_counts': dict(),
-                   'audit': dict(),
-                   'config': '',
-                   'reboots': 0,
-                   'starting_temperatures': list(),
-                   'eta_estimates': list(),
-                   'error_flag': list(), }
-        with open(filename, 'r') as fd:
-            data_dictionary['audit']['uname'] = uname
-            reader = csv.reader(fd)
-            reader.next()  # Skip first row, which contains column names.
-            for row in reader:
-                # First cell contains process execution number.
-                bench = row[1]
-                data = [float(datum) for datum in row[2:]]
-                key = '%s:%s:default-%s' % (bench, vm, language)
-                if key not in data_dictionary['wallclock_times']:
-                    data_dictionary['wallclock_times'][key] = list()
-                    data_dictionary['core_cycle_counts'][key] = list()
-                    data_dictionary['aperf_counts'][key] = list()
-                    data_dictionary['mperf_counts'][key] = list()
-                data_dictionary['wallclock_times'][key].append(data)
-                data_dictionary['core_cycle_counts'][key].append(None)
-                data_dictionary['aperf_counts'][key].append(None)
-                data_dictionary['mperf_counts'][key].append(None)
-        new_filename = os.path.splitext(filename)[0] + '.json.bz2'
-        write_krun_results_file(data_dictionary, new_filename)
+    return csv_to_krun_json(in_files, language, vm, uname)
 
 
 def create_cli_parser():
@@ -53,7 +22,7 @@ def create_cli_parser():
     """
     script = os.path.basename(__file__)
     description = ('Convert a CSV results file to .json.bz2 suitable for use '
-                   'with the\nscripts here. CSV files are assumed to be in the '
+                   'with the scripts here. CSV files are assumed to be in the '
                    'following format:\n\n'
                    'process num, bench_name, 0, 1, 2, ...\n'
                    '0, spectral norm, 0.2, 0.1, 0.4, ...\n'
@@ -63,31 +32,16 @@ def create_cli_parser():
                    'SMP Tue Sep 6 15:42:33 UTC 2016 x86_64 x86_64 x86_64 '
                    'GNU/Linux" results.csv\n'
                    % script)
-    parser = argparse.ArgumentParser(description)
-    parser.add_argument('csv_files',
-                        nargs='+',
-                        action='append',
-                        default=[],
-                        type=str,
-                        help='One or more CSV result files.')
-    parser.add_argument('--language', '-l',
-                        dest='language',
-                        action='store',
-                        default='java-default',
-                        type=str,
-                        help='Language under benchmark.')
-    parser.add_argument('--vm', '-v',
-                        dest='vm',
-                        action='store',
-                        default='Hotspot',
-                        type=str,
-                        help='One or more CSV result files.')
-    parser.add_argument('--uname', '-u',
-                        dest='uname',
-                        action='store',
-                        default='',
-                        type=str,
-                        help='uname -a string from benchmarking machine.')
+    parser = argparse.ArgumentParser(description,
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('csv_files', nargs='+', action='append', default=[],
+                        type=str, help='One or more CSV result files.')
+    parser.add_argument('--language', '-l', dest='language', action='store',
+                        type=str, help='Language under benchmark.')
+    parser.add_argument('--vm', '-v', dest='vm', action='store', default='Hotspot',
+                        type=str, help='Virtual machine under test.')
+    parser.add_argument('--uname', '-u', dest='uname', action='store', default='',
+                        type=str, help='uname -a string from benchmarking machine.')
     return parser
 
 

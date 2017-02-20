@@ -1,5 +1,7 @@
 import bz2
+import csv
 import json
+import os.path
 
 
 _MACHINES = {
@@ -17,6 +19,39 @@ _VARIANTS = {'default-python': 'Python',
              'default-ruby': 'Ruby',
              'default-javascript': 'Javascript',
              'default-lua': 'Lua'}
+
+
+_BLANK_BENCHMARK = { 'wallclock_times': dict(), # Measurement data.
+                    'core_cycle_counts': dict(), 'aperf_counts': dict(),
+                    'mperf_counts': dict(), 'audit': dict(), 'config': '',
+                    'reboots': 0, 'starting_temperatures': list(),
+                    'eta_estimates': list(), 'error_flag': list(), }
+
+
+def csv_to_krun_json(in_files, language, vm, uname):
+    for filename in in_files:
+        data_dictionary = _BLANK_BENCHMARK
+        with open(filename, 'r') as fd:
+            data_dictionary['audit']['uname'] = uname
+            reader = csv.reader(fd)
+            header = reader.next()  # Skip first row, which contains column names.
+            for row in reader:
+                # First cell contains process execution number.
+                bench = row[1]
+                data = [float(datum) for datum in row[2:]]
+                key = '%s:%s:default-%s' % (bench, vm, language)
+                if key not in data_dictionary['wallclock_times']:
+                    data_dictionary['wallclock_times'][key] = list()
+                    data_dictionary['core_cycle_counts'][key] = list()
+                    data_dictionary['aperf_counts'][key] = list()
+                    data_dictionary['mperf_counts'][key] = list()
+                data_dictionary['wallclock_times'][key].append(data)
+                data_dictionary['core_cycle_counts'][key].append(None)
+                data_dictionary['aperf_counts'][key].append(None)
+                data_dictionary['mperf_counts'][key].append(None)
+        new_filename = os.path.splitext(filename)[0] + '.json.bz2'
+        write_krun_results_file(data_dictionary, new_filename)
+        return header, new_filename
 
 
 def pretty_print_machine(machine):
