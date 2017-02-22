@@ -14,6 +14,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from warmup.krun_results import csv_to_krun_json, parse_krun_file_with_changepoints
 from warmup.summary_statistics import collect_summary_statistics, convert_to_latex, write_latex_table
 
+# We use a custom install of rpy2, relative to the top-level of the repo.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                'work', 'pylibs'))
+
+# R packages are stored relative to the top-level of the repo.
+os.environ['PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               'work', 'R-inst', 'bin'), os.environ.get('PATH')])
+os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                 'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
 
 ABS_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 BINDIR = os.path.dirname(os.path.abspath(__file__))
