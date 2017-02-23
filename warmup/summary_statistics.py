@@ -1,6 +1,7 @@
 import math
 
 from collections import Counter, OrderedDict
+from warmup.html import HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
 from warmup.latex import end_document, end_table, escape, format_median_error
 from warmup.latex import get_latex_symbol_map, preamble, STYLE_SYMBOLS
 from warmup.statistics import bootstrap_confidence_interval
@@ -297,3 +298,66 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
         if with_preamble:
             fp.write('\\end{table*}\n')
             fp.write(end_document())
+
+
+def write_html_table(summary_data, html_filename):
+    assert len(summary_data.keys()) == 1, 'Cannot summarise data from more than one machine.'
+    machine = summary_data.keys()[0]
+    html_table_contents = dict()  # VM name -> html rows
+    for vm in sorted(summary_data[machine]):
+        html_rows = ''  # Just the table rows, no table header, etc.
+        for bmark in sorted(summary_data[machine][vm]):
+            if bmark['classification'] == 'bad inconsistent':
+                reported_category = 'bad inconsistent:'
+                cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
+                                                 key=lambda x: x[1], reverse=True))
+                cat_counts = list()
+                for category in cats_sorted:
+                    if cats_sorted[category] == 0:
+                        continue
+                    cat_counts.append('%d %s' % (cats_sorted[category], category))
+                reported_category += ' %s' % ', '.join(cat_counts)
+            elif bmark['classification'] == 'good inconsistent':
+                reported_category = 'good inconsistent:'
+                cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
+                                                 key=lambda x: x[1], reverse=True))
+                cat_counts = list()
+                for category in cats_sorted:
+                    if cats_sorted[category] == 0:
+                        continue
+                    cat_counts.append('%d %s' % (cats_sorted[category], category))
+                reported_category += ' %s' % ', '.join(cat_counts)
+            elif (sum(bmark['detailed_classification'].values()) ==
+                  bmark['detailed_classification'][bmark['classification']]):
+                # Consistent benchmark with no errors.
+                reported_category = bmark['classification']
+            else:  # No inconsistencies, but some process executions errored.
+                reported_category = ' %s %d' % (bmark['classification'],
+                                     bmark['detailed_classification'][bmark['classification']])
+            if bmark['steady_state_iteration'] is not None:
+                mean_steady_iter = '%d&#177;%d' % (int(math.ceil(bmark['steady_state_iteration'])),
+                                                  int(math.ceil(bmark['steady_state_iteration_confidence_interval'])))
+            else:
+                mean_steady_iter = ''
+            if bmark['steady_state_time'] is not None:
+                mean_steady = '%.5f&#177;%.5f' % (bmark['steady_state_time'],
+                                                  bmark['steady_state_time_confidence_interval'])
+            else:
+                mean_steady = ''
+            if bmark['steady_state_time_to_reach_secs'] is not None:
+                time_to_steady = '%.3f&#177;%.3f' % (bmark['steady_state_time_to_reach_secs'],
+                                                     bmark['steady_state_time_to_reach_secs_confidence_interval'])
+            else:
+                time_to_steady = ''
+            # Benchmark name, classification, steady iter, time to reach, steady perf
+            row = ('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' %
+                   (bmark['benchmark_name'], reported_category, mean_steady_iter,
+                    time_to_steady, mean_steady))
+            html_rows += row
+        html_table_contents[vm] = html_rows
+    page_contents = ''
+    for vm in html_table_contents:
+        page_contents += HTML_TABLE_TEMPLATE % (vm, html_table_contents[vm])
+        page_contents += '\n\n'
+    with open(html_filename, 'w') as fp:
+        fp.write(HTML_PAGE_TEMPLATE % page_contents)

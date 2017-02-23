@@ -12,7 +12,9 @@ from distutils.spawn import find_executable
 from logging import debug, error, info, warn
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import csv_to_krun_json, parse_krun_file_with_changepoints
-from warmup.summary_statistics import collect_summary_statistics, convert_to_latex, write_latex_table
+from warmup.summary_statistics import collect_summary_statistics, convert_to_latex
+from warmup.summary_statistics import write_html_table, write_latex_table
+
 
 # We use a custom install of rpy2, relative to the top-level of the repo.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -271,7 +273,8 @@ def main(options):
         debug('Running: %s' % ' '.join(cli))
         _ = subprocess.check_output(' '.join(cli), shell=True)
     if options.output_html:
-        raise NotImplementedError()
+        info('Generating HTML table.')
+        write_html_table(summary, options.output_html)
 
 
 if __name__ == '__main__':
