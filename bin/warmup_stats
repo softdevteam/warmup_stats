@@ -1,0 +1,283 @@
+#!/usr/bin/env python2.7
+
+import argparse
+import json
+import logging
+import os
+import os.path
+import subprocess
+import sys
+
+from distutils.spawn import find_executable
+from logging import debug, error, info, warn
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from warmup.krun_results import csv_to_krun_json, parse_krun_file_with_changepoints
+from warmup.summary_statistics import collect_summary_statistics, convert_to_latex, write_latex_table
+
+# We use a custom install of rpy2, relative to the top-level of the repo.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                'work', 'pylibs'))
+
+# R packages are stored relative to the top-level of the repo.
+os.environ['PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               'work', 'R-inst', 'bin'), os.environ.get('PATH')])
+os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                 'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
+
+ABS_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+BINDIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_WINDOW_RATIO = 0.1
+DEFAULT_STEADY_RATIO = 0.25
+SCRIPT_MARK_OUTLIERS = os.path.join(BINDIR, 'mark_outliers_in_json')
+SCRIPT_MARK_CHANGEPOINTS = os.path.join(BINDIR, 'mark_changepoints_in_json')
+SCRIPT_PLOT_KRUN_RESULTS = os.path.join(BINDIR, 'plot_krun_results')
+
+CONSOLE_FORMATTER = PLAIN_FORMATTER = logging.Formatter(
+    '[%(asctime)s: %(levelname)s] %(message)s',
+    ABS_TIME_FORMAT)
+try:
+    import colorlog
+    CONSOLE_FORMATTER = colorlog.ColoredFormatter(
+        "%(log_color)s[%(asctime)s %(levelname)s] %(message)s%(reset)s",
+        ABS_TIME_FORMAT)
+except ImportError:
+    pass
+
+
+def fatal(msg):
+    """Log error and exit."""
+    error(msg)
+    sys.exit(1)
+
+
+def create_arg_parser():
+    script = os.path.basename(__file__)
+    description = ('Analyse CSV results file and produce JSON, HTML (table) or '
+                   'PDF plots. The CSV input file(s) should be in this format:\n\n'
+                   '\tprocess num, bench_name, 0, 1, 2, ...\n'
+                   '\t0, spectral norm, 0.2, 0.1, 0.4, ...\n'
+                   '\t1, spectral norm, 0.3, 0.15, 0.2, ...\n'
+                   '\n\nExample usage:\n\n\t$ python %s --output-json summary.json '
+                   '-l javascript -v V8 -u "`uname -a`" results.csv'
+                   % script)
+    parser = argparse.ArgumentParser(description=description,
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('--debug', '-d', action='store', default='WARN',
+                        dest='debug_level',
+                        help='Debug level used by logger. Must be one of: '
+                             'DEBUG, INFO, WARN, DEBUG, CRITICAL, ERROR')
+    parser.add_argument('csv_files', nargs='+', action='append', default=[],
+                        type=str, help='One or more CSV result files.')
+    parser.add_argument('--language', '-l', dest='language', action='store',
+                        type=str,  required=True,
+                        help='Language under test (in lower-case).')
+    parser.add_argument('--vm', '-v', dest='vm', action='store', type=str,
+                        required=True,
+                        help='Virtual machine under test (in title-case).')
+    parser.add_argument('--uname', '-u', dest='uname', action='store', default='',
+                        required=True, type=str,
+                        help='Full output of `uname -a` from benchmarking machine.')
+    # What output should be generated?
+    output_group = parser.add_argument_group('Output formats')
+    output_group.add_argument('--output-plots', dest='output_plots', action='store',
+                              type=str, metavar='PDF_FILENAME', default=None,
+                              help='Output a PDF file containing plots.')
+    output_group.add_argument('--output-html', dest='output_html', action='store',
+                              type=str, metavar='HTML_FILENAME', default=None,
+                              help='Output an HTML file containing tables.')
+    output_group.add_argument('--output-latex', dest='output_latex', action='store',
+                              type=str, metavar='LATEX_FILENAME', default=None,
+                              help='Output a LaTeX file containing tables.')
+    output_group.add_argument('--output-json', dest='output_json', action='store',
+                              type=str, metavar='JSON_FILENAME', default=None,
+                              help='Output a JSON file containing summary results.')
+    return parser
+
+
+def setup_logging(options):
+    """Setup logging. Logging level passed in on command line."""
+    level_str = options.debug_level.upper()
+    if level_str not in ('DEBUG', 'INFO', 'WARN', 'DEBUG', 'CRITICAL', 'ERROR'):
+        fatal('Bad debug level: %s' % level_str)
+    level = getattr(logging, level_str.upper())
+    logging.root.setLevel(level)
+    stream = logging.StreamHandler()
+    stream.setLevel(level)
+    stream.setFormatter(CONSOLE_FORMATTER)
+    logging.root.handlers = [stream]
+
+
+def check_environment(need_outliers=True, need_changepoints=True, need_latex=True,
+                      need_plots=True):
+    """Check all modules or executables that the user needs will be available."""
+
+    info('Checking environment.')
+    python_path = None
+    pypy_path = None
+    pdflatex_path = None
+    r_path = None
+    python_path = find_executable('python2.7')
+    if python_path is None:
+        fatal('warmup scripts require Python 2.7, and are not likely to work with Python 3.x.')
+    if find_executable('bzip2') is None or find_executable('bunzip2') is None:
+        fatal('Please install bzip2 and bunzip2 to convert CSV files to Krun JSON format.')
+    if need_outliers:
+        pypy_path = find_executable('pypy')
+        if pypy_path is None:
+            warn('You do not appear to have PyPy installed. Some parts of this '
+                 'script may run slowly.')
+    if need_changepoints or need_plots:
+        try:
+            import numpy
+        except ImportError:
+            fatal('Please install the Python numpy library to generate changepoints and / or plots.')
+    if need_changepoints:
+        r_path = find_executable('R')
+        if r_path is None:
+            fatal('Please install R (e.g. r-base) to generate changepoints.')
+        try:
+            import rpy2
+        except ImportError:
+            fatal('Please install and the Python rpy2 library to generate changepoints.')
+    if need_latex:
+        pdflatex_path = find_executable('pdflatex')
+        if pdflatex_path is None:
+            fatal('You do not appear to have pdflatex installed, and so cannot '
+                  'compile LaTeX files. Please install LaTeX (e.g. tetex-live) and try again.')
+    if need_plots:
+        try:
+            import matplotlib
+        except ImportError:
+            fatal('Please install the Python matplotlib library to generate plots.')
+        try:
+            matplotlib.use('Agg')
+            import seaborn
+        except ImportError:
+            fatal('Please install the Python seaborn library to generate plots.')
+    return python_path, pypy_path, pdflatex_path, r_path
+
+
+class BenchmarkFile(object):
+    """Information about each benchmark, including CLI options to other scripts."""
+
+    def __init__(self, csv_filename, options, python_path, pypy_path, pdflatex_path, r_path):
+        self.basename = os.path.splitext(csv_filename)[0]
+        self.csv_filename = csv_filename
+        self.language = options.language
+        self.vm = options.vm
+        self.uname = options.uname
+        self.python_path = python_path
+        self.pypy_path = pypy_path
+        self.pdflatex_path = pdflatex_path
+        self.r_path = r_path
+
+    def check_input_file(self):
+        if not (os.path.isfile(self.csv_filename) and os.access(self.csv_filename, os.R_OK)):
+            fatal('File %s not found.' % self.csv_filename)
+
+    def convert_to_krun_json(self):
+        header, self.krun_filename = csv_to_krun_json([self.csv_filename],
+                                             self.language, self.vm, self.uname)
+        info('Writing out: %s' % self.krun_filename)
+        try:
+            self.iterations = int(header[-1]) + 1  # Iteration numbers start at 0.
+        except ValueError:
+            fatal('CSV file has malformed header. Run this script with --help for more details.')
+
+    def _get_output_filename(self, output):
+        for line in output.strip().split('\n'):
+            if line.startswith('Writing out:'):
+                return line.split(' ')[-1]
+        assert False
+
+    def mark_outliers(self):
+        self.window = int(self.iterations * DEFAULT_WINDOW_RATIO)
+        python_runner = self.python_path
+        # mark_outliers_in_json is optimised for PyPy.
+        if self.pypy_path is not None:
+            python_runner = self.pypy_path
+        cli = [python_runner, SCRIPT_MARK_OUTLIERS, '-w', str(self.window), self.krun_filename]
+        debug('Running: %s' % ' '.join(cli))
+        output = subprocess.check_output(' '.join(cli), shell=True)
+        self.krun_filename_outliers = self._get_output_filename(output)
+        debug('Written out: %s' % self.krun_filename_outliers)
+
+    def mark_changepoints(self):
+        self.steady = int(self.iterations * DEFAULT_STEADY_RATIO)
+        cli = [self.python_path, SCRIPT_MARK_CHANGEPOINTS, '-s', str(self.steady),
+               self.krun_filename_outliers]
+        debug('Running: %s' % ' '.join(cli))
+        output = subprocess.check_output(' '.join(cli), shell=True)
+        self.krun_filename_changepoints = self._get_output_filename(output)
+        debug('Written out: %s' % self.krun_filename_changepoints)
+
+
+def main(options):
+    need_latex = options.output_latex
+    need_plots = options.output_plots
+    if (not need_latex and not need_plots and not options.output_html and
+        not options.output_json):
+        fatal('You did not specify an output option! Need one or more of '
+              '--output-json, --output-html, --output-latex or --output-plots.')
+    python_path, pypy_path, pdflatex_path, r_path = check_environment(need_latex=need_latex,
+                                                                      need_plots=need_plots)
+    info('Converting CSV to Krun JSON format.')
+    csv_files = options.csv_files[0]
+    benchmarks = list()
+    for filename in csv_files:
+        benchmarks.append(BenchmarkFile(filename, options, python_path, pypy_path, pdflatex_path, r_path))
+    info('Checking input files.')
+    for benchmark in benchmarks:
+        benchmark.check_input_file()
+    info('Converting CSV to Krun JSON.')
+    for benchmark in benchmarks:
+        benchmark.convert_to_krun_json()
+    info('Marking outliers in JSON.')
+    for benchmark in benchmarks:
+        benchmark.mark_outliers()
+    info('Marking changepoints in JSON.')
+    for benchmark in benchmarks:
+        benchmark.mark_changepoints()
+    if options.output_json or options.output_latex or options.output_html:
+        info('Collecting summary statistics.')
+        input_files = [bm.krun_filename_changepoints for bm in benchmarks]
+        classifier, data_dictionary = parse_krun_file_with_changepoints(input_files)
+        summary = collect_summary_statistics(data_dictionary, classifier['half_bound'],
+                                             classifier['delta'], classifier['steady'])
+    if options.output_plots:
+        info('Generating PDF plots.')
+        input_files = [bm.krun_filename_changepoints for bm in benchmarks]
+        cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
+               '--with-outliers', '-o', options.output_plots, ' '.join(input_files)]
+        debug('Running: %s' % ' '.join(cli))
+        _ = subprocess.check_output(' '.join(cli), shell=True)
+        debug('Written out: %s' % options.output_plots)
+    if options.output_json:
+        info('Generating JSON.')
+        with open(options.output_json, 'w') as fd:
+            json.dump(summary, fd, sort_keys=True, ensure_ascii=True, indent=4)
+        debug('Written out: %s' % options.output_json)
+    if options.output_latex:
+        info('Generating LaTeX table.')
+        machine, bmarks, latex_summary = convert_to_latex(summary, classifier['half_bound'],
+                                             classifier['delta'], classifier['steady'])
+        num_splits = 1
+        if len(latex_summary.keys()) > 1:  # More than one VM.
+            num_splits = 2
+        write_latex_table(machine, bmarks, latex_summary, options.output_latex,
+                          num_splits, with_preamble=True)
+        info('Compiling table as PDF.')
+        cli = [pdflatex_path, '-interaction=batchmode', options.output_latex]
+        debug('Running: %s' % ' '.join(cli))
+        _ = subprocess.check_output(' '.join(cli), shell=True)
+    if options.output_html:
+        raise NotImplementedError()
+
+
+if __name__ == '__main__':
+    parser = create_arg_parser()
+    options = parser.parse_args()
+    setup_logging(options)
+    debug('%s script starting...' % os.path.basename(__file__))
+    debug('arguments: %s'  % ' '.join(sys.argv[1:]))
+    main(options)

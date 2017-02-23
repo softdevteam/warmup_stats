@@ -70,8 +70,8 @@ def create_output_filename(in_file_name, window_size):
 
 
 def create_cli_parser():
-    """Create a parser to deal with command line switches.
-    """
+    """Create a parser to deal with command line switches."""
+
     script = os.path.basename(__file__)
     description = ('Write lists of outliers into Krun results file(s). '
                    'This script does not\nalter your original Krun results '
@@ -85,24 +85,13 @@ def create_cli_parser():
                    '\t$ python %s  --window 250 results1.json.bz2 '
                    'results2.json.bz2\n' % (script, script))
     parser = argparse.ArgumentParser(description)
-    parser.add_argument('json_files',
-                        nargs='+',
-                        action='append',
-                        default=[],
-                        type=str,
-                        help='One or more Krun result files.')
-    parser.add_argument('--window', '-w',
-                        action='store',
-                        dest='window_size',
-                        default=200,
-                        type=int,
+    parser.add_argument('json_files', nargs='+', action='append', default=[],
+                        type=str, help='One or more Krun result files.')
+    parser.add_argument('--window', '-w', action='store', dest='window_size',
+                        default=200, type=int,
                         help='Size of the sliding window used to draw percentiles.')
-    parser.add_argument('--threshold', '-t',
-                        action='store',
-                        dest='threshold',
-                        metavar='THRESHOLD',
-                        default=1,
-                        type=int,
+    parser.add_argument('--threshold', '-t', action='store', dest='threshold',
+                        metavar='THRESHOLD', default=1, type=int,
                         help='If an outlier appears in more than THRESHOLD '
                              'executions it is said to be common to '
                              'several executions and is stored in the '
