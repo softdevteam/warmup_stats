@@ -101,6 +101,10 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
                 median_time, error_time = None, None
                 median_iter, error_iter = None, None
                 median_time_to_steady, error_time_to_steady = None, None
+            elif categories_set == set(['flat']):
+                median_iter, error_iter = None, None
+                median_time_to_steady, error_time_to_steady = None, None
+                median_time, error_time = bootstrap_confidence_interval(steady_state_means)
             else:
                 median_time, error_time = bootstrap_confidence_interval(steady_state_means)
                 if steady_iters:
@@ -109,8 +113,7 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
                     error_iter = int(math.ceil(error_iter))
                     median_time_to_steady, error_time_to_steady = bootstrap_confidence_interval(time_to_steadys)
                 else:  # No changepoints in any process executions.
-                    median_iter, error_iter = 0, 0
-                    median_time_to_steady, error_time_to_steady = None, None
+                    assert False  # Should be handled by elif clause above.
             # Add summary for this benchmark.
             current_benchmark = dict()
             current_benchmark['benchmark_name'] = bench
