@@ -202,5 +202,5 @@ def section(heading):
     return __LATEX_SECTION(heading)
 
 
-def start_table(format_, headings, before=''):
-    return __LATEX_START_TABLE(format_, headings, before=before)
+def start_table(format_, headings):
+    return __LATEX_START_TABLE(format_, headings)
