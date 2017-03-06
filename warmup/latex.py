@@ -1,3 +1,7 @@
+_NUMBERS = {0:'zero', 1:'one', 2:'two', 3:'three', 4:'four', 5:'five',
+            6:'six', 7:'seven', 8:'eight', 9:'nine'}
+
+
 STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
     'could not classify': '$\\bot$',
     'flat': '\\flatc',
@@ -196,6 +200,12 @@ $"""  % (median_s, error_s)
 
 def preamble(title, doc_opts=DEFAULT_DOCOPTS):
     return __LATEX_PREAMBLE(title, doc_opts)
+
+
+def machine_name_to_macro(machine):
+    for number in _NUMBERS:
+        machine = machine.replace(str(number), _NUMBERS[number])
+    return '\\' + machine
 
 
 def section(heading):
