@@ -27,8 +27,8 @@ export PATH=${R_INST_DIR}/bin:${PATH}
 export LD_LIBRARY_PATH=${R_INST_DIR}/lib/R/lib:${LD_LIBRARY_PATH}
 
 # Install R changepoint package.
-echo "install.packages('devtools', repos='http://cran.us.r-project.org')" | ${R_INST_DIR}/bin/R --no-save
-echo "devtools::install_github('rkillick/changepoint')" | ${R_INST_DIR}/bin/R --no-save
+echo "install.packages('devtools', lib='${R_INST_DIR}/lib/R/library', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
+echo "devtools::install_github('rkillick/changepoint')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
 
 # Install rpy2 Python package.
 pip install -t ${PIP_TARGET_DIR} rpy2
