@@ -240,8 +240,7 @@ def main(options):
         info('Collecting summary statistics.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
         classifier, data_dictionary = parse_krun_file_with_changepoints(input_files)
-        summary = collect_summary_statistics(data_dictionary, classifier['half_bound'],
-                                             classifier['delta'], classifier['steady'])
+        summary = collect_summary_statistics(data_dictionary, classifier['delta'], classifier['steady'])
     if options.output_plots:
         info('Generating PDF plots.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
@@ -257,8 +256,7 @@ def main(options):
         debug('Written out: %s' % options.output_json)
     if options.output_latex:
         info('Generating LaTeX table.')
-        machine, bmarks, latex_summary = convert_to_latex(summary, classifier['half_bound'],
-                                             classifier['delta'], classifier['steady'])
+        machine, bmarks, latex_summary = convert_to_latex(summary, classifier['delta'], classifier['steady'])
         num_splits = 1
         if len(latex_summary.keys()) > 1:  # More than one VM.
             num_splits = 2

@@ -104,7 +104,7 @@ def copy_results(key, p_execs, from_results, to_results):
 
 def parse_krun_file_with_changepoints(json_files):
     data_dictionary = dict()
-    classifier = None  # steady, delta, half_bound values used by classifer.
+    classifier = None  # steady and delta values used by classifer.
     window_size = None
     for filename in json_files:
         assert os.path.exists(filename), 'File %s does not exist.' % filename
@@ -132,7 +132,7 @@ def parse_krun_file_with_changepoints(json_files):
         else:
             assert classifier == data['classifier'], \
                    ('Cannot summarise categories generated with different '
-                    'command-line options for steady-state-expected, half_bound '
+                    'command-line options for steady-state-expected '
                     'or delta. Please re-run the mark_changepoints_in_json script.')
         if window_size is None:
             window_size = data['window_size']
