@@ -3,7 +3,6 @@ _NUMBERS = {0:'zero', 1:'one', 2:'two', 3:'three', 4:'four', 5:'five',
 
 
 STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
-    'could not classify': '$\\bot$',
     'flat': '\\flatc',
     'no steady state': '\\nosteadystate',
     'slowdown': '\\slowdown',
