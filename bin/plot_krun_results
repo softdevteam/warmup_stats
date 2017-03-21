@@ -282,7 +282,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     else:
                         if data == page:  # Stops repeated printing of warning.
                             print("WARNING: requested pexec crashed: "
-                                  "%s, %s, %s, %s" % (mc, bmark, vm, index + 1))
+                                  "%s, %s, %s, %s" % (mc, bmark, vm, i))
                 return ret
 
             wct_page = only_uncrashed(page)
