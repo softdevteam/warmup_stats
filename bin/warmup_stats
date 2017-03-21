@@ -149,13 +149,9 @@ def check_environment(need_outliers=True, need_changepoints=True, need_latex=Tru
     if need_plots:
         try:
             import matplotlib
-        except ImportError:
-            fatal('Please install the Python matplotlib library to generate plots.')
-        try:
             matplotlib.use('Agg')
-            import seaborn
         except ImportError:
-            fatal('Please install the Python seaborn library to generate plots.')
+            fatal('Please install the Python matplotlib library, with Agg backend, to generate plots.')
     return python_path, pypy_path, pdflatex_path, r_path
 
 

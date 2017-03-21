@@ -4,13 +4,40 @@ import numpy
 from matplotlib import pyplot
 from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 
-SPINE_LINESTYLE = 'solid'
-SPINE_LINEWIDTH = 1
-
 ZOOM_PERCENTILE_MIN = 10.0
 ZOOM_PERCENTILE_MAX = 90.0
 
 ZORDER_GRID = 1
+
+DARK_GRAY = '.15'
+LIGHT_GRAY = '.8'
+BASE_FONTSIZE = 8
+
+STYLE_DICT = {
+    'figure.facecolor': 'white',
+    'text.color': DARK_GRAY,
+    'axes.labelcolor': DARK_GRAY,
+    'legend.frameon': False,
+    'legend.numpoints': 1,
+    'legend.scatterpoints': 1,
+    'xtick.direction': 'out',
+    'ytick.direction': 'out',
+    'xtick.color': DARK_GRAY,
+    'ytick.color': DARK_GRAY,
+    'axes.axisbelow': True,
+    'font.family': 'sans',
+    'font.weight': 'regular',
+    'font.size': BASE_FONTSIZE,
+    'grid.linestyle': '-',
+    'lines.solid_capstyle': 'round',
+    'axes.facecolor': 'white',
+    'axes.edgecolor': LIGHT_GRAY,
+    'axes.linewidth': 1,
+    'grid.color': LIGHT_GRAY,
+    'lines.linewidth': 1.0,
+    'axes.linewidth': 1.0,
+}
+
 
 def zoom_y_min(data, outliers, start_from=0):
     array = numpy.array(data)
@@ -152,25 +179,22 @@ def compute_grid_offsets(d_min, d_max, num):
     return [d_min + i * freq for i in xrange(num + 1)]
 
 
-def style_axis(ax, major_xticks, minor_xticks, major_yticks, minor_yticks, tick_fontsize):
-    ax.set_xticks(major_xticks)
-    ax.set_xticks(minor_xticks, minor=True)
-    ax.set_yticks(major_yticks)
-    ax.set_yticks(minor_yticks, minor=True)
-
-    x_ax = ax.get_xaxis()
-    y_ax = ax.get_yaxis()
-
-    x_ax.set_ticks_position('none')
-    y_ax.set_ticks_position('none')
-    x_ax.set_tick_params(labelsize=tick_fontsize, zorder=ZORDER_GRID)
-    y_ax.set_tick_params(labelsize=tick_fontsize, zorder=ZORDER_GRID)
-
+def style_axis(axis, major_xticks, minor_xticks, major_yticks, minor_yticks, tick_fontsize):
+    axis.set_xticks(major_xticks)
+    axis.set_xticks(minor_xticks, minor=True)
+    axis.set_yticks(major_yticks)
+    axis.set_yticks(minor_yticks, minor=True)
+    # Style ticks.
+    x_axis = axis.get_xaxis()
+    y_axis = axis.get_yaxis()
+    x_axis.set_ticks_position('none')
+    y_axis.set_ticks_position('none')
+    x_axis.set_tick_params(labelsize=tick_fontsize, zorder=ZORDER_GRID)
+    y_axis.set_tick_params(labelsize=tick_fontsize, zorder=ZORDER_GRID)
     # Grid should be drawn below all other splines.
-    ax.grid(which='minor', alpha=0.4, zorder=ZORDER_GRID)
-    ax.grid(which='major', alpha=0.8, zorder=ZORDER_GRID)
-
+    axis.grid(which='minor', alpha=0.4, zorder=ZORDER_GRID)
+    axis.grid(which='major', alpha=0.8, zorder=ZORDER_GRID)
+    # Remove hard outer frame.
     for i in ['right', 'left', 'top', 'bottom']:
-        ax.spines[i].set_visible(False)
-
-    ax.frameon = False
+        axis.spines[i].set_visible(False)
+    axis.frameon = False
