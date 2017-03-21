@@ -1,6 +1,10 @@
+import math
+import numpy
+
 _NUMBERS = {0:'zero', 1:'one', 2:'two', 3:'three', 4:'four', 5:'five',
             6:'six', 7:'seven', 8:'eight', 9:'nine'}
 
+_SPARKLINE_WIDTH = '3'  # Unit: ex.
 
 STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
     'flat': '\\flatc',
@@ -32,7 +36,7 @@ __MACROS = """
 $\\begin{array}{rr}
 \\scriptstyle{0.16} \\\\[-6pt]
 \\scriptscriptstyle{\\pm0.000}
-\end{array}$
+\\end{array}$
 }
 
 
@@ -135,6 +139,14 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\usepackage{xspace}
 
 
+\\setlength\\sparkspikewidth{1pt}
+\\renewcommand{\\sparklineheight}{2.75}  %% 1.75 by default.
+\\definecolor{sparkbottomlinecolor}{gray}{0.8}
+%% Older versions of sparklines do not expose bottomlinethickness
+\\renewcommand{\\sparkbottomline}[1][1]{\\pgfsetlinewidth{0.2pt}%%
+  \\color{sparkbottomlinecolor}%%
+  \\pgfline{\\pgfxy(0,0)}{\\pgfxy(#1,0)}\\color{sparklinecolor}}
+
 %s
 \\title{%s}
 \\begin{document}
@@ -149,6 +161,7 @@ __LATEX_SECTION = lambda section: """
 
 __LATEX_START_TABLE = lambda format_, headings: """
 {
+\\rotatebox{90}{%%
 \\begin{tabular}{%s}
 \\toprule
 %s \\\\
@@ -158,6 +171,7 @@ __LATEX_START_TABLE = lambda format_, headings: """
 __LATEX_END_TABLE = """
 \\bottomrule
 \\end{tabular}
+} %% End rotatebox
 }
 """
 
@@ -178,24 +192,51 @@ def escape(word):
     return word.replace('_', '\\_')
 
 
+def _histogram(data):
+    histogram, bin_edges = numpy.histogram(data, bins=10)
+    total = math.fsum(histogram)
+    size = float(len(histogram))
+    normed = [value / total for value in histogram]
+    # Lower bound of the index of the median.
+    median_index = int(math.floor(len(data) / 2.0))
+    cum_freq = 0  # Cumulative frequency.
+    for index, bin_value in enumerate(histogram):
+        cum_freq += bin_value
+        if cum_freq >= median_index:
+            median_bin_index = index
+            break
+    sparkline = ['\\begin{sparkline}{%s}' % _SPARKLINE_WIDTH]
+    for index, value in enumerate(normed):
+        # sparkspike x-position y-pos-ition
+        if index == median_bin_index:
+            sparkline.append('\\definecolor{sparkspikecolor}{named}{red}')
+            sparkline.append('\\sparkspike %.2f %.2f' % ((index + 1) / size, value))
+            sparkline.append('\\definecolor{sparkspikecolor}{named}{black}')
+        else:
+            sparkline.append('\\sparkspike %.2f %.2f' % ((index + 1) / size, value))
+    sparkline.append('\\sparkbottomline')
+    sparkline.append('\\end{sparkline}')
+    return '\n'.join(sparkline)
 
-def format_median_error(median, error, as_integer=False, brief=False):
+
+def format_median_error(median, error, data, as_integer=False, brief=False):
     if as_integer:
         median_s = '%d' % int(median)
-        error_s = '(%d,' % int(error[0]), '%d)' % int(error[1])
+        error_s = '(%d, %d)' % (int(error[0]), int(error[1]))
     elif brief:
         median_s = '%.2f' % median
-        error_s = '(%.3f,' % error[0], '%.3f)' % error[1]
+        error_s = '(%.3f, %.3f)' % (error[0], error[1])
     else:
         median_s = '%.5f' % median
-        error_s = '(%.6f,' % error[0], '%.6f)' % error[1]
+        error_s = '(%.6f, %.6f)' % (error[0], error[1])
     return """$
-\\begin{array}{rlr}
+\\begin{array}{r}
 \\scriptstyle{%s} \\\\[-6pt]
-\\scriptscriptstyle{%s}\\\\[-6pt]
 \\scriptscriptstyle{%s}
 \\end{array}
-$"""  % (median_s, error_s[0], error_s[1])
+$
+\\noindent\\parbox[p]{%s}{%s}
+"""  % (median_s, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
 
 
 def preamble(title, doc_opts=DEFAULT_DOCOPTS):
