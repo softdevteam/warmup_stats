@@ -107,17 +107,18 @@ $\\begin{array}{rr}
 \\spark 0.1 0.6
        0.9 0.0
        /%
+\\spark 0.1 0.0
+       0.9 0.6
+       /%
 \\end{sparkline}\\xspace}
 \\DeclareRobustCommand{\\goodinconsistent}{%
 \\setlength{\\sparklinethickness}{0.4pt}%
 \\begin{sparkline}{1.5}
-\\spark 0.0 0.8
-       0.5 0.8
-       0.5 0.0
-       1.0 0.0
+\\spark 0.1 0.4
+       0.9 0.4
        /%
-\\spark 0.0 0.4
-       1.0 0.4
+\\spark 0.1 0.2
+       0.9 0.2
        /%
 \\end{sparkline}\\xspace}
 """
