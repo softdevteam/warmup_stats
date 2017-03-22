@@ -282,7 +282,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     else:
                         if data == page:  # Stops repeated printing of warning.
                             print("WARNING: requested pexec crashed: "
-                                  "%s, %s, %s, %s" % (mc, bmark, vm, index + 1))
+                                  "%s, %s, %s, %s" % (mc, bmark, vm, i))
                 return ret
 
             wct_page = only_uncrashed(page)
@@ -682,9 +682,9 @@ class ProcessExecChart(object):
                                         + int(one_pc * 2.0)))
             # Clamp the extent of the inset.
             if inset_xlimit[1] < INSET_MIN_ITERS:
-                inset_xlimit = (0, min(INSET_MIN_ITERS, self.x_bounds[1] - self.x_bounds[0]))
+                inset_xlimit = (0, min(INSET_MIN_ITERS, self.x_bounds[1] - self.x_bounds[0] - 1))
             elif inset_xlimit[1] > INSET_MAX_ITERS:
-                inset_xlimit = (0, min(INSET_MAX_ITERS, self.x_bounds[1] - self.x_bounds[0]))
+                inset_xlimit = (0, min(INSET_MAX_ITERS, self.x_bounds[1] - self.x_bounds[0] - 1))
             inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
             # Plot a subset of the data on the inset.
             start, end = self.x_bounds[0] + inset_xlimit[0], self.x_bounds[0] + inset_xlimit[1] + 1
