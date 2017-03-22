@@ -39,10 +39,15 @@ def csv_to_krun_json(in_files, language, vm, uname):
             data_dictionary['audit']['uname'] = uname
             reader = csv.reader(fd)
             header = reader.next()  # Skip first row, which contains column names.
+            expect_idx = [0]  # check we get in-order indicies, first always 0
             for row in reader:
                 # First cell contains process execution number.
+                assert int(row[0]) in expect_idx
                 bench = row[1]
-                data = [float(datum) for datum in row[2:]]
+                if row[2] == "crash":
+                    data = []
+                else:
+                    data = [float(datum) for datum in row[2:]]
                 key = '%s:%s:default-%s' % (bench, vm, language)
                 if key not in data_dictionary['wallclock_times']:
                     data_dictionary['wallclock_times'][key] = list()
@@ -53,6 +58,7 @@ def csv_to_krun_json(in_files, language, vm, uname):
                 data_dictionary['core_cycle_counts'][key].append(None)
                 data_dictionary['aperf_counts'][key].append(None)
                 data_dictionary['mperf_counts'][key].append(None)
+                expect_idx = [0, int(row[0]) + 1]  # expect the next index, or a 0
         new_filename = os.path.splitext(filename)[0] + '.json.bz2'
         write_krun_results_file(data_dictionary, new_filename)
         return header, new_filename
