@@ -64,8 +64,7 @@ MEDIAN_COLOUR = '#0072B2'
 FILL_ALPHA = 0.2
 
 # line widths, measured in pts
-LINE_WIDTH = 1
-PLOT_LINE_WIDTH = 0.4
+LINE_WIDTH = 0.4
 
 OUTLIER_MARKER = 'o'
 OUTLIER_COLOR = 'r'
@@ -80,7 +79,7 @@ CYCLES_COLOR = 'black'
 PERF_COLOR = 'black'
 INSTR_COLOR = 'black'
 
-CHANGEPOINT_LINE_STYLE = '-'
+CHANGEPOINT_LINE_STYLE = '--'
 CHANGEPOINT_LINE_COLOR = 'r'
 
 ZORDER_GRID = 1
@@ -490,7 +489,7 @@ class ProcessExecChart(object):
         else:
             self.wallclock_axis = pyplot.subplot(self.inner_grid[self.n_rows - 1, 0])
         self.wallclock_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
-                        color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
+                        color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=LINE_WIDTH)
         self.wallclock_axis.autoscale(enable=False, axis='both')
         self._plot_changepoints(self.wallclock_axis, large_markers=True)
         self._plot_outliers(self.wallclock_axis, large_markers=True)
@@ -510,7 +509,7 @@ class ProcessExecChart(object):
 
     def plot_median(self, axis):
         axis.plot(self.iterations, self.medians, label='Median', zorder=ZORDER_MEDIAN,
-                  linewidth=PLOT_LINE_WIDTH, color=MEDIAN_COLOUR)
+                  linewidth=LINE_WIDTH, color=MEDIAN_COLOUR)
 
     def plot_tukey_interval(self, axis):
         axis.fill_between(self.iterations, self.tukey_interval[0], self.tukey_interval[1],
@@ -556,7 +555,7 @@ class ProcessExecChart(object):
                              zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
                              linewidth=LINE_WIDTH)
             lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
-                                   zorder=ZORDER_CHANGEPOINTS,
+                                   zorder=ZORDER_CHANGEPOINTS, linestyle=CHANGEPOINT_LINE_STYLE,
                                    linewidths=[LINE_WIDTH
                                    for _ in xrange(len(self.segment_means))])
             axis.add_collection(lines)
@@ -577,7 +576,7 @@ class ProcessExecChart(object):
                                                     sharex=self.wallclock_axis)
             self.cycles_axes[core].plot(self.iterations, self.cycles_data[core],
                       color=CYCLES_COLOR, label=('Core %d cycles' % self.core_cycles[core]),
-                      linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
+                      linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             self.style_axis(self.cycles_axes[core], (self.cycles_min, self.cycles_max),
                             None, 'CC #%d' % self.core_cycles[core], color=CYCLES_COLOR)
             if core == 0:
@@ -600,7 +599,7 @@ class ProcessExecChart(object):
                                                     sharex=self.wallclock_axis)
             self.instr_axes[index].plot(self.iterations, self.instr_data[index],
                         color=INSTR_COLOR, label=(self.instr_data[index].title),
-                      linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
+                      linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             self.instr_axes[index].set_ylim(self.instr_y_ranges[index])
             self.style_axis(self.instr_axes[index], self.instr_y_ranges[index],
                             None, self.instr_data[index].title, color=INSTR_COLOR)
@@ -620,7 +619,7 @@ class ProcessExecChart(object):
         self.zoomed_axis.autoscale(enable=False, axis='both') # Set x/y-limits manually.
         pyplot.setp(self.zoomed_axis.get_xticklabels(), visible=False)
         self.zoomed_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
-                  color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=PLOT_LINE_WIDTH)
+                  color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=LINE_WIDTH)
         self.style_axis(self.zoomed_axis, self.y_range_zoom, None, 'Time (secs)')
         add_margin_to_axes(self.zoomed_axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
         self._plot_changepoints(self.zoomed_axis, large_markers=False)
@@ -690,7 +689,7 @@ class ProcessExecChart(object):
             start, end = self.x_bounds[0] + inset_xlimit[0], self.x_bounds[0] + inset_xlimit[1] + 1
             inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1),
                        self.wallclock_data[start:end], color=LINE_COLOUR,
-                       linewidth=PLOT_LINE_WIDTH, zorder=ZORDER_DATA)
+                       linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             self._plot_outliers(inset, large_markers=False)
             self._plot_changepoints(inset, large_markers=False)
             pyplot.draw()  # Force xticklabels to be drawn.
