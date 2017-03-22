@@ -1357,14 +1357,29 @@ if __name__ == '__main__':
                             options.outliers, options.unique_outliers,
                             options.changepoints or options.changepoint_means)
 
-    first_key = data['data'].keys()[0]
-    first_mc = data['data'][data['data'].keys()[0]].keys()[0]
-    first_pexec = data['data'][first_key][first_mc][0]
-    if options. window_size >= len(first_pexec):  # Assume all execs are the same length
+    # Find the number of in-proc iterations in a non-crashed pexec
+    # Assumes we use the same number of in-proc iterations for all pexecs.
+    try:
+        for key_data in data['data'].itervalues():
+            for bench_data in key_data.itervalues():
+                for pexec in bench_data:
+                    if pexec == []:
+                        # indicates a crash
+                        continue
+                    else:
+                        iter_lens = len(pexec)
+                        raise StopIteration()  # to break out of all loops at once
+        else:
+            print('couldn't find a non-crashing pexec')
+            sys.exit(1)
+    except StopIteration:
+        pass  # good, we found some non-crash data
+
+    if options. window_size >= iter_lens:
         fatal_error('Window size (%d) must be strictly less than the number '
                     'of iterations in each process execution (%d). Use '
                     '-w or --window on the command line.' %
-                    (options.window_size, len(first_pexec)))
+                    (options.window_size, iter_lens))
 
     main(options.outfile is None,
          data,
