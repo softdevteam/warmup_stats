@@ -80,6 +80,7 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
                         to_steady += data_dictionaries[machine]['wallclock_times'][key][p_exec][index]
                     time_to_steadys.append(to_steady)
                 else:  # Flat execution, no changepoints.
+                    steady_iters.append(0)
                     time_to_steadys.append(0.0)
             # Get overall and detailed categories.
             categories_set = set(categories)
