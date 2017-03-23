@@ -662,10 +662,7 @@ class ProcessExecChart(object):
             inset = add_inset_to_axis(fig, axis, [best_rect[0] + INSET_TICK_SPACE,
                 best_rect[1] + INSET_TICK_SPACE, best_rect[2] - INSET_TICK_SPACE - (INSET_PADDING / 2),
                 best_rect[3] - INSET_TICK_SPACE - (INSET_PADDING / 2)])
-            y_min, y_max = self.y_range
-            inset.set_ylim([y_min, y_max])  # Same scale as larger subplot.
             inset.grid(False)
-            inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
             format_yticks_scientific(inset)
             inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
@@ -687,6 +684,13 @@ class ProcessExecChart(object):
             inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
             # Plot a subset of the data on the inset.
             start, end = self.x_bounds[0] + inset_xlimit[0], self.x_bounds[0] + inset_xlimit[1] + 1
+
+            # scale the y-axis to only the data the inset shows
+            y_min, y_max = get_unified_yrange([self.wallclock_data], start,
+                                              end, padding=0.02)
+            inset.set_ylim([y_min, y_max])
+            inset.set_yticks([y_min, y_min + ((y_max - y_min) / 2.0), y_max])
+
             inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1),
                        self.wallclock_data[start:end], color=LINE_COLOUR,
                        linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
