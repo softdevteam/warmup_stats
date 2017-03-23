@@ -90,13 +90,8 @@ def collide_rect((left, bottom, width, height), fig, axis, data, x_bounds):
     # Find the values on the x-axis of left and right edges of the rect.
     x_left_float, _ = axis_data_transform(axis, left, 0, inverse=False)
     x_right_float, _ = axis_data_transform(axis, left + width, 0, inverse=False)
-    x_left = int(math.floor(x_left_float))
-    x_right = int(math.ceil(x_right_float))
-    # Clamp x values to data boundaries.
-    if x_left < x_bounds[0]:
-        x_left = x_bounds[0]
-    if x_right >= x_bounds[1]:
-        x_right = x_bounds[1]
+    x_left = int(math.floor(x_left_float)) - x_bounds[0]
+    x_right = int(math.ceil(x_right_float)) - x_bounds[0]
     # Next find the highest and lowest y-value in that segment of data.
     minimum_y = min(data[x_left:x_right])
     maximum_y = max(data[x_left:x_right])
