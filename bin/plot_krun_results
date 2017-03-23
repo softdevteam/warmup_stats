@@ -154,7 +154,8 @@ def get_instr_data(key, machine, instr_dir, pexec_idxs):
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, changepoints, changepoint_means,
          median=False, tukey=False, inset=False, zoom=True, one_page=False,
-         legend_off=True, core_cycles=(0,1,2,3), cycles_ylimits=None):
+         legend_off=True, core_cycles=(0,1,2,3), cycles_ylimits=None,
+         inset_xlimits=None):
     """Determine which plots to put on each page of output.
     Plot all data.
     """
@@ -301,7 +302,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                          unique, common, changepoints,
                                          changepoint_means, classifications,
                                          median, tukey, inset, zoom, legend_off,
-                                         core_cycles, cycles_ylimits)
+                                         core_cycles, cycles_ylimits, inset_xlimits)
             if fig is not None:
                 if not is_interactive:
                     pdf.savefig(fig, dpi=fig.dpi, orientation='landscape',
@@ -322,7 +323,7 @@ class ProcessExecChart(object):
     def __init__(self, grid_cell, data, cycles_data, instr_data, instr_y_ranges,
                  title, x_bounds, y_range, y_range_zoom, window_size, outliers,
                  unique, common, changepoints, changepoint_means, classification,
-                 median, tukey, core_cycles, cycles_ylimits):
+                 median, tukey, core_cycles, cycles_ylimits, inset_xbounds):
         self.grid_cell = grid_cell
         self.title = title
         self.window_size = window_size
@@ -439,6 +440,7 @@ class ProcessExecChart(object):
         self.instr_axes = None
         self.zoomed_axis = None
         self.inset = None
+        self.inset_xlimit = inset_xbounds
 
     def plot_stack(self):
         self.plot_wallclock_times()
@@ -667,24 +669,32 @@ class ProcessExecChart(object):
             format_yticks_scientific(inset)
             inset.xaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
             inset.yaxis.set_tick_params(labelsize=INSET_TICK_FONTSIZE)
-            # Which iterations go in the inset? By default the first 2.5%.
-            one_pc = len(self.wallclock_data[self.x_bounds[0]:self.x_bounds[1]]) / 100.0  # 1%.
-            inset_xlimit = (self.x_bounds[0], self.x_bounds[0] + int(one_pc * 2.5))
-            # If all the changepoints occur at the start of the process exec,
-            # include them all and a few extra executions.
-            if self.changepoints:
-                if (self.changepoints[self.x_bounds[0]:self.x_bounds[1]] and
-                      self.changepoints[self.x_bounds[0]:self.x_bounds[1]][-1] <= int(one_pc * 5.0)):
-                    inset_xlimit = (0, (self.changepoints[self.x_bounds[0]:self.x_bounds[1]][-1]
-                                        + int(one_pc * 2.0)))
-            # Clamp the extent of the inset.
-            if inset_xlimit[1] < INSET_MIN_ITERS:
-                inset_xlimit = (0, min(INSET_MIN_ITERS, self.x_bounds[1] - self.x_bounds[0] - 1))
-            elif inset_xlimit[1] > INSET_MAX_ITERS:
-                inset_xlimit = (0, min(INSET_MAX_ITERS, self.x_bounds[1] - self.x_bounds[0] - 1))
+            # Which iterations go in the inset?
+            # Unless specified, the first 2.5%.
+            if not self.inset_xlimit:
+                one_pc = len(self.wallclock_data[self.x_bounds[0]:self.x_bounds[1]]) / 100.0  # 1%.
+                inset_xlimit = (self.x_bounds[0], self.x_bounds[0] + int(one_pc * 2.5))
+                # If all the changepoints occur at the start of the process exec,
+                # include them all and a few extra executions.
+                if self.changepoints:
+                    if (self.changepoints[self.x_bounds[0]:self.x_bounds[1]] and
+                          self.changepoints[self.x_bounds[0]:self.x_bounds[1]][-1] <= int(one_pc * 5.0)):
+                        inset_xlimit = (0, (self.changepoints[self.x_bounds[0]:self.x_bounds[1]][-1]
+                                            + int(one_pc * 2.0)))
+                # Clamp the extent of the inset.
+                if inset_xlimit[1] < INSET_MIN_ITERS:
+                    inset_xlimit = (0, min(INSET_MIN_ITERS, self.x_bounds[1] - self.x_bounds[0] - 1))
+                elif inset_xlimit[1] > INSET_MAX_ITERS:
+                    inset_xlimit = (0, min(INSET_MAX_ITERS, self.x_bounds[1] - self.x_bounds[0] - 1))
+            else:
+                inset_xlimit = self.inset_xlimit
+
             inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
             # Plot a subset of the data on the inset.
-            start, end = self.x_bounds[0] + inset_xlimit[0], self.x_bounds[0] + inset_xlimit[1] + 1
+            if not self.inset_xlimit:
+                start, end = self.x_bounds[0] + inset_xlimit[0], self.x_bounds[0] + inset_xlimit[1] + 1
+            else:
+                start, end = inset_xlimit[0] - self.x_bounds[0], inset_xlimit[1] - self.x_bounds[0] + 1
 
             # scale the y-axis to only the data the inset shows
             y_min, y_max = get_unified_yrange([self.wallclock_data], start,
@@ -698,24 +708,13 @@ class ProcessExecChart(object):
             self._plot_outliers(inset, large_markers=False)
             self._plot_changepoints(inset, large_markers=False)
             pyplot.draw()  # Force xticklabels to be drawn.
-            if self.x_bounds[0] > 0:
-                labels = [label.get_text() for label in inset.get_xticklabels()]
-                if not labels[-1]:  # Sometimes the last label is empty.
-                    labels = labels[0:-1]
-                new_xticklabels = list()
-                for label in labels:
-                    if label == '':
-                        new_xticklabels.append('')
-                    else:
-                        new_xticklabels.append(str(int(float(label)) + self.x_bounds[0]))
-                inset.set_xticklabels(new_xticklabels)
 
 
 def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means, classifications,
               median, tukey, inset=False, zoom=True, legend_off=True,
-              core_cycles=(0,1,2,3), cycles_ylimits=None):
+              core_cycles=(0,1,2,3), cycles_ylimits=None, inset_xlimits=None):
     """Plot a page of benchmarks.
     """
 
@@ -734,13 +733,20 @@ def draw_page(is_interactive, executions, cycles_executions,
         xlimits_start = 0
         xlimits_stop = len(executions[0])  # Assume all execs are the same length
     else:
-        try:
-            xlimits_start, xlimits_stop = [int(x) for x in xlimits.split(',')]
-            if xlimits_start < 0 or xlimits_stop > len(executions[0]):
-                fatal_error('You specified %s as xlimits, but your data contains'
-                            ' iterations between 0 and %d' % (xlimits, len(executions[0])))
-        except ValueError:
-            fatal_error('Invalid xlimits pair: %s' % xlimits)
+        xlimits_start = xlimits[0]
+        xlimits_stop = xlimits[1]
+        if xlimits_start < 0 or xlimits_stop > len(executions[0]):
+            fatal_error('You specified %s as xlimits, but your data contains'
+                        ' iterations between 0 and %d' % (xlimits, len(executions[0])))
+
+    if inset_xlimits:
+        if inset_xlimits[0] < 0 or inset_xlimits[1] > len(executions[0]):
+            fatal_error('You specified %s as inset xlimits, but your data'
+                        'contains iterations between 0 and %d' %
+                        (inset_xlimits, len(executions[0])))
+        inset_x_bounds = inset_xlimits
+    else:
+        inset_x_bounds = None  # Meaning, figure it out automatically
 
     # Find the min and max y values across all wallclock time plots for this page.
     y_min, y_max = get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=Y_LIM_PADDING)
@@ -826,7 +832,8 @@ def draw_page(is_interactive, executions, cycles_executions,
                  instr_data, instr_y_ranges, titles[index], x_bounds, [y_min, y_max],
                  y_range_zoom[index], window_size, outliers_exec, unique_exec,
                  common_exec, changepoint_exec, changepoint_mean_exec,
-                 classification_exec, median, tukey, core_cycles, cycles_ylimits))
+                 classification_exec, median, tukey, core_cycles,
+                 cycles_ylimits, inset_x_bounds))
         p_exec_charts[index].plot_stack()
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
@@ -1297,6 +1304,12 @@ def create_cli_parser():
                         default=None,
                         help='Only plot the core cycles for specified cores'
                               '(comma separated). e.g: 0,1,2,3')
+    parser.add_argument('--inset-xlimits', '-X',
+                        action='store',
+                        dest='inset_xlimits',
+                        default=None,
+                        type=str,
+                        help='Similar to --xlimits, but for thumbnail plots.')
     return parser
 
 
@@ -1356,6 +1369,30 @@ if __name__ == '__main__':
     else:
         core_cycles = None
 
+    if options.xlimits:
+        try:
+            options.xlimits = [int(x) for x in options.xlimits.split(',')]
+        except ValueError:
+            fatal_error('invalid --xlimits pair')
+
+        if len(options.xlimits) != 2:
+            fatal_error('wrong number of --xlimits elements')
+
+    if options.inset_xlimits:
+        try:
+            options.inset_xlimits = \
+                [int(x) for x in options.inset_xlimits.split(',')]
+        except ValueError:
+            fatal_error('invalid --inset-xlimits pair')
+
+        if len(options.inset_xlimits) != 2:
+            fatal_error('wrong number of --inset-xlimits elements')
+
+    if options.xlimits and options.inset_xlimits:
+        if options.inset_xlimits[0] < options.xlimits[0] or \
+            options.inset_xlimits[1] > options.xlimits[1]:
+            fatal_error('--inset-xlimits range must be inside --xlimits range')
+
     # Smaller fonts for on-screen plots.
     if options.outfile is None:
         TICK_FONTSIZE = 12
@@ -1409,4 +1446,5 @@ if __name__ == '__main__':
          one_page=options.one_page,
          legend_off=options.legend_off,
          core_cycles=core_cycles,
-         cycles_ylimits=cycles_ylimits)
+         cycles_ylimits=cycles_ylimits,
+         inset_xlimits=options.inset_xlimits)
