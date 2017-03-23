@@ -3,9 +3,10 @@ import math
 from collections import Counter, OrderedDict
 from warmup.html import HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
 from warmup.latex import end_document, end_table, escape, format_median_error
-from warmup.latex import get_latex_symbol_map, preamble, STYLE_SYMBOLS
-from warmup.statistics import bootstrap_confidence_interval
+from warmup.latex import get_latex_symbol_map, preamble, start_table, STYLE_SYMBOLS
+from warmup.statistics import  median_iqr
 
+JSON_VERSION_NUMBER = '1'
 
 TITLE = 'Summary of benchmark classifications'
 TABLE_FORMAT = 'll@{\hspace{0cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
@@ -23,13 +24,12 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
     # different machines.
     assert len(data_dictionaries) == 1
     machine = data_dictionaries.keys()[0]
-    summary_data = { machine: dict() }
+    summary_data = { machine: dict(), 'json_format_version': JSON_VERSION_NUMBER }
     # Parse data dictionaries.
     keys = sorted(data_dictionaries[machine]['wallclock_times'].keys())
     for key in sorted(keys):
         wallclock_times = data_dictionaries[machine]['wallclock_times'][key]
-        if len(wallclock_times) == 0:
-            print ('WARNING: Skipping: %s from %s (no executions)' %
+        if len(wallclock_times) == 0:            print ('WARNING: Skipping: %s from %s (no executions)' %
                    (key, machine))
         elif len(wallclock_times[0]) == 0:
             print('WARNING: Skipping: %s from %s (benchmark crashed)' %
@@ -81,6 +81,7 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
                         to_steady += data_dictionaries[machine]['wallclock_times'][key][p_exec][index]
                     time_to_steadys.append(to_steady)
                 else:  # Flat execution, no changepoints.
+                    steady_iters.append(0)
                     time_to_steadys.append(0.0)
             # Get overall and detailed categories.
             categories_set = set(categories)
@@ -104,14 +105,14 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
             elif categories_set == set(['flat']):
                 median_iter, error_iter = None, None
                 median_time_to_steady, error_time_to_steady = None, None
-                median_time, error_time = bootstrap_confidence_interval(steady_state_means)
+                median_time, error_time = median_iqr(steady_state_means)
             else:
-                median_time, error_time = bootstrap_confidence_interval(steady_state_means)
+                median_time, error_time = median_iqr(steady_state_means)
                 if steady_iters:
-                    median_iter, error_iter = bootstrap_confidence_interval(steady_iters)
+                    median_iter, error_iter = median_iqr(steady_iters)
                     median_iter = int(math.ceil(median_iter))
-                    error_iter = int(math.ceil(error_iter))
-                    median_time_to_steady, error_time_to_steady = bootstrap_confidence_interval(time_to_steadys)
+                    error_iter = int(math.ceil(error_iter[0])), int(math.ceil(error_iter[1]))
+                    median_time_to_steady, error_time_to_steady = median_iqr(time_to_steadys)
                 else:  # No changepoints in any process executions.
                     assert False  # Should be handled by elif clause above.
             # Add summary for this benchmark.
@@ -120,12 +121,16 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
             current_benchmark['classification'] = reported_category
             current_benchmark['detailed_classification'] = cat_counts
             current_benchmark['steady_state_iteration'] = median_iter
-            current_benchmark['steady_state_iteration_confidence_interval'] = error_iter
+            current_benchmark['steady_state_iteration_iqr'] = error_iter
+            current_benchmark['steady_state_iteration_list'] = steady_iters
             current_benchmark['steady_state_time_to_reach_secs'] = median_time_to_steady
-            current_benchmark['steady_state_time_to_reach_secs_confidence_interval'] = error_time_to_steady
+            current_benchmark['steady_state_time_to_reach_secs_iqr'] = error_time_to_steady
+            current_benchmark['steady_state_time_to_reach_secs_list'] = time_to_steadys
             current_benchmark['steady_state_time'] = median_time
-            current_benchmark['steady_state_time_confidence_interval'] = error_time
-            pexecs = list()
+            current_benchmark['steady_state_time_iqr'] = error_time
+            current_benchmark['steady_state_time_list'] = steady_state_means
+
+            pexecs = list()  # This is needed for JSON output.
             for index in xrange(n_pexecs):
                 pexecs.append({'index':index, 'classification':categories[index],
                               'outliers':outliers[index], 'changepoints':changepoints[index],
@@ -136,8 +141,16 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
 
 
 def convert_to_latex(summary_data, half_bound, delta, steady_state):
-    assert len(summary_data.keys()) == 1, 'Cannot summarise data from more than one machine.'
-    machine = summary_data.keys()[0]
+    assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
+        'Cannot process data from old JSON formats.'
+    machine = None
+    for key in summary_data:
+        if key == 'json_format_version':
+            continue
+        elif machine is not None:
+            assert False, 'Cannot summarise data from more than one machine.'
+        else:
+            machine = key
     benchmark_names = set()
     latex_summary = dict()
     for vm in summary_data[machine]:
@@ -174,18 +187,21 @@ def convert_to_latex(summary_data, half_bound, delta, steady_state):
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
                 mean_steady_iter = format_median_error(bmark['steady_state_iteration'],
-                                                       bmark['steady_state_iteration_confidence_interval'],
+                                                       bmark['steady_state_iteration_iqr'],
+                                                       bmark['steady_state_iteration_list'],
                                                        as_integer=True)
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
                 mean_steady = format_median_error(bmark['steady_state_time'],
-                                                  bmark['steady_state_time_confidence_interval'])
+                                                  bmark['steady_state_time_iqr'],
+                                                  bmark['steady_state_time_list'])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
                 time_to_steady = format_median_error(bmark['steady_state_time_to_reach_secs'],
-                                                     bmark['steady_state_time_to_reach_secs_confidence_interval'],
+                                                     bmark['steady_state_time_to_reach_secs_iqr'],
+                                                     bmark['steady_state_time_to_reach_secs_list'],
                                                      brief=True)
             else:
                 time_to_steady = ''
@@ -221,7 +237,7 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
     with open(tex_file, 'w') as fp:
         if with_preamble:
             fp.write(preamble(TITLE))
-            fp.write('\centering %s' % get_latex_symbol_map())
+            fp.write('\\centering %s' % get_latex_symbol_map())
             fp.write('\n\n\n')
             fp.write('\\begin{table*}[t]\n')
             fp.write('\\centering\n')
@@ -229,15 +245,7 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
         heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1] * num_splits)
         heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2] * num_splits)
         heads = '%s\\\\%s' % (heads1, heads2)
-        fp.write(\
-"""
-{
-\\begin{tabular}{%s}
-\\toprule
-%s \\\\
-\\midrule
-""" % (TABLE_FORMAT, heads))
-
+        fp.write(start_table(TABLE_FORMAT, heads))
         split_row_idx = 0
         for row_vms in zip(*splits):
             bench_idx = 0
@@ -295,7 +303,7 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
                     fp.write('\\\\ \n')
                 bench_idx += 1
             if split_row_idx < vms_per_split - 1:
-                fp.write('\midrule\n')
+                fp.write('\\midrule\n')
             split_row_idx += 1
         fp.write(end_table())
         if with_preamble:
@@ -304,8 +312,16 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
 
 
 def write_html_table(summary_data, html_filename):
-    assert len(summary_data.keys()) == 1, 'Cannot summarise data from more than one machine.'
-    machine = summary_data.keys()[0]
+    assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
+        'Cannot process data from old JSON formats.'
+    machine = None
+    for key in summary_data:
+        if key == 'json_format_version':
+            continue
+        elif machine is not None:
+            assert False, 'Cannot summarise data from more than one machine.'
+        else:
+            machine = key
     html_table_contents = dict()  # VM name -> html rows
     for vm in sorted(summary_data[machine]):
         html_rows = ''  # Just the table rows, no table header, etc.
@@ -338,18 +354,21 @@ def write_html_table(summary_data, html_filename):
                 reported_category = ' %s %d' % (bmark['classification'],
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
-                mean_steady_iter = '%d&#177;%d' % (int(math.ceil(bmark['steady_state_iteration'])),
-                                                  int(math.ceil(bmark['steady_state_iteration_confidence_interval'])))
+                mean_steady_iter = '%d (%d, %d)' % (int(math.ceil(bmark['steady_state_iteration'])),
+                                                    int(math.ceil(bmark['steady_state_iteration_iqr'][0])),
+                                                    int(math.ceil(bmark['steady_state_iteration_iqr'][1])))
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
-                mean_steady = '%.5f&#177;%.5f' % (bmark['steady_state_time'],
-                                                  bmark['steady_state_time_confidence_interval'])
+                mean_steady = '%.5f (%.5f, %.5f)' % (bmark['steady_state_time'],
+                                                     bmark['steady_state_time_iqr'][0],
+                                                     bmark['steady_state_time_iqr'][1])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
-                time_to_steady = '%.3f&#177;%.3f' % (bmark['steady_state_time_to_reach_secs'],
-                                                     bmark['steady_state_time_to_reach_secs_confidence_interval'])
+                time_to_steady = '%.3f (%.3f, %.3f)' % (bmark['steady_state_time_to_reach_secs'],
+                                                        bmark['steady_state_time_to_reach_secs_iqr'][0],
+                                                        bmark['steady_state_time_to_reach_secs_iqr'][1])
             else:
                 time_to_steady = ''
             # Benchmark name, classification, steady iter, time to reach, steady perf

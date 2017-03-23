@@ -1,17 +1,8 @@
-import math
+import numpy
 
-from kalibera import Data
-
-CONFIDENCE = 0.99
-ITERATIONS = 10000
+LOW_IQR_BOUND = 5.0
+HIGH_IQR_BOUND = 95.0
 
 
-def mean(seq):
-    return math.fsum(seq) / len(seq)
-
-
-def bootstrap_confidence_interval(seq, confidence=CONFIDENCE, iterations=ITERATIONS):
-    size = len(seq)
-    data = Data({(): seq}, [size])
-    result = data.bootstrap_confidence_interval(iterations, confidence=str(confidence))
-    return result.median, result.error
+def median_iqr(seq):
+    return numpy.median(seq), (numpy.percentile(seq, LOW_IQR_BOUND), numpy.percentile(seq, HIGH_IQR_BOUND))
