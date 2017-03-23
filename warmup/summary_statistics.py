@@ -6,6 +6,7 @@ from warmup.latex import end_document, end_table, escape, format_median_error
 from warmup.latex import get_latex_symbol_map, preamble, start_table, STYLE_SYMBOLS
 from warmup.statistics import  median_iqr
 
+JSON_VERSION_NUMBER = '1'
 
 TITLE = 'Summary of benchmark classifications'
 TABLE_FORMAT = 'll@{\hspace{0cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
@@ -23,7 +24,7 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
     # different machines.
     assert len(data_dictionaries) == 1
     machine = data_dictionaries.keys()[0]
-    summary_data = { machine: dict() }
+    summary_data = { machine: dict(), 'json_format_version': JSON_VERSION_NUMBER }
     # Parse data dictionaries.
     keys = sorted(data_dictionaries[machine]['wallclock_times'].keys())
     for key in sorted(keys):
@@ -140,8 +141,16 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
 
 
 def convert_to_latex(summary_data, half_bound, delta, steady_state):
-    assert len(summary_data.keys()) == 1, 'Cannot summarise data from more than one machine.'
-    machine = summary_data.keys()[0]
+    assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
+        'Cannot process data from old JSON formats.'
+    machine = None
+    for key in summary_data:
+        if key == 'json_format_version':
+            continue
+        elif machine is not None:
+            assert False, 'Cannot summarise data from more than one machine.'
+        else:
+            machine = key
     benchmark_names = set()
     latex_summary = dict()
     for vm in summary_data[machine]:
@@ -303,8 +312,16 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
 
 
 def write_html_table(summary_data, html_filename):
-    assert len(summary_data.keys()) == 1, 'Cannot summarise data from more than one machine.'
-    machine = summary_data.keys()[0]
+    assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
+        'Cannot process data from old JSON formats.'
+    machine = None
+    for key in summary_data:
+        if key == 'json_format_version':
+            continue
+        elif machine is not None:
+            assert False, 'Cannot summarise data from more than one machine.'
+        else:
+            machine = key
     html_table_contents = dict()  # VM name -> html rows
     for vm in sorted(summary_data[machine]):
         html_rows = ''  # Just the table rows, no table header, etc.
