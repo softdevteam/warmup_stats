@@ -337,18 +337,21 @@ def write_html_table(summary_data, html_filename):
                 reported_category = ' %s %d' % (bmark['classification'],
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
-                mean_steady_iter = '%d&#177;%d' % (int(math.ceil(bmark['steady_state_iteration'])),
-                                                  int(math.ceil(bmark['steady_state_iteration_confidence_interval'])))
+                mean_steady_iter = '%d (%d, %d)' % (int(math.ceil(bmark['steady_state_iteration'])),
+                                                    int(math.ceil(bmark['steady_state_iteration_confidence_interval'][0])),
+                                                    int(math.ceil(bmark['steady_state_iteration_confidence_interval'][1])))
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
-                mean_steady = '%.5f&#177;%.5f' % (bmark['steady_state_time'],
-                                                  bmark['steady_state_time_confidence_interval'])
+                mean_steady = '%.5f (%.5f, %.5f)' % (bmark['steady_state_time'],
+                                                     bmark['steady_state_time_confidence_interval'][0],
+                                                     bmark['steady_state_time_confidence_interval'][1])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
-                time_to_steady = '%.3f&#177;%.3f' % (bmark['steady_state_time_to_reach_secs'],
-                                                     bmark['steady_state_time_to_reach_secs_confidence_interval'])
+                time_to_steady = '%.3f (%.3f, %.3f)' % (bmark['steady_state_time_to_reach_secs'],
+                                                        bmark['steady_state_time_to_reach_secs_confidence_interval'][0],
+                                                        bmark['steady_state_time_to_reach_secs_confidence_interval'][1])
             else:
                 time_to_steady = ''
             # Benchmark name, classification, steady iter, time to reach, steady perf
