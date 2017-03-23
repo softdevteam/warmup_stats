@@ -120,13 +120,13 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
             current_benchmark['classification'] = reported_category
             current_benchmark['detailed_classification'] = cat_counts
             current_benchmark['steady_state_iteration'] = median_iter
-            current_benchmark['steady_state_iteration_confidence_interval'] = error_iter
+            current_benchmark['steady_state_iteration_iqr'] = error_iter
             current_benchmark['steady_state_iteration_list'] = steady_iters
             current_benchmark['steady_state_time_to_reach_secs'] = median_time_to_steady
-            current_benchmark['steady_state_time_to_reach_secs_confidence_interval'] = error_time_to_steady
+            current_benchmark['steady_state_time_to_reach_secs_iqr'] = error_time_to_steady
             current_benchmark['steady_state_time_to_reach_secs_list'] = time_to_steadys
             current_benchmark['steady_state_time'] = median_time
-            current_benchmark['steady_state_time_confidence_interval'] = error_time
+            current_benchmark['steady_state_time_iqr'] = error_time
             current_benchmark['steady_state_time_list'] = steady_state_means
 
             pexecs = list()  # This is needed for JSON output.
@@ -178,20 +178,20 @@ def convert_to_latex(summary_data, half_bound, delta, steady_state):
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
                 mean_steady_iter = format_median_error(bmark['steady_state_iteration'],
-                                                       bmark['steady_state_iteration_confidence_interval'],
+                                                       bmark['steady_state_iteration_iqr'],
                                                        bmark['steady_state_iteration_list'],
                                                        as_integer=True)
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
                 mean_steady = format_median_error(bmark['steady_state_time'],
-                                                  bmark['steady_state_time_confidence_interval'],
+                                                  bmark['steady_state_time_iqr'],
                                                   bmark['steady_state_time_list'])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
                 time_to_steady = format_median_error(bmark['steady_state_time_to_reach_secs'],
-                                                     bmark['steady_state_time_to_reach_secs_confidence_interval'],
+                                                     bmark['steady_state_time_to_reach_secs_iqr'],
                                                      bmark['steady_state_time_to_reach_secs_list'],
                                                      brief=True)
             else:
@@ -338,20 +338,20 @@ def write_html_table(summary_data, html_filename):
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
                 mean_steady_iter = '%d (%d, %d)' % (int(math.ceil(bmark['steady_state_iteration'])),
-                                                    int(math.ceil(bmark['steady_state_iteration_confidence_interval'][0])),
-                                                    int(math.ceil(bmark['steady_state_iteration_confidence_interval'][1])))
+                                                    int(math.ceil(bmark['steady_state_iteration_iqr'][0])),
+                                                    int(math.ceil(bmark['steady_state_iteration_iqr'][1])))
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
                 mean_steady = '%.5f (%.5f, %.5f)' % (bmark['steady_state_time'],
-                                                     bmark['steady_state_time_confidence_interval'][0],
-                                                     bmark['steady_state_time_confidence_interval'][1])
+                                                     bmark['steady_state_time_iqr'][0],
+                                                     bmark['steady_state_time_iqr'][1])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
                 time_to_steady = '%.3f (%.3f, %.3f)' % (bmark['steady_state_time_to_reach_secs'],
-                                                        bmark['steady_state_time_to_reach_secs_confidence_interval'][0],
-                                                        bmark['steady_state_time_to_reach_secs_confidence_interval'][1])
+                                                        bmark['steady_state_time_to_reach_secs_iqr'][0],
+                                                        bmark['steady_state_time_to_reach_secs_iqr'][1])
             else:
                 time_to_steady = ''
             # Benchmark name, classification, steady iter, time to reach, steady perf
