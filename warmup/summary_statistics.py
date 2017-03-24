@@ -79,13 +79,13 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                 # p_execs will have one or more segment mean.
                 if data_dictionaries[machine]['changepoints'][key][p_exec]:
                     steady_iter = data_dictionaries[machine]['changepoints'][key][p_exec][first_steady_segment - 1]
-                    steady_iters.append(steady_iter)
+                    steady_iters.append(steady_iter + 1)
                     to_steady = 0.0
                     for index in xrange(steady_iter):
                         to_steady += data_dictionaries[machine]['wallclock_times'][key][p_exec][index]
                     time_to_steadys.append(to_steady)
                 else:  # Flat execution, no changepoints.
-                    steady_iters.append(0)
+                    steady_iters.append(1)
                     time_to_steadys.append(0.0)
             # Get overall and detailed categories.
             categories_set = set(categories)
