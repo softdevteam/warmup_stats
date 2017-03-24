@@ -452,6 +452,7 @@ class ProcessExecChart(object):
         add_margin_to_axes(self.wallclock_axis, x=0.02, y=0.02)
 
     def style_axis(self, axis, y_range, x_label, y_label, color=LINE_COLOUR, smaller_plot=True):
+        axis.set_xlim(self.x_bounds)
         axis.set_ylim(y_range)
         if smaller_plot:
             major_y_divs = GRID_MAJOR_Y_DIVS_SMALLER_PLOTS
