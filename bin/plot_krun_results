@@ -1039,11 +1039,19 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                  classification)
                         plot_titles[key][machine].append(title)
         else:  # Chart only the data specified on command line.
+            skipped_keys = dict()
             for key in requested_data:
                 if machine not in requested_data[key]:
                     continue
                 if key not in data['wallclock_times']:
                     # Hope the key appears in another file, checked below.
+                    continue
+                if len(data['wallclock_times'][key]) == 0:
+                    print('WARNING: Skipping: %s from %s (no executions)' %
+                          (key, machine))
+                    if machine not in skipped_keys:
+                        skipped_keys[machine] = list()
+                    skipped_keys[machine].append(key)
                     continue
 
                 # Scaffold entries if not existing
@@ -1083,14 +1091,11 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['common_outliers'][key][machine] = None
                         data_dictionary['unique_outliers'][key][machine] = None
 
-                if key not in plot_titles:
-                    plot_titles[key] = dict()
-                if machine not in plot_titles[key]:
-                    plot_titles[key][machine] = list()
-                if len(data['wallclock_times'][key]) == 0:
-                    print('WARNING: Skipping: %s from %s (no executions)' %
-                          (key, machine))
-                else:
+                if len(data['wallclock_times'][key]) > 0:
+                    if key not in plot_titles:
+                        plot_titles[key] = dict()
+                    if machine not in plot_titles[key]:
+                        plot_titles[key][machine] = list()
                     benchmark_name = key.split(':')[0]
                     if benchmark_name in BENCHMARKS:
                         benchmark_name = BENCHMARKS[benchmark_name]
@@ -1134,6 +1139,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
     # given Krun results files.
     for key in requested_data:
         for machine in requested_data[key]:
+            if machine in skipped_keys and key in skipped_keys[machine]:
+                continue
             if (key not in data_dictionary['data'] or
                 machine not in data_dictionary['data'][key]):
                 fatal_error('You requested that plots for benchmark %s from '
