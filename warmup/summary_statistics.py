@@ -18,7 +18,7 @@ TABLE_HEADINGS2 = '&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)}
 BLANK_CELL = '\\begin{minipage}[c][\\blankheight]{0pt}\\end{minipage}'
 
 
-def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_state):
+def collect_summary_statistics(data_dictionaries, delta, steady_state):
     summary_data = dict()
     # Although the caller can pass >1 json file, there should never be two
     # different machines.
@@ -29,7 +29,8 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
     keys = sorted(data_dictionaries[machine]['wallclock_times'].keys())
     for key in sorted(keys):
         wallclock_times = data_dictionaries[machine]['wallclock_times'][key]
-        if len(wallclock_times) == 0:            print ('WARNING: Skipping: %s from %s (no executions)' %
+        if len(wallclock_times) == 0:
+            print('WARNING: Skipping: %s from %s (no executions)' %
                    (key, machine))
         elif len(wallclock_times[0]) == 0:
             print('WARNING: Skipping: %s from %s (benchmark crashed)' %
@@ -59,11 +60,14 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
                 first_steady_segment = len(data_dictionaries[machine]['changepoint_means'][key][p_exec]) - 1
                 num_steady_segments = 1
                 last_segment_mean = data_dictionaries[machine]['changepoint_means'][key][p_exec][-1]
-                lower_bound = min(last_segment_mean * (1.0 - half_bound), last_segment_mean - delta)
-                upper_bound = max(last_segment_mean * (1.0 + half_bound), last_segment_mean + delta)
+                last_segment_var = data_dictionaries[machine]['changepoint_vars'][key][p_exec][-1]
+                lower_bound = min(last_segment_mean - last_segment_var, last_segment_mean - delta)
+                upper_bound = max(last_segment_mean + last_segment_var, last_segment_mean + delta)
                 for index in xrange(len(data_dictionaries[machine]['changepoint_means'][key][p_exec]) - 2, -1, -1):
                     current_segment_mean = data_dictionaries[machine]['changepoint_means'][key][p_exec][index]
-                    if current_segment_mean >= lower_bound and current_segment_mean <= upper_bound:
+                    current_segment_var = data_dictionaries[machine]['changepoint_vars'][key][p_exec][index]
+                    if (current_segment_mean + current_segment_var >= lower_bound and
+                            current_segment_mean - current_segment_var<= upper_bound):
                         first_steady_segment -= 1
                         num_steady_segments += 1
                     else:
@@ -140,7 +144,7 @@ def collect_summary_statistics(data_dictionaries, half_bound, delta, steady_stat
     return summary_data
 
 
-def convert_to_latex(summary_data, half_bound, delta, steady_state):
+def convert_to_latex(summary_data, delta, steady_state):
     assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
     machine = None

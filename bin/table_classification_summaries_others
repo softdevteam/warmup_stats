@@ -43,10 +43,8 @@ if __name__ == '__main__':
     classifier, data_dcts = parse_krun_file_with_changepoints(options.json_files[0])
     if options.with_preamble:
         print 'Writing out full document, with preamble.'
-    summary_data = collect_summary_statistics(data_dcts, classifier['half_bound'],
-                                              classifier['delta'], classifier['steady'])
-    machine, bmarks, latex_summary = convert_to_latex(summary_data, classifier['half_bound'],
-                                         classifier['delta'], classifier['steady'])
+    summary_data = collect_summary_statistics(data_dcts, classifier['delta'], classifier['steady'])
+    machine, bmarks, latex_summary = convert_to_latex(summary_data, classifier['delta'], classifier['steady'])
     print 'Writing data to:', options.latex_file
     write_latex_table(machine, bmarks, latex_summary, options.latex_file,
                       options.num_splits, options.with_preamble)
