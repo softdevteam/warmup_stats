@@ -870,7 +870,9 @@ def draw_page(is_interactive, executions, cycles_executions,
         index = row * MAX_SUBPLOTS_PER_ROW + col
     # Update page grid before drawing insets, to ensure bounding boxes are correct.
     outer_grid.update(**SUBPLOT_PARAMS)
-    if inset:
+    # If the user has requested an inset and there are enough data points to
+    # do so, plot insets on all charts.
+    if inset and ((x_bounds[1] - x_bounds[0]) / 100.0) * 2.5 > 1:
         for chart in p_exec_charts:
             chart.plot_inset(chart.wallclock_axis, fig)
     if tukey:  # Add Tukey band to legend.
