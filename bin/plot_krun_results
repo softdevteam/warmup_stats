@@ -947,6 +947,9 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             'contain the relevant keys. Please run the '
                             'mark_changepoints_in_json.py script before '
                             'proceeding.' % filename)
+        data_has_changepoints = False  # Used for plot titles.
+        if 'changepoints' in data:
+            data_has_changepoints = True
 
         # Get machine name from Krun results file.
         machine = data['audit']['uname'].split(' ')[1]
@@ -1034,7 +1037,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     pass  # no data for this
                 else:
                     for p_exec in xrange(num_p_execs):
-                        if changepoints:
+                        if data_has_changepoints:
                             classification = ' (%s)' % \
                                 data['classifications'][key][p_exec]
                         else:
@@ -1136,11 +1139,17 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 data_dictionary['unique_outliers'][key][machine].append(data['unique_outliers'][key][p_exec])
 
                         # Construct plot title.
-                        title = '%s, %s, %s, Proc. exec. #%d' % \
+                        if data_has_changepoints:
+                            classification = ' (%s)' % \
+                                data['classifications'][key][p_exec]
+                        else:
+                            classification = ''
+                        title = '%s, %s, %s, Proc. exec. #%d%s' % \
                                 (benchmark_name,
                                  key.split(':')[1],
                                  machine_name,
-                                 p_exec + 1)
+                                 p_exec + 1,
+                                 classification)
                         plot_titles[key][machine].append(title)
 
     # Check that every benchmark that was requested has been found in the
