@@ -109,7 +109,6 @@ INSET_DIST_DELTA = 0.01
 INSET_MIN_ITERS = 50
 INSET_MAX_ITERS = 150
 INSET_TICK_FONTSIZE = 8
-INSET_GRID_MAJOR_X_DIVS = 5
 
 # Zoomed in plot of measurement data.
 ZOOM_PROPORTION = 0.02
@@ -421,8 +420,9 @@ class ProcessExecChart(object):
         # they are not array-indexed (i.e. the final labels will run from 1-100).
         self.major_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1],
                                                  GRID_MAJOR_X_DIVS, with_max=True)
-        self.minor_xticks = compute_grid_offsets(self.x_bounds[0], self.x_bounds[1],
-                                                 GRID_MINOR_X_DIVS, with_max=True)
+        self.minor_xticks = list()  # Should appear half-way between major xticks.
+        for index, value in enumerate(self.major_xticks[:-1]):
+            self.minor_xticks.append(value + ((self.major_xticks[index + 1] - value) / 2))
         # Calculate the number of plots needed.
         self.n_rows = 1
         if cycles_data:
@@ -711,16 +711,14 @@ class ProcessExecChart(object):
             # indices, to be passed to self.wallclock_data which has already
             # been sliced to match self.x_bounds.
             if not self.inset_xlimit:  # User has not specified --inset-xlimit.
-                start, end = inset_xlimit[0], inset_xlimit[1] + 1
-                x_min, x_max = inset_xlimit[0] + self.x_bounds[0], inset_xlimit[1] + self.x_bounds[0]
+                start, end = inset_xlimit[0] + self.x_bounds[0], inset_xlimit[1] + self.x_bounds[0] + 1
             else:
                 start, end = inset_xlimit[0] - self.x_bounds[0], inset_xlimit[1] - self.x_bounds[0] + 1
-                x_min, x_max = inset_xlimit[0], inset_xlimit[1]
 
             # Plot data before changing other artists.
-            inset.plot(range(x_min, x_max + 1), self.wallclock_data[start:end],
+            inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1), self.wallclock_data[start:end],
                        color=LINE_COLOUR, linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
-            inset.set_xlim(x_min, x_max + 1, auto=False)
+            inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
             self._plot_outliers(inset, large_markers=False)
             self._plot_changepoints(inset, large_markers=False)
 
@@ -732,8 +730,9 @@ class ProcessExecChart(object):
 
             # As with the xticklabels on the wallclock_times plot, we want to
             # use a closed interval here, and we do NOT use array indices.
-            xtick_locations = compute_grid_offsets(x_min, x_max, INSET_GRID_MAJOR_X_DIVS,
-                                                   with_max=True)
+            xtick_locations = [inset_xlimit[0],
+                               inset_xlimit[0] + round((inset_xlimit[1] - inset_xlimit[0]) / 2.0),
+                               inset_xlimit[1] - 1]
             inset.set_xticks(xtick_locations)
             self._increment_xticklabels(inset)
 
