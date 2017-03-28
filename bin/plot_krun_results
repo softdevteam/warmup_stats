@@ -357,8 +357,12 @@ class ProcessExecChart(object):
             self.common = None
         # Marshal changepoint data.
         self.changepoints = list()
-        self.changepoint_means = [changepoint_means[0]]
-        self.changepoint_vars = [changepoint_vars[0]]
+        if changepoint_means:
+            self.changepoint_means = [changepoint_means[0]]
+            self.changepoint_vars = [changepoint_vars[0]]
+        else:
+            self.changepoint_means = list()
+            self.changepoint_vars = list()
         self.delta = classifier['delta']
         self.classification = classification
         if changepoint_means:
