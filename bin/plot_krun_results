@@ -59,7 +59,8 @@ GRID_MAJOR_Y_DIVS = 6
 GRID_MINOR_Y_DIVS_SMALLER_PLOTS = 4
 GRID_MAJOR_Y_DIVS_SMALLER_PLOTS = 2
 
-LINE_COLOUR = 'k'
+LINE_COLOUR = 'grey'
+STEADY_COLOUR = 'k'
 MEDIAN_COLOUR = '#0072B2'
 FILL_ALPHA = 0.2
 
@@ -171,8 +172,9 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     cycles_pages = list()
     instr_pages = list()
     all_outliers, all_common, all_unique = list(), list(), list()
-    all_changepoints, all_changepoint_means = list(), list()
+    all_changepoints, all_changepoint_means, all_changepoint_vars = list(), list(), list()
     all_classifications = list()
+    classifier = data_dcts['classifier']
 
     # By default, each benchmark from each machine is placed on a separate
     # page. If the --one-page switch has been passed in, then we place
@@ -183,7 +185,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         cycles_page = list()
         instr_page = list()
         page_common, page_unique, page_outlier = list(), list(), list()
-        page_changepoints, page_changepoint_means = list(), list()
+        page_changepoints, page_changepoint_means, page_changepoint_vars = list(), list(), list()
         page_classifications = list()
         for key in sorted(data_dcts['data']):
             for machine in sorted(data_dcts['data'][key]):
@@ -211,14 +213,17 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     if changepoints:
                         page_changepoints.append(data_dcts['changepoints'][key][machine][index])
                         page_changepoint_means.append(None)
+                        page_changepoint_vars.append(None)
                         page_classifications.append(data_dcts['classifications'][key][machine][index])
                     if changepoint_means:
                         page_changepoints.append(data_dcts['changepoints'][key][machine][index])
                         page_changepoint_means.append(data_dcts['changepoint_means'][key][machine][index])
+                        page_changepoint_vars.append(data_dcts['changepoint_vars'][key][machine][index])
                         page_classifications.append(data_dcts['classifications'][key][machine][index])
                     else:
                         page_changepoints.append(None)
                         page_changepoint_means.append(None)
+                        page_changepoint_vars.append(None)
                         page_classifications.append(None)
         pages.append(page)
         cycles_pages.append(cycles_page)
@@ -229,6 +234,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
         all_unique.append(page_unique)
         all_changepoints.append(page_changepoints)
         all_changepoint_means.append(page_changepoint_means)
+        all_changepoint_vars.append(page_changepoint_vars)
         all_classifications.append(page_classifications)
     else:  # Create multiple pages.
         for key in sorted(data_dcts['data']):
@@ -250,14 +256,17 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 if changepoints:
                     all_changepoints.append(data_dcts['changepoints'][key][machine])
                     all_changepoint_means.append(None)
+                    all_changepoint_vars.append(None)
                     all_classifications.append(data_dcts['classifications'][key][machine])
                 elif changepoint_means:
                     all_changepoints.append(data_dcts['changepoints'][key][machine])
                     all_changepoint_means.append(data_dcts['changepoint_means'][key][machine])
+                    all_changepoint_vars.append(data_dcts['changepoint_vars'][key][machine])
                     all_classifications.append(data_dcts['classifications'][key][machine])
                 else:
                     all_changepoints.append(None)
                     all_changepoint_means.append(None)
+                    all_changepoint_vars.append(None)
                     all_classifications.append(None)
 
     # Draw each page and display (interactive mode) or save to disk.
@@ -294,13 +303,15 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
             unique = only_uncrashed(all_unique[index])
             changepoints = only_uncrashed(all_changepoints[index])
             changepoint_means = only_uncrashed(all_changepoint_means[index])
+            changepoint_vars = only_uncrashed(all_changepoint_vars[index])
             classifications = only_uncrashed(all_classifications[index])
 
             fig = draw_page(is_interactive, wct_page, cycles_page,
                                          instr_page, subplot_titles,
                                          window_size, xlimits, outliers,
                                          unique, common, changepoints,
-                                         changepoint_means, classifications,
+                                         changepoint_means, changepoint_vars,
+                                         classifications, classifier,
                                          median, tukey, inset, zoom, legend_off,
                                          core_cycles, cycles_ylimits, inset_xlimits)
             if fig is not None:
@@ -322,8 +333,9 @@ class ProcessExecChart(object):
 
     def __init__(self, grid_cell, data, cycles_data, instr_data, instr_y_ranges,
                  title, x_bounds, y_range, y_range_zoom, window_size, outliers,
-                 unique, common, changepoints, changepoint_means, classification,
-                 median, tukey, core_cycles, cycles_ylimits, inset_xbounds):
+                 unique, common, changepoints, changepoint_means, changepoint_vars,
+                 classification, classifier, median, tukey, core_cycles,
+                 cycles_ylimits, inset_xbounds):
         self.grid_cell = grid_cell
         self.title = title
         self.window_size = window_size
@@ -344,17 +356,26 @@ class ProcessExecChart(object):
         else:
             self.common = None
         # Marshal changepoint data.
-        self.changepoints = changepoints
-        self.changepoint_means = changepoint_means
+        self.changepoints = list()
+        self.changepoint_means = [changepoint_means[0]]
+        self.changepoint_vars = [changepoint_vars[0]]
+        self.delta = classifier['delta']
         self.classification = classification
-        if self.changepoint_means:
+        if changepoint_means:
+            if changepoints:
+                self.last_changepoint = changepoints[-1]
+            else:
+                self.last_changepoint = None
+            self.last_segment_mean = changepoint_means[-1]
+            self.last_segment_var = changepoint_vars[-1]
             self.segment_means = list()  # ((x0, y0), (x1, y1)) pairs.
-            if self.x_bounds[0] > 0:
-                for index, changepoint in enumerate(self.changepoints):
-                    if changepoint < self.x_bounds[0]:
-                        del self.changepoint_means[index]
-                        del self.changepoints[index]
+            for index, changepoint in enumerate(changepoints):
+                if changepoint >= self.x_bounds[0] and changepoint <= x_bounds[1]:
+                    self.changepoints.append(changepoints[index])
+                    self.changepoint_means.append(changepoint_means[index + 1])
+                    self.changepoint_vars.append(changepoint_vars[index + 1])
             assert len(self.changepoints) == len(self.changepoint_means) - 1
+            assert len(self.changepoints) == len(self.changepoint_vars) - 1
             for index, x_location in enumerate(self.changepoints):
                 if index == 0:
                     self.segment_means.append([(self.x_bounds[0], self.changepoint_means[0]),
@@ -514,6 +535,7 @@ class ProcessExecChart(object):
         self.wallclock_axis.autoscale(enable=False, axis='both')
         self._plot_changepoints(self.wallclock_axis, large_markers=True)
         self._plot_outliers(self.wallclock_axis, large_markers=True)
+        self._plot_steady_equivalent(self.wallclock_axis)
         if self.median:  # Plot the median.
             self.plot_median(self.wallclock_axis)
         if self.tukey:  # Fill between the Tukey band.
@@ -565,6 +587,48 @@ class ProcessExecChart(object):
                          label=('Common outliers (${%.2f}\\%%$)' % pc_common),
                          zorder=ZORDER_MARKERS)
 
+    def _plot_steady_equivalent(self, axis):
+        """Plot steady state segment and 'equivalents' in a different colour."""
+
+        if not self.changepoint_means or self.classification == 'no steady state':
+            return
+        if self.classification == 'flat' and len(self.changepoints) == 0:
+            axis.plot(self.iterations, self.wallclock_data,
+                      color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
+            return
+        lower_bound = min(self.last_segment_mean - self.last_segment_var,
+                          self.last_segment_mean - self.delta)
+        upper_bound = max(self.last_segment_mean + self.last_segment_var,
+                          self.last_segment_mean + self.delta)
+        if len(self.changepoints) > 0:
+            # Plot earlier, equivalent segments.
+            for index in xrange(len(self.changepoint_means) - 2, -1, -1):
+                current_segment_mean = self.changepoint_means[index]
+                current_segment_var = self.changepoint_vars[index]
+                if (current_segment_mean + current_segment_var >= lower_bound and
+                        current_segment_mean - current_segment_var <= upper_bound):
+                    if index == 0:  # (start, end) are array indices.
+                        start = 0
+                        end = self.changepoints[index] - self.x_bounds[0]
+                    else:
+                        start = self.changepoints[index - 1] - self.x_bounds[0]
+                        end = self.changepoints[index] - self.x_bounds[0]
+                    axis.plot(self.iterations[start:end], self.wallclock_data[start:end],
+                              color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
+        elif len(self.changepoints) == 0 and self.x_bounds[0] != 0:
+            # No changepoints, but user passed in --xbounds, so we need to check
+            # whether the remaining segment mean is equivalent to the steady state.
+            if (self.segment_means[0] + self.segment_vars[0] >= lower_bound and
+                    self.segment_means[0] - self.segment_var[0] <= upper_bound):
+                axis.plot(self.iterations,
+                          self.wallclock_data[self.x_bounds[0]:self.x_bounds[0]],
+                          color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
+        # Highlight steady-state segment.
+        if self.last_changepoint < self.x_bounds[1]:
+            axis.plot(self.iterations[self.last_changepoint:],
+                      self.wallclock_data[self.last_changepoint - self.x_bounds[0]:],
+                      color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
+
     def _plot_changepoints(self, axis, large_markers=True):
         if large_markers:
             size = OUTLIER_SIZE
@@ -581,10 +645,6 @@ class ProcessExecChart(object):
                                    for _ in xrange(len(self.segment_means))])
             axis.add_collection(lines)
         if self.changepoints and not self.changepoint_means:
-            if self.x_bounds[0] > 0:
-                for index, changepoint in enumerate(self.changepoints):
-                    if self.changepoint < self.x_bounds[0]:
-                        del self.changepoints[index]
             axis.scatter(self.changepoints, [self.y_range[0] for _ in self.changepoints],
                               c=LINE_COLOUR, marker=OUTLIER_MARKER, s=size,
                               zorder=ZORDER_CHANGEPOINTS)
@@ -648,6 +708,7 @@ class ProcessExecChart(object):
         # Plot title goes above the top subplot (only once).
         if not self.cycles_data and not self.instr_data:
             self.zoomed_axis.set_title(self.title, fontsize=TITLE_FONT_SIZE)
+        self._plot_steady_equivalent(self.zoomed_axis)
         self.row += 1
 
     def plot_inset(self, axis, fig):
@@ -739,7 +800,8 @@ class ProcessExecChart(object):
 
 def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
-              outliers, unique, common, changepoints, changepoint_means, classifications,
+              outliers, unique, common, changepoints, changepoint_means,
+              changepoint_vars, classifications, classifier,
               median, tukey, inset=False, zoom=True, legend_off=True,
               core_cycles=(0,1,2,3), cycles_ylimits=None, inset_xlimits=None):
     """Plot a page of benchmarks.
@@ -832,7 +894,7 @@ def draw_page(is_interactive, executions, cycles_executions,
     index, row, col = 0, 0, 0
     cycles_data, instr_data = None, None
     outliers_exec, unique_exec, common_exec = None, None, None
-    changepoint_exec, changepoint_mean_exec = None, None
+    changepoint_exec, changepoint_mean_exec, changepoint_var_exec = None, None, None
     classification_exec = None
     while index < n_execs:
         data = executions[index]
@@ -851,6 +913,7 @@ def draw_page(is_interactive, executions, cycles_executions,
             classification_exec = classifications[index]
         if changepoint_means:
             changepoint_mean_exec = changepoint_means[index]
+            changepoint_var_exec = changepoint_vars[index]
             classification_exec = classifications[index]
         # Get axis and draw plot.
         inner_grid = outer_grid[row, col]
@@ -859,8 +922,8 @@ def draw_page(is_interactive, executions, cycles_executions,
                  instr_data, instr_y_ranges, titles[index], x_bounds, [y_min, y_max],
                  y_range_zoom[index], window_size, outliers_exec, unique_exec,
                  common_exec, changepoint_exec, changepoint_mean_exec,
-                 classification_exec, median, tukey, core_cycles,
-                 cycles_ylimits, inset_x_bounds))
+                 changepoint_var_exec, classification_exec, classifier, median,
+                 tukey, core_cycles, cycles_ylimits, inset_x_bounds))
         p_exec_charts[index].plot_stack()
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
@@ -923,6 +986,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
     data_dictionary = {'data': dict(),  'cycles_counts': dict(),
                        'instr_data': dict(),  # Per-VM information.
                        'changepoints': dict(), 'changepoint_means': dict(),
+                       'changepoint_vars': dict(), 'classifier': None,
                        'classifications': dict(), 'all_outliers': dict(),
                        'common_outliers': dict(), 'unique_outliers': dict(),
                       }
@@ -979,6 +1043,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         data_has_changepoints = False  # Used for plot titles.
         if 'changepoints' in data:
             data_has_changepoints = True
+            data_dictionary['classifier'] = data['classifier']
 
         # Get machine name from Krun results file.
         machine = data['audit']['uname'].split(' ')[1]
@@ -1012,6 +1077,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['instr_data'][key] = dict()
                         data_dictionary['changepoints'][key] = dict()
                         data_dictionary['changepoint_means'][key] = dict()
+                        data_dictionary['changepoint_vars'][key] = dict()
                         data_dictionary['classifications'][key] = dict()
                         data_dictionary['all_outliers'][key] = dict()
                         data_dictionary['common_outliers'][key] = dict()
@@ -1034,10 +1100,12 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     if changepoints:
                         data_dictionary['changepoints'][key][machine] = data['changepoints'][key]
                         data_dictionary['changepoint_means'][key][machine] = data['changepoint_means'][key]
+                        data_dictionary['changepoint_vars'][key][machine] = data['changepoint_vars'][key]
                         data_dictionary['classifications'][key][machine] = data['classifications'][key]
                     else:
                         data_dictionary['changepoints'][key][machine] = None
                         data_dictionary['changepoint_means'][key][machine] = None
+                        data_dictionary['changepoint_vars'][key][machine] = None
                         data_dictionary['classifications'][key][machine] = None
                     if outliers or unique_outliers:
                         data_dictionary['all_outliers'][key][machine] = data['all_outliers'][key]
@@ -1101,6 +1169,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     data_dictionary['instr_data'][key] = dict()
                     data_dictionary['changepoints'][key] = dict()
                     data_dictionary['changepoint_means'][key] = dict()
+                    data_dictionary['changepoint_vars'][key] = dict()
                     data_dictionary['all_outliers'][key] = dict()
                     data_dictionary['common_outliers'][key] = dict()
                     data_dictionary['unique_outliers'][key] = dict()
@@ -1117,10 +1186,12 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     if changepoints:
                         data_dictionary['changepoints'][key][machine] = list()
                         data_dictionary['changepoint_means'][key][machine] = list()
+                        data_dictionary['changepoint_vars'][key][machine] = list()
                         data_dictionary['classifications'][key][machine] = list()
                     else:
                         data_dictionary['changepoints'][key][machine] = None
                         data_dictionary['changepoint_means'][key][machine] = None
+                        data_dictionary['changepoint_vars'][key][machine] = None
                         data_dictionary['classifications'][key][machine] = None
                     if outliers or unique_outliers:
                         data_dictionary['all_outliers'][key][machine] = list()
@@ -1161,6 +1232,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             if changepoints:
                                 data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
                                 data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
+                                data_dictionary['changepoint_vars'][key][machine].append(data['changepoint_means'][key][p_exec])
                                 data_dictionary['classifications'][key][machine].append(data['classifications'][key][p_exec])
                             if outliers or unique_outliers:
                                 data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
