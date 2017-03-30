@@ -39,12 +39,13 @@ def csv_to_krun_json(in_files, language, vm, uname):
             data_dictionary['audit']['uname'] = uname
             reader = csv.reader(fd)
             header = reader.next()  # Skip first row, which contains column names.
-            expect_idx = [0]  # check we get in-order indicies, first always 0
-            for row in reader:
+            expect_idx = [0]  # check we get in-order indices, first always 0
+            for lineno, row in enumerate(reader):
                 # First cell contains process execution number.
-                assert int(row[0]) in expect_idx
+                assert int(row[0]) in expect_idx, \
+                    'Found unexpected row number %s on line %d.' % (row[0], lineno + 1)
                 bench = row[1]
-                if row[2] == "crash":
+                if row[2] == 'crash':
                     data = []
                 else:
                     data = [float(datum) for datum in row[2:]]
