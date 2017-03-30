@@ -1233,15 +1233,15 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                     get_instr_data(key, machine, instr_dir, [p_exec])[0])
                             else:
                                 data_dictionary['instr_data'][key][machine] = None
-                            if changepoints:
-                                data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
-                                data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
-                                data_dictionary['changepoint_vars'][key][machine].append(data['changepoint_means'][key][p_exec])
-                                data_dictionary['classifications'][key][machine].append(data['classifications'][key][p_exec])
-                            if outliers or unique_outliers:
-                                data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
-                                data_dictionary['common_outliers'][key][machine].append(data['common_outliers'][key][p_exec])
-                                data_dictionary['unique_outliers'][key][machine].append(data['unique_outliers'][key][p_exec])
+                        if changepoints:
+                            data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
+                            data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
+                            data_dictionary['changepoint_vars'][key][machine].append(data['changepoint_means'][key][p_exec])
+                            data_dictionary['classifications'][key][machine].append(data['classifications'][key][p_exec])
+                        if outliers or unique_outliers:
+                            data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
+                            data_dictionary['common_outliers'][key][machine].append(data['common_outliers'][key][p_exec])
+                            data_dictionary['unique_outliers'][key][machine].append(data['unique_outliers'][key][p_exec])
 
                         # Construct plot title.
                         if data_has_changepoints:
