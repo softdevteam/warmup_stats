@@ -35,31 +35,42 @@ _SKIP_OUTER_KEYS = ['audit', 'reboots', 'mperf_counts', 'aperf_counts',
 def csv_to_krun_json(in_files, language, vm, uname):
     for filename in in_files:
         data_dictionary = _BLANK_BENCHMARK
+
+        # First sort the lines by benchmark, then pexec number.
+        # We do this so we can easily check for gaps (missing pexecs).
         with open(filename, 'r') as fd:
-            data_dictionary['audit']['uname'] = uname
             reader = csv.reader(fd)
-            header = reader.next()  # Skip first row, which contains column names.
-            expect_idx = [0]  # check we get in-order indices, first always 0
-            for lineno, row in enumerate(reader):
-                # First cell contains process execution number.
-                assert int(row[0]) in expect_idx, \
-                    'Found unexpected row number %s on line %d.' % (row[0], lineno + 1)
-                bench = row[1]
-                if row[2] == 'crash':
-                    data = []
-                else:
-                    data = [float(datum) for datum in row[2:]]
-                key = '%s:%s:default-%s' % (bench, vm, language)
-                if key not in data_dictionary['wallclock_times']:
-                    data_dictionary['wallclock_times'][key] = list()
-                    data_dictionary['core_cycle_counts'][key] = list()
-                    data_dictionary['aperf_counts'][key] = list()
-                    data_dictionary['mperf_counts'][key] = list()
-                data_dictionary['wallclock_times'][key].append(data)
-                data_dictionary['core_cycle_counts'][key].append(None)
-                data_dictionary['aperf_counts'][key].append(None)
-                data_dictionary['mperf_counts'][key].append(None)
-                expect_idx = [0, int(row[0]) + 1]  # expect the next index, or a 0
+            header = reader.next()  # Skip header row.
+            rows = iter(reader)
+            sorted_rows = sorted(rows, key=lambda l: (l[1], int(l[0])))
+
+        data_dictionary['audit']['uname'] = uname
+        expect_idx = [0]  # check we get in-order indices, first always 0
+        for row in sorted_rows:
+            # First cell contains process execution number.
+            assert int(row[0]) in expect_idx, \
+                'Found gaps in process executions for %s.\n' \
+                'Expected a pexec number in %s, but got %s!' \
+                % (row[1], expect_idx, row[0])
+            bench = row[1]
+            if row[2] == 'crash':
+                data = []
+            else:
+                data = [float(datum) for datum in row[2:]]
+            key = '%s:%s:default-%s' % (bench, vm, language)
+            if key not in data_dictionary['wallclock_times']:
+                data_dictionary['wallclock_times'][key] = list()
+                data_dictionary['core_cycle_counts'][key] = list()
+                data_dictionary['aperf_counts'][key] = list()
+                data_dictionary['mperf_counts'][key] = list()
+            data_dictionary['wallclock_times'][key].append(data)
+            data_dictionary['core_cycle_counts'][key].append(None)
+            data_dictionary['aperf_counts'][key].append(None)
+            data_dictionary['mperf_counts'][key].append(None)
+            # Expect the next process execution index, or the first process
+            # execution index (0) of the next benchmark.
+            expect_idx = [0, int(row[0]) + 1]
+
         new_filename = os.path.splitext(filename)[0] + '.json.bz2'
         write_krun_results_file(data_dictionary, new_filename)
         return header, new_filename
@@ -155,7 +166,7 @@ def read_krun_results_file(results_file):
 
 
 def write_krun_results_file(results, filename):
-    """Write a Krun results file to disk.
-    """
+    """Write a Krun results file to disk."""
+
     with bz2.BZ2File(filename, 'wb') as file_:
-        file_.write(json.dumps(results))
+        file_.write(json.dumps(results, indent=4))
