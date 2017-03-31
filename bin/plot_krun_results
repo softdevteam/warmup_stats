@@ -1237,7 +1237,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         if changepoints:
                             data_dictionary['changepoints'][key][machine].append(data['changepoints'][key][p_exec])
                             data_dictionary['changepoint_means'][key][machine].append(data['changepoint_means'][key][p_exec])
-                            data_dictionary['changepoint_vars'][key][machine].append(data['changepoint_means'][key][p_exec])
+                            data_dictionary['changepoint_vars'][key][machine].append(data['changepoint_vars'][key][p_exec])
                             data_dictionary['classifications'][key][machine].append(data['classifications'][key][p_exec])
                         if outliers or unique_outliers:
                             data_dictionary['all_outliers'][key][machine].append(data['all_outliers'][key][p_exec])
