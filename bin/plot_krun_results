@@ -364,9 +364,9 @@ class ProcessExecChart(object):
         else:
             self.changepoint_means = list()
             self.changepoint_vars = list()
-        self.delta = classifier['delta']
         self.classification = classification
         if changepoint_means:
+            self.delta = classifier['delta']
             if changepoints:
                 self.last_changepoint = changepoints[-1]
             else:
