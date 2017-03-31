@@ -60,6 +60,7 @@ GRID_MINOR_Y_DIVS_SMALLER_PLOTS = 4
 GRID_MAJOR_Y_DIVS_SMALLER_PLOTS = 2
 
 LINE_COLOUR = 'grey'
+LABEL_COLOUR = 'k'
 STEADY_COLOUR = 'k'
 MEDIAN_COLOUR = '#0072B2'
 FILL_ALPHA = 0.2
@@ -511,12 +512,12 @@ class ProcessExecChart(object):
                    minor_yticks, TICK_FONTSIZE)
         format_yticks_scientific(axis)
         if x_label:
-            axis.set_xlabel(x_label, fontsize=AXIS_FONTSIZE)
+            axis.set_xlabel(x_label, fontsize=AXIS_FONTSIZE, color=LABEL_COLOUR)
         if smaller_plot:
             pyplot.setp(axis.get_xticklabels(), visible=False)
             y_axis = axis.get_yaxis()
-            y_axis.set_tick_params(labelsize=TICK_FONTSIZE, colors=color, zorder=ZORDER_GRID)
-        axis.set_ylabel(y_label, fontsize=AXIS_FONTSIZE, color=color)
+            y_axis.set_tick_params(labelsize=TICK_FONTSIZE, colors=LABEL_COLOUR, zorder=ZORDER_GRID)
+        axis.set_ylabel(y_label, fontsize=AXIS_FONTSIZE, color=LABEL_COLOUR)
         axis.yaxis.set_label_position('right')
 
     def _get_scatter_points_within_bounds(self, scatter, x_bounds):
@@ -704,7 +705,7 @@ class ProcessExecChart(object):
         self.zoomed_axis.autoscale(enable=False, axis='both') # Set x/y-limits manually.
         pyplot.setp(self.zoomed_axis.get_xticklabels(), visible=False)
         self.zoomed_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
-                  color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=LINE_WIDTH)
+                              color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=LINE_WIDTH)
         self.style_axis(self.zoomed_axis, self.y_range_zoom, None, 'Time (secs)')
         add_margin_to_axes(self.zoomed_axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
         self._plot_changepoints(self.zoomed_axis, large_markers=False)
