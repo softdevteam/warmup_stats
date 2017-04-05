@@ -77,7 +77,7 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                 steady_state_means.append(steady_state_mean)
                 # Not all process execs have changepoints. However, all
                 # p_execs will have one or more segment mean.
-                if data_dictionaries[machine]['changepoints'][key][p_exec]:
+                if data_dictionaries[machine]['classifications'][key][p_exec] != 'flat':
                     steady_iter = data_dictionaries[machine]['changepoints'][key][p_exec][first_steady_segment - 1]
                     steady_iters.append(steady_iter + 1)
                     to_steady = 0.0
