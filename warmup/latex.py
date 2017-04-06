@@ -127,6 +127,7 @@ DEFAULT_DOCOPTS = '10pt, a4paper'
 
 __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\documentclass[%s]{article}
+\\usepackage{adjustbox}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
 \\usepackage{booktabs}
@@ -135,18 +136,11 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\usepackage{mathtools}
 \\usepackage{multicol}
 \\usepackage{multirow}
+\\usepackage{pdflscape}
 \\usepackage{rotating}
 \\usepackage{sparklines}
 \\usepackage{xspace}
 
-
-\\setlength\\sparkspikewidth{1pt}
-\\renewcommand{\\sparklineheight}{2.75}  %% 1.75 by default.
-\\definecolor{sparkbottomlinecolor}{gray}{0.8}
-%% Older versions of sparklines do not expose bottomlinethickness
-\\renewcommand{\\sparkbottomline}[1][1]{\\pgfsetlinewidth{0.2pt}%%
-  \\color{sparkbottomlinecolor}%%
-  \\pgfline{\\pgfxy(0,0)}{\\pgfxy(#1,0)}\\color{sparklinecolor}}
 
 %s
 \\title{%s}
@@ -162,7 +156,13 @@ __LATEX_SECTION = lambda section: """
 
 __LATEX_START_TABLE = lambda format_, headings: """
 {
-\\rotatebox{90}{%%
+\\setlength\\sparkspikewidth{1pt}
+\\definecolor{sparkbottomlinecolor}{gray}{0.8}
+%% Older versions of sparklines do not expose bottomlinethickness
+\\renewcommand{\\sparkbottomline}[1][1]{\\pgfsetlinewidth{0.2pt}%%
+  \\color{sparkbottomlinecolor}%%
+  \\pgfline{\\pgfxy(0,0)}{\\pgfxy(#1,0)}\\color{sparklinecolor}}
+
 \\begin{tabular}{%s}
 \\toprule
 %s \\\\
@@ -172,7 +172,6 @@ __LATEX_START_TABLE = lambda format_, headings: """
 __LATEX_END_TABLE = """
 \\bottomrule
 \\end{tabular}
-} %% End rotatebox
 }
 """
 
@@ -206,9 +205,10 @@ def _histogram(data):
         if cum_freq >= median_index:
             median_bin_index = index
             break
-    sparkline = ['\\begin{sparkline}{%s}' % _SPARKLINE_WIDTH]
+    sparkline = ['\\renewcommand{\\sparklineheight}{2.75}',
+                 '\\begin{sparkline}{%s}' % _SPARKLINE_WIDTH]
     for index, value in enumerate(normed):
-        # sparkspike x-position y-pos-ition
+        # sparkspike x-position y-position
         if index == median_bin_index:
             sparkline.append('\\definecolor{sparkspikecolor}{named}{red}')
             sparkline.append('\\sparkspike %.2f %.2f' % ((index + 1) / size, value))
@@ -217,6 +217,7 @@ def _histogram(data):
             sparkline.append('\\sparkspike %.2f %.2f' % ((index + 1) / size, value))
     sparkline.append('\\sparkbottomline')
     sparkline.append('\\end{sparkline}')
+    sparkline.append('\\renewcommand{\\sparklineheight}{1.75}')
     return '\n'.join(sparkline)
 
 

@@ -9,7 +9,7 @@ from warmup.statistics import  median_iqr
 JSON_VERSION_NUMBER = '1'
 
 TITLE = 'Summary of benchmark classifications'
-TABLE_FORMAT = 'll@{\hspace{0cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}lp{5pt}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
+TABLE_FORMAT = 'll@{\hspace{0cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
 TABLE_HEADINGS_START1 = '\\multicolumn{1}{c}{\\multirow{2}{*}{}}&'
 TABLE_HEADINGS_START2 = '&'
 TABLE_HEADINGS1 = '&&\\multicolumn{1}{c}{} &\\multicolumn{1}{c}{Steady}&\\multicolumn{1}{c}{Steady}&\\multicolumn{1}{c}{Steady}'
@@ -243,8 +243,10 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
             fp.write(preamble(TITLE))
             fp.write('\\centering %s' % get_latex_symbol_map())
             fp.write('\n\n\n')
-            fp.write('\\begin{table*}[t]\n')
-            fp.write('\\centering\n')
+            fp.write('\\begin{landscape}\n')
+            fp.write('\\begin{table*}[hptb]\n')
+            fp.write('\\vspace{.8cm}\n')
+            fp.write('\\begin{adjustbox}{totalheight=12.4cm}\n')
         # emit table header
         heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1] * num_splits)
         heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2] * num_splits)
@@ -311,7 +313,9 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
             split_row_idx += 1
         fp.write(end_table())
         if with_preamble:
+            fp.write('\\end{adjustbox}\n')
             fp.write('\\end{table*}\n')
+            fp.write('\\end{landscape}\n')
             fp.write(end_document())
 
 
