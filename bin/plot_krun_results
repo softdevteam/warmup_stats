@@ -418,8 +418,7 @@ class ProcessExecChart(object):
                 self.cycles_data.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
         self.instr_data = list()
         if instr_data:
-            for chart_data in instr_data:
-                self.instr_data.append(numpy.array(chart_data.data))
+            self.instr_data = instr_data
         # Generate medians and Tukey interval, if necessary.
         self.medians = None
         self.tukey_interval = (None, None)
@@ -683,17 +682,17 @@ class ProcessExecChart(object):
         """Add any VM instrumentation data on another set of charts."""
         legend_texts = set()
         self.instr_axes = [None] * len(self.instr_data)
-        for index in xrange(len(self.instr_data)):
-            legend_texts.add(self.instr_data[index].legend_text)
-        for index in xrange(len(self.instr_data)):
+        for index, idata in enumerate(self.instr_data):
+            legend_texts.add(idata.legend_text)
+        for index, idata in enumerate(self.instr_data):
             self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0],
                                                     sharex=self.wallclock_axis)
-            self.instr_axes[index].plot(self.iterations, self.instr_data[index],
-                        color=INSTR_COLOR, label=(self.instr_data[index].title),
+            self.instr_axes[index].plot(self.iterations, idata.data,
+                        color=INSTR_COLOR, label=idata.title,
                       linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             self.instr_axes[index].set_ylim(self.instr_y_ranges[index])
             self.style_axis(self.instr_axes[index], self.instr_y_ranges[index],
-                            None, self.instr_data[index].title, color=INSTR_COLOR)
+                            None, idata.title, color=INSTR_COLOR)
             if index == 0:
                 # Add all items to page legend (only once).
                 handles, labels = self.instr_axes[index].get_legend_handles_labels()
