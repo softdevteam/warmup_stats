@@ -1484,13 +1484,16 @@ if __name__ == '__main__':
     if options.core_cycles and options.wallclock:
         fatal_error('Cannot use --core-cycles AND --wallclock-only.')
 
-    if options.core_cycles and not options.wallclock:
-        try:
-            cycles_str = options.core_cycles.split(',')
-            core_cycles = [int(cycle) for cycle in cycles_str]
-        except ValueError:
-            fatal_error('invalid --core-cycles argument')
-        print 'Plotting cycle counts for core(s): %s' % ','.join([str(core) for core in core_cycles])
+    if options.core_cycles is not None and not options.wallclock:
+        if options.core_cycles.strip() == "":
+            core_cycles = list()
+        else:
+            try:
+                cycles_str = options.core_cycles.split(',')
+                core_cycles = [int(cycle) for cycle in cycles_str]
+            except ValueError:
+                fatal_error('invalid --core-cycles argument')
+            print 'Plotting cycle counts for core(s): %s' % ','.join([str(core) for core in core_cycles])
     else:
         core_cycles = None
 
