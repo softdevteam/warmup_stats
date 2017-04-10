@@ -241,6 +241,19 @@ $
 """  % (median_s, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
 
 
+def format_median_ci(median, error, data):
+    median_s = '%.5f' % median
+    error_s = '%.6f' % error
+    return """$
+\\begin{array}{r}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{\\pm%s}
+\\end{array}
+$
+\\noindent\\parbox[p]{%s}{%s}
+"""  % (median_s, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
+
+
 def preamble(title, doc_opts=DEFAULT_DOCOPTS):
     return __LATEX_PREAMBLE(title, doc_opts)
 

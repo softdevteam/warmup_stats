@@ -1,10 +1,11 @@
+import json
 import math
 
 from collections import Counter, OrderedDict
 from warmup.html import HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
-from warmup.latex import end_document, end_table, escape, format_median_error
+from warmup.latex import end_document, end_table, escape, format_median_ci, format_median_error
 from warmup.latex import get_latex_symbol_map, preamble, start_table, STYLE_SYMBOLS
-from warmup.statistics import  median_iqr
+from warmup.statistics import bootstrap_runner, median_iqr
 
 JSON_VERSION_NUMBER = '1'
 
@@ -45,9 +46,11 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
             steady_iters = list()
             time_to_steadys = list()
             n_pexecs = len(data_dictionaries[machine]['wallclock_times'][key])
+            segments_for_bootstrap_all_pexecs = list()  # Steady state segments for all pexecs.
             # Lists of changepoints, outliers and segment means for each process execution.
             changepoints, outliers, segments = list(), list(), list()
             for p_exec in xrange(n_pexecs):
+                segments_for_bootstrap_this_pexec = list()  # Steady state segments for this pexec.
                 changepoints.append(data_dictionaries[machine]['changepoints'][key][p_exec])
                 segments.append(data_dictionaries[machine]['changepoint_means'][key][p_exec])
                 outliers.append(data_dictionaries[machine]['all_outliers'][key][p_exec])
@@ -57,21 +60,54 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                 # steady state. However, the last segment may be equivalent to
                 # its adjacent segments, so we first need to know which segments
                 # are steady-state segments.
+                if data_dictionaries[machine]['classifications'][key][p_exec] == 'no steady state':
+                    continue
+                # Capture the last steady state segment for bootstrapping.
+                segment_data = list()
+                if data_dictionaries[machine]['changepoints'][key][p_exec]:
+                    start = data_dictionaries[machine]['changepoints'][key][p_exec][-1]
+                else:
+                    start = 0  # No changepoints in this pexec.
+                end = len(data_dictionaries[machine]['wallclock_times'][key][p_exec])
+                for segment_index in xrange(start, end):
+                    if segment_index in data_dictionaries[machine]['all_outliers'][key][p_exec]:
+                        continue
+                    segment_data.append(data_dictionaries[machine]['wallclock_times'][key][p_exec][segment_index])
+                segments_for_bootstrap_this_pexec.append(segment_data)
+
                 first_steady_segment = len(data_dictionaries[machine]['changepoint_means'][key][p_exec]) - 1
                 num_steady_segments = 1
                 last_segment_mean = data_dictionaries[machine]['changepoint_means'][key][p_exec][-1]
                 last_segment_var = data_dictionaries[machine]['changepoint_vars'][key][p_exec][-1]
                 lower_bound = min(last_segment_mean - last_segment_var, last_segment_mean - delta)
                 upper_bound = max(last_segment_mean + last_segment_var, last_segment_mean + delta)
+                # This for loop deals with segments that are equivalent to the
+                # final, steady state segment.
                 for index in xrange(len(data_dictionaries[machine]['changepoint_means'][key][p_exec]) - 2, -1, -1):
                     current_segment_mean = data_dictionaries[machine]['changepoint_means'][key][p_exec][index]
                     current_segment_var = data_dictionaries[machine]['changepoint_vars'][key][p_exec][index]
                     if (current_segment_mean + current_segment_var >= lower_bound and
                             current_segment_mean - current_segment_var<= upper_bound):
+                        # Extract this segment from the wallclock data for bootstrapping.
+                        segment_data = list()
+                        if index == 0:
+                            start = 0
+                            end = data_dictionaries[machine]['changepoints'][key][p_exec][index] + 1
+                        else:
+                            start = data_dictionaries[machine]['changepoints'][key][p_exec][index - 1] + 1
+                            end = data_dictionaries[machine]['changepoints'][key][p_exec][index] + 1
+                        for segment_index in xrange(start, end):
+                            if segment_index in data_dictionaries[machine]['all_outliers'][key][p_exec]:
+                                continue
+                            segment_data.append(data_dictionaries[machine]['wallclock_times'][key][p_exec][segment_index])
+                        segments_for_bootstrap_this_pexec.append(segment_data)
+                        # Increment / decrement counters.
                         first_steady_segment -= 1
                         num_steady_segments += 1
                     else:
                         break
+                segments_for_bootstrap_all_pexecs.append(segments_for_bootstrap_this_pexec)
+                # End of code to capture segments for bootstrapping.
                 steady_state_mean = (math.fsum(data_dictionaries[machine]['changepoint_means'][key][p_exec][first_steady_segment:])
                                      / float(num_steady_segments))
                 steady_state_means.append(steady_state_mean)
@@ -84,7 +120,7 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                     for index in xrange(steady_iter):
                         to_steady += data_dictionaries[machine]['wallclock_times'][key][p_exec][index]
                     time_to_steadys.append(to_steady)
-                else:  # Flat execution, no changepoints.
+                else:  # Flat execution, with no changepoints.
                     steady_iters.append(1)
                     time_to_steadys.append(0.0)
             # Get overall and detailed categories.
@@ -103,15 +139,23 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                     cat_counts[category] = 0
             # Average information for all process executions.
             if cat_counts['no steady state'] > 0:
-                median_time, error_time = None, None
+                mean_time, error_time = None, None
                 median_iter, error_iter = None, None
                 median_time_to_steady, error_time_to_steady = None, None
             elif categories_set == set(['flat']):
                 median_iter, error_iter = None, None
                 median_time_to_steady, error_time_to_steady = None, None
-                median_time, error_time = median_iqr(steady_state_means)
+                # Shell out to PyPy for speed.
+                marshalled_data = json.dumps(segments_for_bootstrap_all_pexecs)
+                mean_time, error_time = bootstrap_runner(marshalled_data)
+                if mean_time is None or error_time is None:
+                    raise ValueError()
             else:
-                median_time, error_time = median_iqr(steady_state_means)
+                # Shell out to PyPy for speed.
+                marshalled_data = json.dumps(segments_for_bootstrap_all_pexecs)
+                mean_time, error_time = bootstrap_runner(marshalled_data)
+                if mean_time is None or error_time is None:
+                    raise ValueError()
                 if steady_iters:
                     median_iter, error_iter = median_iqr(steady_iters)
                     median_iter = int(math.ceil(median_iter))
@@ -130,8 +174,8 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
             current_benchmark['steady_state_time_to_reach_secs'] = median_time_to_steady
             current_benchmark['steady_state_time_to_reach_secs_iqr'] = error_time_to_steady
             current_benchmark['steady_state_time_to_reach_secs_list'] = time_to_steadys
-            current_benchmark['steady_state_time'] = median_time
-            current_benchmark['steady_state_time_iqr'] = error_time
+            current_benchmark['steady_state_time'] = mean_time
+            current_benchmark['steady_state_time_ci'] = error_time
             current_benchmark['steady_state_time_list'] = steady_state_means
 
             pexecs = list()  # This is needed for JSON output.
@@ -197,9 +241,9 @@ def convert_to_latex(summary_data, delta, steady_state):
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
-                mean_steady = format_median_error(bmark['steady_state_time'],
-                                                  bmark['steady_state_time_iqr'],
-                                                  bmark['steady_state_time_list'])
+                mean_steady = format_median_ci(bmark['steady_state_time'],
+                                               bmark['steady_state_time_ci'],
+                                               bmark['steady_state_time_list'])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
