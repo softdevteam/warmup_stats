@@ -365,6 +365,7 @@ class ProcessExecChart(object):
             self.changepoint_means = list()
             self.changepoint_vars = list()
         self.classification = classification
+        self.steady_equivalents = list()  # Used by self._plot_steady_equivalent
         if changepoint_means:
             self.delta = classifier['delta']
             if changepoints:
@@ -601,6 +602,7 @@ class ProcessExecChart(object):
             axis.plot(self.iterations, self.wallclock_data,
                       color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
             return
+        self.steady_equivalents = list()  # List of (start, end) pairs.
         lower_bound = min(self.last_segment_mean - self.last_segment_var,
                           self.last_segment_mean - self.delta)
         upper_bound = max(self.last_segment_mean + self.last_segment_var,
@@ -618,6 +620,7 @@ class ProcessExecChart(object):
                     else:
                         start = self.changepoints[index - 1] - self.x_bounds[0]
                         end = self.changepoints[index] - self.x_bounds[0]
+                    self.steady_equivalents.append((start, end))
                     axis.plot(self.iterations[start:end], self.wallclock_data[start:end],
                               color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
         elif len(self.changepoints) == 0 and self.x_bounds[0] != 0:
@@ -625,11 +628,13 @@ class ProcessExecChart(object):
             # whether the remaining segment mean is equivalent to the steady state.
             if (self.segment_means[0] + self.segment_vars[0] >= lower_bound and
                     self.segment_means[0] - self.segment_var[0] <= upper_bound):
+                self.steady_equivalents.append((self.x_bounds[0], self.x_bounds[1]))
                 axis.plot(self.iterations,
                           self.wallclock_data[self.x_bounds[0]:self.x_bounds[0]],
                           color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
         # Highlight steady-state segment.
         if self.last_changepoint < self.x_bounds[1]:
+            self.steady_equivalents.append((self.last_changepoint, self.x_bounds[1]))
             axis.plot(self.iterations[self.last_changepoint:],
                       self.wallclock_data[self.last_changepoint - self.x_bounds[0]:],
                       color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
@@ -784,6 +789,12 @@ class ProcessExecChart(object):
             # Plot data before changing other artists.
             inset.plot(range(inset_xlimit[0], inset_xlimit[1] + 1), self.wallclock_data[start:end],
                        color=LINE_COLOUR, linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
+            for segment_start, segment_end in self.steady_equivalents:
+                if segment_start <= inset_xlimit[1]:
+                    rhs = min(segment_end, inset_xlimit[1])
+                    inset.plot(range(segment_start, rhs),
+                               self.wallclock_data[segment_start:rhs],
+                               color=STEADY_COLOUR, linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
             self._plot_outliers(inset, large_markers=False)
             self._plot_changepoints(inset, large_markers=False)
