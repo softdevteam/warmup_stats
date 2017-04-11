@@ -157,9 +157,7 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                 if mean_time is None or error_time is None:
                     raise ValueError()
                 if steady_iters:
-                    median_iter, error_iter = median_iqr(steady_iters)
-                    median_iter = int(math.ceil(median_iter))
-                    error_iter = int(math.ceil(error_iter[0])), int(math.ceil(error_iter[1]))
+                    median_iter, error_iter = median_iqr([float(val) for val in steady_iters])
                     median_time_to_steady, error_time_to_steady = median_iqr(time_to_steadys)
                 else:  # No changepoints in any process executions.
                     assert False  # Should be handled by elif clause above.
@@ -237,7 +235,7 @@ def convert_to_latex(summary_data, delta, steady_state):
                 mean_steady_iter = format_median_error(bmark['steady_state_iteration'],
                                                        bmark['steady_state_iteration_iqr'],
                                                        bmark['steady_state_iteration_list'],
-                                                       as_integer=True)
+                                                       one_dp=True)
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
@@ -250,7 +248,7 @@ def convert_to_latex(summary_data, delta, steady_state):
                 time_to_steady = format_median_error(bmark['steady_state_time_to_reach_secs'],
                                                      bmark['steady_state_time_to_reach_secs_iqr'],
                                                      bmark['steady_state_time_to_reach_secs_list'],
-                                                     brief=True)
+                                                     two_dp=True)
             else:
                 time_to_steady = ''
             latex_summary[vm][bmark['benchmark_name']] = {'style': reported_category,

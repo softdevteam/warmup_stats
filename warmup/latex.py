@@ -221,16 +221,15 @@ def _histogram(data):
     return '\n'.join(sparkline)
 
 
-def format_median_error(median, error, data, as_integer=False, brief=False):
-    if as_integer:
-        median_s = '%d' % int(median)
-        error_s = '(%d, %d)' % (int(error[0]), int(error[1]))
-    elif brief:
+def format_median_error(median, error, data, one_dp=False, two_dp=False):
+    if one_dp:
+        median_s = '%.1f' % median
+        error_s = '(%.1f, %.1f)' % (error[0], error[1])
+    elif two_dp:
         median_s = '%.2f' % median
         error_s = '(%.3f, %.3f)' % (error[0], error[1])
     else:
-        median_s = '%.5f' % median
-        error_s = '(%.6f, %.6f)' % (error[0], error[1])
+        assert False
     return """$
 \\begin{array}{r}
 \\scriptstyle{%s} \\\\[-6pt]
