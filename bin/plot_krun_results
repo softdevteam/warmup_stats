@@ -1069,7 +1069,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
         # Is there instrumentation data with this results file?
         instr_data = False
         filename_root = filename[:-len('_results.json.bz2')]
-        instr_dir = os.path.dirname(filename) + filename_root + '_instr_data'
+        instr_dir = filename_root + '_instr_data'
         if 'instr_data' not in data_dictionary:
             data_dictionary['instr_data'] = dict()
         if os.path.isdir(instr_dir):
