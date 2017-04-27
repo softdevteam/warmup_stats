@@ -410,9 +410,8 @@ def write_html_table(summary_data, html_filename):
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
-                mean_steady = '%.5f (%.5f, %.5f)' % (bmark['steady_state_time'],
-                                                     bmark['steady_state_time_iqr'][0],
-                                                     bmark['steady_state_time_iqr'][1])
+                mean_steady = '%.5f&plusmn;%.6f' % (bmark['steady_state_time'],
+                                                    bmark['steady_state_time_ci'])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
