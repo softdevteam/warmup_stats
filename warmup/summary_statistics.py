@@ -7,7 +7,7 @@ from warmup.latex import end_document, end_table, escape, format_median_ci, form
 from warmup.latex import get_latex_symbol_map, preamble, start_table, STYLE_SYMBOLS
 from warmup.statistics import bootstrap_runner, median_iqr
 
-JSON_VERSION_NUMBER = '1'
+JSON_VERSION_NUMBER = '2'
 
 TITLE = 'Summary of benchmark classifications'
 TABLE_FORMAT = 'll@{\hspace{0cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
@@ -20,12 +20,18 @@ BLANK_CELL = '\\begin{minipage}[c][\\blankheight]{0pt}\\end{minipage}'
 
 
 def collect_summary_statistics(data_dictionaries, delta, steady_state):
+    """Create summary statistics of a dataset with classifications.
+    Note that this function returns a dict which is consumed by other code to
+    create tables. It also DEFINES the JSON format which the ../bin/warmup_stats
+    script dumps to file.
+    """
+
     summary_data = dict()
     # Although the caller can pass >1 json file, there should never be two
     # different machines.
     assert len(data_dictionaries) == 1
     machine = data_dictionaries.keys()[0]
-    summary_data = { machine: dict(), 'json_format_version': JSON_VERSION_NUMBER }
+    summary_data = { 'machines': { machine: dict() }, 'warmup_format_version': JSON_VERSION_NUMBER }
     # Parse data dictionaries.
     keys = sorted(data_dictionaries[machine]['wallclock_times'].keys())
     for key in sorted(keys):
@@ -38,8 +44,8 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                   (key, machine))
         else:
             bench, vm, variant = key.split(':')
-            if vm not in summary_data[machine].keys():
-                summary_data[machine][vm] = list()
+            if vm not in summary_data['machines'][machine].keys():
+                summary_data['machines'][machine][vm] = dict()
             # Get information for all p_execs of this key.
             categories = list()
             steady_state_means = list()
@@ -163,7 +169,6 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                     assert False  # Should be handled by elif clause above.
             # Add summary for this benchmark.
             current_benchmark = dict()
-            current_benchmark['benchmark_name'] = bench
             current_benchmark['classification'] = reported_category
             current_benchmark['detailed_classification'] = cat_counts
             current_benchmark['steady_state_iteration'] = median_iter
@@ -182,16 +187,16 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                               'outliers':outliers[index], 'changepoints':changepoints[index],
                               'segment_means':segments[index]})
             current_benchmark['process_executons'] = pexecs
-            summary_data[machine][vm].append(current_benchmark)
+            summary_data['machines'][machine][vm][bench] = current_benchmark
     return summary_data
 
 
 def convert_to_latex(summary_data, delta, steady_state):
-    assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
+    assert 'warmup_format_version' in summary_data and summary_data['warmup_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
     machine = None
-    for key in summary_data:
-        if key == 'json_format_version':
+    for key in summary_data['machines']:
+        if key == 'warmup_format_version':
             continue
         elif machine is not None:
             assert False, 'Cannot summarise data from more than one machine.'
@@ -199,10 +204,11 @@ def convert_to_latex(summary_data, delta, steady_state):
             machine = key
     benchmark_names = set()
     latex_summary = dict()
-    for vm in summary_data[machine]:
+    for vm in summary_data['machines'][machine]:
         latex_summary[vm] = dict()
-        for bmark in summary_data[machine][vm]:
-            benchmark_names.add(bmark['benchmark_name'])
+        for bmark_name in summary_data['machines'][machine][vm]:
+            bmark = summary_data['machines'][machine][vm][bmark_name]
+            benchmark_names.add(bmark_name)
             if bmark['classification'] == 'bad inconsistent':
                 reported_category = STYLE_SYMBOLS['bad inconsistent']
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
@@ -251,7 +257,7 @@ def convert_to_latex(summary_data, delta, steady_state):
                                                      two_dp=True)
             else:
                 time_to_steady = ''
-            latex_summary[vm][bmark['benchmark_name']] = {'style': reported_category,
+            latex_summary[vm][bmark_name] = {'style': reported_category,
                 'last_cpt': mean_steady_iter, 'last_mean': mean_steady,
                 'time_to_steady_state':time_to_steady}
     return machine, list(sorted(benchmark_names)), latex_summary
@@ -362,20 +368,21 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
 
 
 def write_html_table(summary_data, html_filename):
-    assert 'json_format_version' in summary_data and summary_data['json_format_version'] == JSON_VERSION_NUMBER, \
+    assert 'warmup_format_version' in summary_data and summary_data['warmup_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
     machine = None
-    for key in summary_data:
-        if key == 'json_format_version':
+    for key in summary_data['machines']:
+        if key == 'warmup_format_version':
             continue
         elif machine is not None:
             assert False, 'Cannot summarise data from more than one machine.'
         else:
             machine = key
     html_table_contents = dict()  # VM name -> html rows
-    for vm in sorted(summary_data[machine]):
+    for vm in sorted(summary_data['machines'][machine]):
         html_rows = ''  # Just the table rows, no table header, etc.
-        for bmark in sorted(summary_data[machine][vm]):
+        for bmark_name in sorted(summary_data['machines'][machine][vm]):
+            bmark = summary_data['machines'][machine][vm][bmark_name]
             if bmark['classification'] == 'bad inconsistent':
                 reported_category = 'bad inconsistent:'
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
@@ -422,7 +429,7 @@ def write_html_table(summary_data, html_filename):
                 time_to_steady = ''
             # Benchmark name, classification, steady iter, time to reach, steady perf
             row = ('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' %
-                   (bmark['benchmark_name'], reported_category, mean_steady_iter,
+                   (bmark_name, reported_category, mean_steady_iter,
                     time_to_steady, mean_steady))
             html_rows += row
         html_table_contents[vm] = html_rows
