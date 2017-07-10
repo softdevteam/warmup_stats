@@ -97,7 +97,7 @@ GRID_MAJOR_Y_DIVS = 6
 GRID_MINOR_Y_DIVS_SMALLER_PLOTS = 4
 GRID_MAJOR_Y_DIVS_SMALLER_PLOTS = 2
 
-LINE_COLOUR = 'grey'
+LINE_COLOUR = '0.6'
 LABEL_COLOUR = 'k'
 STEADY_COLOUR = 'k'
 MEDIAN_COLOUR = '#0072B2'
@@ -121,6 +121,7 @@ INSTR_COLOR = 'black'
 
 CHANGEPOINT_LINE_STYLE = '--'
 CHANGEPOINT_LINE_COLOR = 'r'
+CHANGEPOINT_LINE_WIDTH = 0.8
 
 ZORDER_GRID = 1
 ZORDER_DATA = 5
@@ -685,10 +686,10 @@ class ProcessExecChart(object):
             for index, x_location in enumerate(self.changepoints):
                 axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
                              zorder=ZORDER_CHANGEPOINTS, color=CHANGEPOINT_LINE_COLOR,
-                             linewidth=LINE_WIDTH)
+                             linewidth=CHANGEPOINT_LINE_WIDTH)
             lines = LineCollection(self.segment_means, color=CHANGEPOINT_LINE_COLOR,
                                    zorder=ZORDER_CHANGEPOINTS, linestyle=CHANGEPOINT_LINE_STYLE,
-                                   linewidths=[LINE_WIDTH
+                                   linewidths=[CHANGEPOINT_LINE_WIDTH
                                    for _ in xrange(len(self.segment_means))])
             axis.add_collection(lines)
         if self.changepoints and not self.changepoint_means:
