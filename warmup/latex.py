@@ -41,7 +41,7 @@ import numpy
 _NUMBERS = {0:'zero', 1:'one', 2:'two', 3:'three', 4:'four', 5:'five',
             6:'six', 7:'seven', 8:'eight', 9:'nine'}
 
-_SPARKLINE_WIDTH = '3'  # Unit: ex.
+_SPARKLINE_WIDTH = '4'  # Unit: ex.
 
 STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
     'flat': '\\flatc',
@@ -193,7 +193,7 @@ __LATEX_SECTION = lambda section: """
 
 __LATEX_START_TABLE = lambda format_, headings: """
 {
-\\setlength\\sparkspikewidth{1pt}
+\\setlength\\sparkspikewidth{1.5pt}
 \\definecolor{sparkbottomlinecolor}{gray}{0.8}
 %% Older versions of sparklines do not expose bottomlinethickness
 \\renewcommand{\\sparkbottomline}[1][1]{\\pgfsetlinewidth{0.2pt}%%
