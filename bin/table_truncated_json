@@ -1,0 +1,149 @@
+#!/usr/bin/python2.7
+
+# Copyright (c) 2017 King's College London
+# created by the Software Development Team <http://soft-dev.org/>
+#
+# The Universal Permissive License (UPL), Version 1.0
+#
+# Subject to the condition set forth below, permission is hereby granted to any
+# person obtaining a copy of this software, associated documentation and/or
+# data (collectively the "Software"), free of charge and under any and all
+# copyright rights in the Software, and any and all patent rights owned or
+# freely licensable by each licensor hereunder covering either (i) the
+# unmodified Software as contributed to or provided by such licensor, or (ii)
+# the Larger Works (as defined below), to deal in both
+#
+# (a) the Software, and
+# (b) any piece of software and/or hardware listed in the lrgrwrks.txt file if
+# one is included with the Software (each a "Larger Work" to which the Software
+# is contributed by such licensors),
+#
+# without restriction, including without limitation the rights to copy, create
+# derivative works of, display, perform, and distribute the Software and make,
+# use, sell, offer for sale, import, export, have made, and have sold the
+# Software and the Larger Work(s), and to sublicense the foregoing rights on
+# either these or other terms.
+#
+# This license is subject to the following condition: The above copyright
+# notice and either this complete permission notice or at a minimum a reference
+# to the UPL must be included in all copies or substantial portions of the
+# Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import argparse
+import copy
+import glob
+import os
+import os.path
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from warmup.krun_results import parse_krun_file_with_changepoints
+from warmup.latex import end_document, end_table, preamble, start_table
+
+DEFAULT_ITERS = 2000  # Iterations in original data file.
+ITER_STEP = 50  # Truncated data files each differ by ITER_STEP iterations.
+
+
+def summarise_truncated(data_dir):
+    """Summarise classifications in truncated data that match the original."""
+
+    truncated_results = dict()
+    original_results = None
+    for filename in glob.glob(os.path.join(data_dir, '*_changepoints.json.bz2')):
+        if 'truncated_' not in filename:  # Original results file.
+            print 'Loading original results.'
+            _, original_results = parse_krun_file_with_changepoints([filename])
+            truncated_results[2000] = copy.deepcopy(original_results)
+        else:
+            last_iter = filename.split('.')[0].split('_')[1]
+            print 'Loading last iter', last_iter, 'results file.'
+            _, truncated_results[int(last_iter)] = parse_krun_file_with_changepoints([filename])
+    assert original_results is not None, 'No original results file.'
+    assert len(original_results.keys()) == 1, 'Expected one machine per results file.'
+    machine = original_results.keys()[0]
+    summary = dict()
+    for last_iter in truncated_results:
+        if last_iter not in summary:
+            summary[last_iter] = { 'same': 0, 'different': 0 }
+        for key in truncated_results[last_iter][machine]['classifications']:
+            for p_exec in xrange(len(truncated_results[last_iter][machine]['classifications'][key])):
+                if original_results[machine]['classifications'][key][p_exec] == \
+                      truncated_results[last_iter][machine]['classifications'][key][p_exec]:
+                    summary[last_iter]['same'] += 1
+                else:
+                    summary[last_iter]['different'] += 1
+    return summary
+
+
+def write_table(summary, outfile, with_preamble=False):
+    """Write out a LaTeX table, with or without preamble."""
+
+    table_format = 'l' + ('r' * 6)
+    table_headings = '&'.join(['\\textbf{\\# Iterations}', '\\textbf{\\# Same}',
+                              '\\textbf{\\# Different}', '\\textbf{\\# Delta}',
+                              '\\textbf{\\% Same}', '\\textbf{\\% Different}',
+                              '\\textbf{\\% Delta}',])
+    total_original = float(summary[DEFAULT_ITERS]['same'] + summary[DEFAULT_ITERS]['different'])
+    with open(outfile, 'w') as fp:
+        if with_preamble:
+            fp.write(preamble('Truncated data results'))
+            fp.write('\\begin{table*}[t]\n')
+            fp.write('\\centering\n')
+        fp.write(start_table(table_format, table_headings))
+        for last_iter in sorted(summary, reverse=True):
+            total = float(summary[last_iter]['same'] + summary[last_iter]['different'])
+            assert total == total_original
+            if last_iter == DEFAULT_ITERS:
+                fp.write('%d & %d & %d & %s & %.2f & %.2f & %s \\\\' %
+                         (last_iter, summary[last_iter]['same'], summary[last_iter]['different'],
+                          'n/a', summary[last_iter]['same'] / total * 100.0,
+                          summary[last_iter]['different'] / total * 100.0, 'n/a'))
+            else:
+                pc_delta = (summary[last_iter + ITER_STEP]['same'] / total * 100.0) - \
+                             (summary[last_iter]['same'] / total * 100.0)
+                fp.write('%d & %d & %d & %d & %.2f & %.2f & %.2f\\\\' %
+                         (last_iter, summary[last_iter]['same'], summary[last_iter]['different'],
+                          summary[last_iter + ITER_STEP]['same'] - summary[last_iter]['same'],
+                          summary[last_iter]['same'] / total * 100.0,
+                          summary[last_iter]['different'] / total * 100.0, pc_delta))
+        fp.write(end_table())
+        if with_preamble:
+            fp.write('\\end{table*}\n')
+            fp.write(end_document())
+
+
+def create_cli_parser():
+    """Create a parser to deal with command line switches."""
+
+    script = os.path.basename(__file__)
+    description = (('Summarise information generated by generate_truncated_json script.\n' +
+                    '\n\nExample usage:\n\n' +
+                    '\t$ python %s -o summary.tex results.json.bz2') % script)
+    parser = argparse.ArgumentParser(description=description,
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('directory', action='store', default='.', type=str,
+                        help='Directory containing truncated results files.')
+    parser.add_argument('--outfile', '-o', action='store', dest='latex_file',
+                        type=str, help='Name of the LaTeX file to write to.',
+                        required=True)
+    parser.add_argument('--with-preamble', action='store_true',
+                        dest='with_preamble', default=False,
+                        help='Write out a whole LaTeX article (not just the table).')
+    return parser
+
+
+if __name__ == '__main__':
+    parser = create_cli_parser()
+    options = parser.parse_args()
+    if options.with_preamble:
+        print 'Writing out full document, with preamble.'
+    summary = summarise_truncated(options.directory)
+    write_table(summary, options.latex_file, options.with_preamble)
