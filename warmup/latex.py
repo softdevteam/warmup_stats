@@ -170,6 +170,7 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\usepackage{booktabs}
 \\usepackage{calc}
 \\usepackage[margin=1.0cm]{geometry}
+\\usepackage{longtable}
 \\usepackage{mathtools}
 \\usepackage{multicol}
 \\usepackage{multirow}
