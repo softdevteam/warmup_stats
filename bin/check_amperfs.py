@@ -39,12 +39,11 @@
 
 """
 usage: check_amperfs.py <results_file> <aperf/mperf-ratio-bounds>
-            <tickful-busy-threshold> <tickless-busy-threshold>
-            <busy-threshold-factor> <migration-lookback>
+            <busy-aperf-count-estimate> <busy-threshold-factor> <migration-lookback>
 
 Checks if the CPU has clocked down or entered turbo mode during Krun
 benchmarking. A core is considered idle when the aperf value is less than the
-estimated busy cycle count divided by the busy threshold factor. Busy core
+estimated busy aperf count divided by the busy threshold factor. Busy core
 aperf/mperf ratios for busy cores are then checked to be within the specified
 bouunds.
 
@@ -57,7 +56,7 @@ Arguments:
         aperf/mperf ratio of 1. e.g. '0.9,1.2' allows ratios (r) in the bound
         0.9 <= r <= 1.2.
 
-    * busy-cycle-count-estimate
+    * busy-aperf-count-estimate
         Estimated time-normalised (per-second) aperf reading for a busy CPU
         core. We do not differentiate tickful cores from tickless cores.
 
@@ -132,7 +131,7 @@ def check_amperfs(aperfs, mperfs, wcts, busy_threshold, ratio_bounds, key,
     return violating_iterations
 
 
-def main(data_dct, ratio_bounds, busy_cycle_threshold, migration_lookback):
+def main(data_dct, ratio_bounds, busy_aperf_threshold, migration_lookback):
     global num_bad_pexecs, num_bad_iterations, num_bad_iterations_outliers
     pexecs_checked = 0
     for key, key_wcts in data_dct["wallclock_times"].iteritems():
@@ -161,7 +160,7 @@ def main(data_dct, ratio_bounds, busy_cycle_threshold, migration_lookback):
                 core_cycles = pexec_cycles[core_idx]
 
                 violating_iterations_core = check_amperfs(
-                    core_aperfs, core_mperfs, pexec_wcts, busy_cycle_threshold,
+                    core_aperfs, core_mperfs, pexec_wcts, busy_aperf_threshold,
                     ratio_bounds, key, pexec_idx, core_idx, migration_lookback,
                     core_cycles, pexec_aperfs, pexec_mperfs, pexec_cycles,
                     pexec_outliers)
@@ -203,11 +202,11 @@ if __name__ == "__main__":
     try:
         lo_ratio, hi_ratio = sys.argv[2].split(",")
         ratio_bounds = float(lo_ratio), float(hi_ratio)
-        busy_cycle_threshold = float(sys.argv[3]) / float(sys.argv[4])
+        busy_aperf_threshold = float(sys.argv[3]) / float(sys.argv[4])
         migration_lookback = int(sys.argv[5])
     except:
         print(__doc__)
         sys.exit(1)
 
     data_dct = read_krun_results_file(sys.argv[1])
-    main(data_dct, ratio_bounds, busy_cycle_threshold, migration_lookback)
+    main(data_dct, ratio_bounds, busy_aperf_threshold, migration_lookback)
