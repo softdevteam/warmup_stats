@@ -58,7 +58,7 @@ def create_cli_parser():
     description = (('Summarise benchmark classifications stored within a Krun ' +
                     'results file. Must be run after mark_changepoints_in_json.' +
                     '\n\nExample usage:\n\n' +
-                    '\t$ python %s -l summary.tex results.json.bz2') % script)
+                    '\t$ python %s -o summary.tex results.json.bz2') % script)
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('json_files', action='append', nargs='+', default=[],
