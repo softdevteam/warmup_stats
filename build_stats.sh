@@ -32,4 +32,4 @@ echo "install.packages('MultinomialCI', lib='${R_INST_DIR}/lib/R/library', repos
 echo "options(download.file.method = \"wget\"); devtools::install_github('rkillick/changepoint')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
 
 # Install rpy2 Python package.
-pip install --install-option="--prefix=${PIP_TARGET_DIR}" rpy2
+pip install --install-option="--prefix=${PIP_TARGET_DIR}" rpy2==2.8.5
