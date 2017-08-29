@@ -82,17 +82,17 @@ def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENC
     # will have 3333 * 30 bootstrapped samples, and 3333 * 30 == 99990. So, we
     # add a 1 here to ensure that we end up with >= BOOTSTRAP_ITERATIONS samples.
     n_resamples = int(math.floor(BOOTSTRAP_ITERATIONS / len(steady_segments_all_pexecs))) + 1
-    bootstrapped_samples = list()  # Final list of BOOTSTRAP_ITERATIONS resamples.
+    means = list()  # Final list of BOOTSTRAP_ITERATIONS resamples.
 
     for segments in steady_segments_all_pexecs:  # Iterate over pexecs.
         for _ in xrange(n_resamples):
             sample = list()
             for seg in segments:
                 sample.extend([random.choice(seg) for _ in xrange(len(seg))])
-            bootstrapped_samples.append(sample)
-    assert len(bootstrapped_samples) >= BOOTSTRAP_ITERATIONS
+            means.append(_mean(sample))
+    assert len(means) >= BOOTSTRAP_ITERATIONS
 
-    means = sorted([_mean(sample) for sample in bootstrapped_samples])
+    means.sort()
 
     # Compute reported mean and confidence interval. Code below is from libkalibera.
     assert not isinstance(confidence_level, float)
