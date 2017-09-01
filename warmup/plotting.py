@@ -73,6 +73,9 @@ STYLE_DICT = {
     'grid.color': LIGHT_GRAY,
     'lines.linewidth': 1.0,
     'axes.linewidth': 1.0,
+    # Ensure type 3 fonts are not used
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42,
 }
 
 
