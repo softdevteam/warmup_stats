@@ -37,13 +37,25 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
+import sys
+
+if ('LD_LIBRARY_PATH' not in os.environ or 'R-inst' not in os.environ['LD_LIBRARY_PATH']
+      or 'R_HOME' not in os.environ):
+    # R packages are stored relative to the top-level of the repo.
+    os.environ['R_HOME'] = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                        'work', 'R-inst', 'lib', 'R')
+    os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                              'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
+    args = [sys.executable]
+    args.extend(sys.argv)
+    os.execv(sys.executable, args)
+
 import argparse
 import json
 import logging
-import os
 import os.path
 import subprocess
-import sys
 
 from distutils.spawn import find_executable
 from logging import debug, error, info, warn
@@ -56,12 +68,6 @@ from warmup.summary_statistics import write_html_table, write_latex_table
 # We use a custom install of rpy2, relative to the top-level of the repo.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                 'work', 'pylibs'))
-
-# R packages are stored relative to the top-level of the repo.
-os.environ['PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                               'work', 'R-inst', 'bin'), os.environ.get('PATH')])
-os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                 'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
 
 ABS_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 BINDIR = os.path.dirname(os.path.abspath(__file__))
