@@ -38,8 +38,10 @@
 # SOFTWARE.
 
 """
-Determine which iterations in Krun data are outliers, where an outlier is
-greater than 3 * (90 percentile - 10 percentile) above / below a rolling median.
+Annotate outliers into a Krun JSON file.
+
+An outlier is defined as a pont outside of a 3 * (90 percentile - 10
+percentile) rolling median.
 
 usage: Write lists of outliers into Krun results file(s).
 Example usage:

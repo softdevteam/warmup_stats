@@ -38,7 +38,7 @@
 # SOFTWARE.
 
 """
-Write changepoint and classification information into JSON files.
+Annotate changepoints and classification information into a Krun JSON file.
 """
 
 import os

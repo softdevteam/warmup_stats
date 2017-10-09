@@ -37,7 +37,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Summarise benchmark classifications.
+"""Generate the TeX code for a summary statistics table for external suites.
 Must be run after mark_changepoints_in_json.
 """
 
