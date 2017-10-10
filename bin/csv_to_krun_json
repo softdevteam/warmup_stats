@@ -38,8 +38,8 @@
 # SOFTWARE.
 
 """
-Convert a CSV file of timing measurements to JSON, suitable for using with the
-other scripts here.
+Convert an external suite CSV file into a Krun-compatible compressed JSON
+results file.
 """
 
 import argparse
@@ -59,9 +59,8 @@ def create_cli_parser():
     """Create a parser to deal with command line switches.
     """
     script = os.path.basename(__file__)
-    description = ('Convert a CSV results file to .json.bz2 suitable for use '
-                   'with the scripts here. CSV files are assumed to be in the '
-                   'following format:\n\n'
+    description = (('\n%s\n' % __doc__) +
+                   'CSV files are assumed to be in the following format:\n\n'
                    'process num, bench_name, 0, 1, 2, ...\n'
                    '0, spectral norm, 0.2, 0.1, 0.4, ...\n'
                    '1, spectral norm, 0.3, 0.15, 0.2, ...\n'
