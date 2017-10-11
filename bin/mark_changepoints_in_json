@@ -44,11 +44,8 @@ Annotate changepoints and classification information into a Krun JSON file.
 import os
 import sys
 
-if ('LD_LIBRARY_PATH' not in os.environ or 'R-inst' not in os.environ['LD_LIBRARY_PATH']
-      or 'R_HOME' not in os.environ):
+if ('LD_LIBRARY_PATH' not in os.environ or 'R-inst' not in os.environ['LD_LIBRARY_PATH']):
     # R packages are stored relative to the top-level of the repo.
-    os.environ['R_HOME'] = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                        'work', 'R-inst', 'lib', 'R')
     os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                               'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
     args = [sys.executable]

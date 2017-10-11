@@ -12,6 +12,7 @@
   * openssl (including header files)
   * pkg-config
   * pcre library (including header files)
+  * R (version 3.3.1 or later)
   * readline (including header files)
   * wget
 
@@ -33,18 +34,18 @@ Debian-based systems:
 $ sudo apt-get install build-essential python2.7 pypy bzip2 libssl-dev \
        pkg-config libcurl4-openssl-dev python-numpy python-matplotlib \
        python-pip texlive-latex-extra wget python2.7-dev libreadline-dev \
-       libbz2-dev liblzma-dev libpcre3-dev gfortran
+       libbz2-dev liblzma-dev libpcre3-dev gfortran r-base
 $ ./build_stats.sh
 ```
 
 ## Setting up R
 
 To run the scripts here, it is necessary to install R and some R packages.
-To do this, just run the `build_stats.sh` script included in this repository.
+To do this, just run the `build.sh` script included in this repository.
 
 ## Manually setting up R
 
-If you prefer not to run `build_stats.sh` you will need to install R version
+If you prefer not to run `build.sh` you will need to install R version
 3.3.1 or later R for your platform (you may need to build R manually).
 
 By default, R will install its packages in `$HOME/R`. If you do not want R to

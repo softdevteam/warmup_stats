@@ -1,5 +1,12 @@
 #! /bin/sh
 
+set -e
+
+# Local directories for installing Python and R packages.
+R_INST_DIR=`pwd`/work/R-inst
+PIP_TARGET_DIR=`pwd`/work/pylibs
+
+# Check requirements.
 which git > /dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo "git must be installed" >&2
@@ -18,36 +25,26 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-set -e
+which R > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "R version 3.3.1 or later must be installed"
+    exit 1
+fi
 
-mkdir -p work
-R_INST_DIR=`pwd`/work/R-inst
-PIP_TARGET_DIR=`pwd`/work/pylibs
+version() {
+    echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }';
+}
 
-# Download a recent version of R (must be 3.3.1 or later).
-mkdir -p ${R_INST_DIR}
-cd work
-wget https://cran.r-project.org/src/base/R-3/R-3.3.2.tar.gz
-tar -xzf R-3.3.2.tar.gz
-rm R-3.3.2.tar.gz
-cd R-3.3.2
-
-# Build R.
-./configure --prefix=${R_INST_DIR} --enable-R-shlib
-make
-make install
-cd ..
-rm -Rf R-3.3.2/
-cd ..
-
-# Correct PATH and LD_LIBRARY_PATH variables.
-export PATH="${R_INST_DIR}/bin:${PATH}"
-export LD_LIBRARY_PATH="${R_INST_DIR}/lib/R/lib:${LD_LIBRARY_PATH}"
+if [ $(version `R --version | awk 'NR==1 {print $3}'`) -le $(version "3.3.1") ]; then
+    echo "R version 3.3.1 or later must be installed"
+    exit 1
+fi
 
 # Install R changepoint package.
-echo "install.packages('devtools', lib='${R_INST_DIR}/lib/R/library', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
-echo "install.packages('MultinomialCI', lib='${R_INST_DIR}/lib/R/library', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
-echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'master')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
+mkdir -p ${R_INST_DIR}/lib/R/library
+echo "install.packages('devtools', lib='${R_INST_DIR}/lib/R/library', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ R --no-save
+echo "install.packages('MultinomialCI', lib='${R_INST_DIR}/lib/R/library', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ R --no-save
+echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'master')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ R --no-save
 
 # Install rpy2 Python package.
 DEB8_HACK=0
