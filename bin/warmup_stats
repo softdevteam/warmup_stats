@@ -305,7 +305,7 @@ def main(options):
         if len(latex_summary.keys()) > 1:  # More than one VM.
             num_splits = 2
         write_latex_table(machine, bmarks, latex_summary, options.output_latex,
-                          num_splits, with_preamble=True)
+                          num_splits, longtable=True, with_preamble=True)
         info('Compiling table as PDF.')
         cli = [pdflatex_path, '-interaction=batchmode', options.output_latex]
         debug('Running: %s' % ' '.join(cli))
