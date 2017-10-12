@@ -207,9 +207,34 @@ __LATEX_START_TABLE = lambda format_, headings: """
 \\midrule
 """ % (format_, headings)
 
+__LATEX_START_LONGTABLE = lambda format_, headings: """
+{
+\\setlength\\sparkspikewidth{1.5pt}
+\\definecolor{sparkbottomlinecolor}{gray}{0.8}
+%% Older versions of sparklines do not expose bottomlinethickness
+\\renewcommand{\\sparkbottomline}[1][1]{\\pgfsetlinewidth{0.2pt}%%
+  \\color{sparkbottomlinecolor}%%
+  \\pgfline{\\pgfxy(0,0)}{\\pgfxy(#1,0)}\\color{sparklinecolor}}
+
+\\begin{longtable}{%s}
+%s \\\\
+\\hline
+\\endfirsthead
+%s \\\\
+\\hline
+\\endhead
+\\hline
+""" % (format_, headings, headings)
+
 __LATEX_END_TABLE = """
 \\bottomrule
 \\end{tabular}
+}
+"""
+
+__LATEX_END_LONGTABLE = """
+\\hline
+\\end{longtable}
 }
 """
 
@@ -224,6 +249,10 @@ def end_document():
 
 def end_table():
     return __LATEX_END_TABLE
+
+
+def end_longtable():
+    return __LATEX_END_LONGTABLE
 
 
 def escape(word):
@@ -307,3 +336,6 @@ def section(heading):
 
 def start_table(format_, headings):
     return __LATEX_START_TABLE(format_, headings)
+
+def start_longtable(format_, headings):
+    return __LATEX_START_LONGTABLE(format_, headings)

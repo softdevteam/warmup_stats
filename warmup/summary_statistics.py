@@ -40,8 +40,9 @@ import math
 
 from collections import Counter, OrderedDict
 from warmup.html import HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
-from warmup.latex import end_document, end_table, escape, format_median_ci, format_median_error
-from warmup.latex import get_latex_symbol_map, preamble, start_table, STYLE_SYMBOLS
+from warmup.latex import end_document, end_longtable, end_table, escape, format_median_ci
+from warmup.latex import format_median_error, get_latex_symbol_map, preamble
+from warmup.latex import start_longtable, start_table, STYLE_SYMBOLS
 from warmup.statistics import bootstrap_runner, median_iqr
 
 JSON_VERSION_NUMBER = '2'
@@ -300,7 +301,8 @@ def convert_to_latex(summary_data, delta, steady_state):
     return machine, list(sorted(benchmark_names)), latex_summary
 
 
-def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_preamble=False):
+def write_latex_table(machine, all_benchs, summary, tex_file, num_splits,
+                      with_preamble=False, longtable=False):
     """Write a tex table to disk"""
 
     num_benchmarks = len(all_benchs)
@@ -328,15 +330,19 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
             fp.write(preamble(TITLE))
             fp.write('\\centering %s' % get_latex_symbol_map())
             fp.write('\n\n\n')
-            fp.write('\\begin{landscape}\n')
-            fp.write('\\begin{table*}[hptb]\n')
-            fp.write('\\vspace{.8cm}\n')
-            fp.write('\\begin{adjustbox}{totalheight=12.4cm}\n')
+            if not longtable:
+                fp.write('\\begin{landscape}\n')
+                fp.write('\\begin{table*}[hptb]\n')
+                fp.write('\\vspace{.8cm}\n')
+                fp.write('\\begin{adjustbox}{totalheight=12.4cm}\n')
         # emit table header
         heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1] * num_splits)
         heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2] * num_splits)
         heads = '%s\\\\%s' % (heads1, heads2)
-        fp.write(start_table(TABLE_FORMAT, heads))
+        if longtable:
+            fp.write(start_longtable(TABLE_FORMAT, heads))
+        else:
+            fp.write(start_table(TABLE_FORMAT, heads))
         split_row_idx = 0
         for row_vms in zip(*splits):
             bench_idx = 0
@@ -394,13 +400,20 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits, with_p
                     fp.write('\\\\ \n')
                 bench_idx += 1
             if split_row_idx < vms_per_split - 1:
-                fp.write('\\midrule\n')
+                if longtable:
+                    fp.write('\\hline\n')
+                else:
+                    fp.write('\\midrule\n')
             split_row_idx += 1
-        fp.write(end_table())
+        if longtable:
+            fp.write(end_longtable())
+        else:
+            fp.write(end_table())
         if with_preamble:
-            fp.write('\\end{adjustbox}\n')
-            fp.write('\\end{table*}\n')
-            fp.write('\\end{landscape}\n')
+            if not longtable:
+                fp.write('\\end{adjustbox}\n')
+                fp.write('\\end{table*}\n')
+                fp.write('\\end{landscape}\n')
             fp.write(end_document())
 
 
