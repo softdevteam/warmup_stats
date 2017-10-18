@@ -32,4 +32,17 @@ echo "install.packages('MultinomialCI', lib='${R_INST_DIR}/lib/R/library', repos
 echo "options(download.file.method = \"wget\"); devtools::install_github('rkillick/changepoint')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
 
 # Install rpy2 Python package.
-pip install --install-option="--prefix=${PIP_TARGET_DIR}" rpy2==2.8.5
+DEB8_HACK=0
+if [ -f /etc/debian_version ]; then
+    DEB_MAJOR_V=`cat /etc/debian_version | cut -d. -f1`
+    if [ "${DEB_MAJOR_V}" = "8" ]; then
+        DEB8_HACK=1
+    fi
+fi
+
+if [ "${DEB8_HACK}" = "1" ]; then
+    # Debian 8
+    pip install -t ${PIP_TARGET_DIR} rpy2==2.8.5
+else
+    pip install --install-option="--prefix=${PIP_TARGET_DIR}" rpy2==2.8.5
+fi
