@@ -94,14 +94,14 @@ statistics, and is useful for getting an overall view of a VM(s) performance.
 An example run is as follows:
 
 ```
-bin/table_classification_summaries_others --with-preamble -s 1 -o mytable.tex myresults_outliers_w200_changepoints.json.bz2
+bin/table_classification_summaries_others -s 1 -o mytable.tex myresults_outliers_w200_changepoints.json.bz2
 ```
 
-where `-s 1` gives the number of VMs which were benchmarked. The switch
-`--with-preamble` will generate a stand-alone LaTeX file which can be compiled
-to PDF. You may wish to remove this switch if you want to copy and paste the
-LaTeX output into a larger document, but you will need to provide the relevant
-LaTeX packages in your own preamble.
+where `-s 1` gives the number of VMs which were benchmarked. By default, the
+script will generate a stand-alone LaTeX file which can be compiled to PDF
+with `pdflatex`, or similar. If you want to copy and paste the LaTeX output into
+a larger document, use the `--without-preamble`, and provide the relevant LaTeX
+packages in your own preamble.
 
 
 ## Generating charts from Krun results files
