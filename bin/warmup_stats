@@ -288,8 +288,19 @@ def main(options):
     if options.output_plots:
         info('Generating PDF plots.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
+        iterations = benchmarks[0].iterations
+        window = benchmarks[0].window
+        if len(benchmarks) > 1:
+            for bm in benchmarks:
+                if bm.iterations != iterations:
+                    sys.stderr.write('File %s contains pexecs with %d iterations, expected %d. '
+                                     'All process executions in all files should compute the '
+                                     'same number of iterations.' %
+                                     (bm.csv_filename, bm.iterations, iterations))
+                    sys.exit(1)
         cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
-               '--with-outliers', '-o', options.output_plots, ' '.join(input_files)]
+               '--with-outliers', '-o', options.output_plots, '-w', str(window),
+               ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
         _ = subprocess.check_output(' '.join(cli), shell=True)
         debug('Written out: %s' % options.output_plots)
