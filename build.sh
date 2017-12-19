@@ -1,5 +1,23 @@
 #! /bin/sh
 
+which git > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "git must be installed" >&2
+    exit 1
+fi
+
+which python2.7 > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "python2.7 must be installed" >&2
+    exit 1
+fi
+
+python2.7 -c "import setuptools" > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "setuptools for python2.7 must be installed" >&2
+    exit 1
+fi
+
 set -e
 
 HERE_DIR=$(dirname $(readlink -f "$0"))
