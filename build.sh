@@ -41,8 +41,8 @@ rm -Rf R-3.3.2/
 cd ..
 
 # Correct PATH and LD_LIBRARY_PATH variables.
-export PATH=${R_INST_DIR}/bin:${PATH}
-export LD_LIBRARY_PATH=${R_INST_DIR}/lib/R/lib:${LD_LIBRARY_PATH}
+export PATH="${R_INST_DIR}/bin:${PATH}"
+export LD_LIBRARY_PATH="${R_INST_DIR}/lib/R/lib:${LD_LIBRARY_PATH}"
 
 # Install R changepoint package.
 echo "install.packages('devtools', lib='${R_INST_DIR}/lib/R/library', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_INST_DIR}/lib/R/library/ ${R_INST_DIR}/bin/R --no-save
@@ -60,7 +60,7 @@ fi
 
 if [ "${DEB8_HACK}" = "1" ]; then
     # Debian 8
-    pip install -t ${PIP_TARGET_DIR} rpy2==2.8.5
+    pip install -t ${PIP_TARGET_DIR} "rpy2==2.8.5"
 else
-    pip install --install-option="--prefix=${PIP_TARGET_DIR}" rpy2==2.8.5
+    pip install --install-option="--prefix=${PIP_TARGET_DIR}" "rpy2==2.8.5"
 fi
