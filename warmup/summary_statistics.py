@@ -56,6 +56,16 @@ TABLE_HEADINGS2 = '&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)}
 
 BLANK_CELL = '\\begin{minipage}[c][\\blankheight]{0pt}\\end{minipage}'
 
+# List indices (used in diff summaries).
+CLASSIFICATIONS = 0  # Indices for top-level summary lists.
+STEADY_ITER = 1
+STEADY_STATE_TIME = 2
+INTERSECTION = 3
+SAME = 0  # Indices for nested lists.
+DIFFERENT = 1
+BETTER = 2
+WORSE = 3
+
 
 def collect_summary_statistics(data_dictionaries, delta, steady_state):
     """Create summary statistics of a dataset with classifications.
@@ -229,9 +239,11 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
     return summary_data
 
 
-def convert_to_latex(summary_data, delta, steady_state):
+def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None):
     assert 'warmup_format_version' in summary_data and summary_data['warmup_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
+    if (diff and not previous) or (previous and not diff):
+        assert False, 'convert_to_latex needs both diff and previous arguments.'
     machine = None
     for key in summary_data['machines']:
         if key == 'warmup_format_version':
@@ -276,23 +288,41 @@ def convert_to_latex(summary_data, delta, steady_state):
                                     (STYLE_SYMBOLS[bmark['classification']],
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
+                change = None
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] > 0 and \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_iteration']:
+                    change = bmark['steady_state_iteration'] - \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_iteration']
                 mean_steady_iter = format_median_error(bmark['steady_state_iteration'],
                                                        bmark['steady_state_iteration_iqr'],
                                                        bmark['steady_state_iteration_list'],
-                                                       one_dp=True)
+                                                       one_dp=True,
+                                                       change=change)
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
+                change = None
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME] > 0 and \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time_ci']:
+                    change = bmark['steady_state_time'] - \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time']
                 mean_steady = format_median_ci(bmark['steady_state_time'],
                                                bmark['steady_state_time_ci'],
-                                               bmark['steady_state_time_list'])
+                                               bmark['steady_state_time_list'],
+                                               change=change)
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
+                change = None
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] > 0 and \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']:
+                    change = bmark['steady_state_time_to_reach_secs'] - \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']
                 time_to_steady = format_median_error(bmark['steady_state_time_to_reach_secs'],
                                                      bmark['steady_state_time_to_reach_secs_iqr'],
                                                      bmark['steady_state_time_to_reach_secs_list'],
-                                                     two_dp=True)
+                                                     two_dp=True,
+                                                     change=change)
             else:
                 time_to_steady = ''
             latex_summary[vm][bmark_name] = {'style': reported_category,
