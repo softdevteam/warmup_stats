@@ -56,8 +56,6 @@ STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
 def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
     symbols = list()
     for key in sorted(STYLE_SYMBOLS):
-        if key.startswith('mostly '):
-            continue
         symbols.append('%s~%s' % (STYLE_SYMBOLS[key], key.lower()))
     text  = prefix + ', '.join(symbols)
     text += '.'
