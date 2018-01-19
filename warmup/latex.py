@@ -240,10 +240,8 @@ __LATEX_START_LONGTABLE = lambda format_, headings: """
 
 \\begin{longtable}{%s}
 %s \\\\\\hline
-\\endfirsthead
-%s \\\\\\hline
 \\endhead
-""" % (format_, headings, headings)
+""" % (format_, headings)
 
 __LATEX_END_TABLE = """
 \\bottomrule
