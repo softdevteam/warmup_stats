@@ -56,8 +56,6 @@ STYLE_SYMBOLS = {  # Requires \usepackage{amssymb} and \usepackage{sparklines}
 def get_latex_symbol_map(prefix='\\textbf{Symbol key:} '):
     symbols = list()
     for key in sorted(STYLE_SYMBOLS):
-        if key.startswith('mostly '):
-            continue
         symbols.append('%s~%s' % (STYLE_SYMBOLS[key], key.lower()))
     text  = prefix + ', '.join(symbols)
     text += '.'
@@ -158,6 +156,28 @@ $\\begin{array}{rr}
        0.9 0.2
        /%
 \\end{sparkline}\\xspace}
+
+%
+% Coloured table cells.
+% https://tex.stackexchange.com/questions/360461/get-a-transparent-nestable-wrappable-background
+%
+\\makeatletter
+\\protected\\def\\ccell#1#{%
+  \\@ccell{#1}%
+}
+\\def\\@ccell#1#2#3{%
+   \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=0mm,%
+           boxsep=0.5pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
+           colback=#2!85!white,before=\\relax,after=\\relax]{#3}
+}
+\\makeatother
+
+%
+% Colours.
+%
+\\definecolor{lightred}{HTML}{e88a8a}
+\\definecolor{lightyellow}{HTML}{e8e58a}
+\\definecolor{lightgreen}{HTML}{8ae89c}
 """
 
 DEFAULT_DOCOPTS = '10pt, a4paper'
@@ -177,6 +197,8 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\usepackage{pdflscape}
 \\usepackage{rotating}
 \\usepackage{sparklines}
+\\usepackage{tcolorbox}
+\\tcbuselibrary{most}
 \\usepackage{xspace}
 
 
@@ -210,7 +232,7 @@ __LATEX_START_TABLE = lambda format_, headings: """
 __LATEX_START_LONGTABLE = lambda format_, headings: """
 {
 \\setlength\\sparkspikewidth{1.5pt}
-\\definecolor{sparkbottomlinecolor}{gray}{0.8}
+\\definecolor{sparkbottomlinecolor}{gray}{0.4}
 %% Older versions of sparklines do not expose bottomlinethickness
 \\renewcommand{\\sparkbottomline}[1][1]{\\pgfsetlinewidth{0.2pt}%%
   \\color{sparkbottomlinecolor}%%
@@ -218,10 +240,8 @@ __LATEX_START_LONGTABLE = lambda format_, headings: """
 
 \\begin{longtable}{%s}
 %s \\\\\\hline
-\\endfirsthead
-%s \\\\\\hline
 \\endhead
-""" % (format_, headings, headings)
+""" % (format_, headings)
 
 __LATEX_END_TABLE = """
 \\bottomrule
@@ -285,7 +305,7 @@ def _histogram(data):
     return '\n'.join(sparkline)
 
 
-def format_median_error(median, error, data, one_dp=False, two_dp=False):
+def format_median_error(median, error, data, one_dp=False, two_dp=False, change=None):
     if one_dp:
         median_s = '%.1f' % median
         error_s = '(%.1f, %.1f)' % (error[0], error[1])
@@ -294,27 +314,55 @@ def format_median_error(median, error, data, one_dp=False, two_dp=False):
         error_s = '(%.3f, %.3f)' % (error[0], error[1])
     else:
         assert False
-    return """$
-\\begin{array}{r}
+    if change and one_dp:
+        change_s = '%+.1f' % change
+    elif change and two_dp:
+        change_s = '%+.3f' % change
+    if change:
+        tex = """$
+\\begin{array}{c}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{\\delta=%s} \\\\[-6pt]
+\\scriptscriptstyle{%s}
+\\end{array}
+$
+\\noindent\\parbox[p]{%s}{%s}
+"""  % (median_s, change_s, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
+    else:
+        tex = """$
+\\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
 \\scriptscriptstyle{%s}
 \\end{array}
 $
 \\noindent\\parbox[p]{%s}{%s}
 """  % (median_s, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
+    return tex
 
 
-def format_median_ci(median, error, data):
+def format_median_ci(median, error, data, change=None):
     median_s = '%.5f' % median
     error_s = '%.6f' % error
-    return """$
-\\begin{array}{r}
+    if change:
+        tex = """$
+\\begin{array}{c}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{\\delta=%+.3f} \\\\[-6pt]
+\\scriptscriptstyle{\\pm%s}
+\\end{array}
+$
+\\noindent\\parbox[p]{%s}{%s}
+"""  % (median_s, change, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
+    else:
+        tex = """$
+\\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
 \\scriptscriptstyle{\\pm%s}
 \\end{array}
 $
 \\noindent\\parbox[p]{%s}{%s}
 """  % (median_s, error_s, _SPARKLINE_WIDTH + 'ex', _histogram(data))
+    return tex
 
 
 def preamble(title, doc_opts=DEFAULT_DOCOPTS):
