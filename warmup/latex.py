@@ -347,7 +347,7 @@ def format_median_ci(median, error, data, change=None):
         tex = """$
 \\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
-\\scriptscriptstyle{\\delta=%+.3f} \\\\[-6pt]
+\\scriptscriptstyle{\\delta=%+.6f} \\\\[-6pt]
 \\scriptscriptstyle{\\pm%s}
 \\end{array}
 $
