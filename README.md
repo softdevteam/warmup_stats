@@ -46,6 +46,18 @@ usage:
 ```
 
 
+## Creating tables
+
+The `--output-table <file.tex>` flag converts input data into a LaTeX / PDF
+table. Conversion to PDF requires `pdflatex` to be installed. `bin/warmup_stats`
+also needs the names of the language and VM under test, and the output of
+`uname -a` on the machine the benchmarks were run on. Example usage:
+
+```
+./bin/warmup_stats  --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
+```
+
+
 # Warmup stats from Krun
 
 ## Initial statistical scripts
@@ -143,9 +155,10 @@ as output:
 ./bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 -o diff.tex -n 1
 ```
 
-The `-n` should normally be set to the number of VMs that were benchmarked
-(this switch controls the number of columns in the table).
+The `-n` switch controls the number of columns in the table, and we recommend
+setting this to the number of VMs that were benchmarked.
 
 The resulting LaTeX table will contain results from the `AFTER.json.bz2` file,
 compared against the `BEFORE.json.bz2` file. VMs and benchmarks that do not
-appear in both Krun results files will be omitted from the table.
+appear in both Krun results files will be omitted from the table. The table
+will be automatically converted to PDF (requires `pdflatex` to be installed).
