@@ -126,3 +126,26 @@ are:
   * `--wallclock-only` to suppress most details
   * `--xlimits` and `--inset-xlimits` to "zoom in" on parts of the x-axis
 
+
+## Diffing Krun results files
+
+Benchmarking is often performed in order to test whether a change in a given
+VM improves or worsens its performance. Unfortunately, the difference between
+benchmark performance before and after a change is rarely simple. Users will
+want to produce a detailed comparison of the results in Krun results tables
+(above) in order to get a deeper insight into the effects of their changes.
+
+The `bin/diff_results` scripts takes two Krun results files as an input and
+produces a LaTeX file (which can be compiled to PDF with pdflatex or similar)
+as output:
+
+```
+./bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 -o diff.tex -n 1
+```
+
+The `-n` should normally be set to the number of VMs that were benchmarked
+(this switch controls the number of columns in the table).
+
+The resulting LaTeX table will contain results from the `AFTER.json.bz2` file,
+compared against the `BEFORE.json.bz2` file. VMs and benchmarks that do not
+appear in both Krun results files will be omitted from the table.

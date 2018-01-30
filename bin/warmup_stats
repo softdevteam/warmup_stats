@@ -142,8 +142,8 @@ def create_arg_parser():
                               help='Output a JSON file containing summary results.')
     output_group.add_argument('--output-diff', dest='output_diff', action='store',
                               type=str, metavar='LATEX_FILENAME', default=None,
-                              help='Output a LaTeX file containing a diff table. '
-                              ' Expects exactly two CSV input files.')
+                              help='Output a LaTeX file containing a diff table, and '
+                              'convert to PDF. Expects exactly two CSV input files.')
     return parser
 
 
