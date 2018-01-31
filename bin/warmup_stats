@@ -74,6 +74,7 @@ ABS_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 BINDIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_WINDOW_RATIO = 0.1
 DEFAULT_STEADY_RATIO = 0.25
+SCRIPT_DIFF_RESULTS = os.path.join(BINDIR, 'diff_results')
 SCRIPT_MARK_OUTLIERS = os.path.join(BINDIR, 'mark_outliers_in_json')
 SCRIPT_MARK_CHANGEPOINTS = os.path.join(BINDIR, 'mark_changepoints_in_json')
 SCRIPT_PLOT_KRUN_RESULTS = os.path.join(BINDIR, 'plot_krun_results')
@@ -105,7 +106,9 @@ def create_arg_parser():
                    '\t1, spectral norm, 0.3, 0.15, 0.2, ...\n'
                    '\n\nExample usage:\n\n\t$ python %s --output-json summary.json '
                    '-l javascript -v V8 -u "`uname -a`" results.csv'
-                   % script)
+                   '\n\nExample usage:\n\n\t$ python %s --output-diff diff.tex '
+                   '-l javascript -v V8 -u "`uname -a`" before.csv after.csv'
+                   % (script, script))
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--debug', '-d', action='store', default='WARN',
@@ -137,6 +140,10 @@ def create_arg_parser():
     output_group.add_argument('--output-json', dest='output_json', action='store',
                               type=str, metavar='JSON_FILENAME', default=None,
                               help='Output a JSON file containing summary results.')
+    output_group.add_argument('--output-diff', dest='output_diff', action='store',
+                              type=str, metavar='LATEX_FILENAME', default=None,
+                              help='Output a LaTeX file containing a diff table. '
+                              ' Expects exactly two CSV input files.')
     return parser
 
 
@@ -255,16 +262,19 @@ class BenchmarkFile(object):
 
 
 def main(options):
-    need_latex = options.output_latex
+    need_latex = options.output_latex or options.output_diff
     need_plots = options.output_plots
     if (not need_latex and not need_plots and not options.output_html and
         not options.output_json):
         fatal('You did not specify an output option! Need one or more of '
-              '--output-json, --output-html, --output-latex or --output-plots.')
+              '--output-json, --output-html, --output-latex, --output-plots '
+              'or --output-diff.')
+    csv_files = options.csv_files[0]
+    if options.output_diff and len(csv_files) != 2:
+        fatal('--output-diff expects exactly 2 CSV input files.')
     python_path, pypy_path, pdflatex_path, r_path = check_environment(need_latex=need_latex,
                                                                       need_plots=need_plots)
     info('Converting CSV to Krun JSON format.')
-    csv_files = options.csv_files[0]
     benchmarks = list()
     for filename in csv_files:
         benchmarks.append(BenchmarkFile(filename, options, python_path, pypy_path, pdflatex_path, r_path))
@@ -280,6 +290,20 @@ def main(options):
     info('Marking changepoints in JSON.')
     for benchmark in benchmarks:
         benchmark.mark_changepoints()
+    if options.output_diff:
+        input_files = [bm.krun_filename_changepoints for bm in benchmarks]
+        assert len(input_files) == 2
+        cli = [python_path, SCRIPT_DIFF_RESULTS, '-o',
+               options.output_diff, '-r', ' '.join(input_files)]
+        debug('Running: %s' % ' '.join(cli))
+        output = subprocess.check_output(' '.join(cli), shell=True)
+        for line in output.strip().split('\n'):
+            if line.startswith('Writing data to:'):
+                debug('Written out: %s' % line.split(' ')[-1])
+        info('Compiling diff table as PDF.')
+        cli = [pdflatex_path, '-interaction=batchmode', options.output_diff]
+        debug('Running: %s' % ' '.join(cli))
+        _ = subprocess.check_output(' '.join(cli), shell=True)
     if options.output_json or options.output_latex or options.output_html:
         info('Collecting summary statistics.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
