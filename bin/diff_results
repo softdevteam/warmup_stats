@@ -204,18 +204,25 @@ def diff(before_file, after_file, summary_filename):
         for category in CATEGORIES:
             cat_index = CATEGORIES.index(category)
             if do_intervals_differ(before_class_cis[key][cat_index], after_class_cis[cat_index]):
-                if (sample['detailed_classification']['no steady state'] < base_case['detailed_classification']['no steady state'] and
-                    sample['detailed_classification']['slowdown'] < base_case['detailed_classification']['slowdown']):
+                if (sample['detailed_classification']['warmup'] + sample['detailed_classification']['flat'] >
+                        base_case['detailed_classification']['warmup'] + base_case['detailed_classification']['flat']):
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = BETTER
                     break
-                elif (sample['detailed_classification']['no steady state'] >= base_case['detailed_classification']['no steady state'] and
-                    sample['detailed_classification']['slowdown'] >= base_case['detailed_classification']['slowdown']):
+                elif (sample['detailed_classification']['no steady state'] + sample['detailed_classification']['slowdown'] >
+                        base_case['detailed_classification']['slowdown'] + base_case['detailed_classification']['slowdown']):
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = WORSE
                     break
                 else:
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = DIFFERENT
                     break
         else:
+            summary[DIFF][vm][bench][CLASSIFICATIONS] = SAME
+        # If the CIs did not overlap, but the ONLY difference is in the number
+        # of warmups / flats, we say the results were the same (because we see
+        # warmups / flats are the same case).
+        if summary[DIFF][vm][bench][CLASSIFICATIONS] != SAME and \
+                base_case['detailed_classification']['slowdown'] == sample['detailed_classification']['slowdown'] and \
+                base_case['detailed_classification']['no steady state'] == sample['detailed_classification']['no steady state']:
             summary[DIFF][vm][bench][CLASSIFICATIONS] = SAME
         # Case 1) All flat.
         if (all_flat(sample['detailed_classification']) and all_flat(base_case['detailed_classification'])):
