@@ -42,8 +42,43 @@ the output of `uname -a` on the machine the benchmarks were run on. Example
 usage:
 
 ```
-./bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
+bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
 ```
+
+
+## Creating tables
+
+The `--output-table <file.tex>` flag converts input data into a LaTeX / PDF
+table. Conversion to PDF requires `pdflatex` to be installed. `bin/warmup_stats`
+also needs the names of the language and VM under test, and the output of
+`uname -a` on the machine the benchmarks were run on. Example usage:
+
+```
+bin/warmup_stats  --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
+```
+
+
+## Creating diffs
+
+Benchmarking is often performed in order to test whether a change in a given
+VM improves or worsens its performance. Unfortunately, the difference between
+benchmark performance before and after a change is rarely simple. Users will
+want to produce a detailed comparison of the results in Krun results tables
+(above) in order to get a deeper insight into the effects of their changes.
+
+The `--output-diff` flag converts data from exactly two CSV files into a LaTeX /
+PDF table. Conversion to PDF requires `pdflatex` to be installed.
+`bin/warmup_stats` also needs the names of the language and VM under test, and
+the output of `uname -a` on the machine the benchmarks were run on. Example
+usage:
+
+```
+bin/warmup_stats  --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
+```
+
+The resulting LaTeX table will contain results from the `after.csv` file,
+compared against the `before.csv` file. VMs and benchmarks that do not appear in
+both CSV results files will be omitted from the table.
 
 
 # Warmup stats from Krun
@@ -56,7 +91,7 @@ scripts to add *outliers* and *changepoints* to your data.
 To add outliers to your Krun output, run:
 
 ```
-./bin/mark_outliers_in_json -w 200 myresults.json.bz2
+bin/mark_outliers_in_json -w 200 myresults.json.bz2
 ```
 
 `-w` gives the size of the sliding window used to draw percentiles. We recommend
@@ -70,7 +105,7 @@ This script will generate a new Krun output file called
 To add changepoints to your Krun output, run:
 
 ```
-./bin/mark_changepoints_in_json -s 500 myresults_outliers_200.json.bz2
+bin/mark_changepoints_in_json -s 500 myresults_outliers_200.json.bz2
 ```
 
 Note that we run this script **on the output of the `mark_outliers` script**.
@@ -113,11 +148,11 @@ script `bin/plot_krun_results` has a large number of command-line options, but
 will commonly be invoked as follows:
 
 ```
-./bin/plot_krun_results --with-outliers --with-changepoint-means -w 200 -o myplots.pdf myresults_outliers_200.json.bz2
+bin/plot_krun_results --with-outliers --with-changepoint-means -w 200 -o myplots.pdf myresults_outliers_200.json.bz2
 ```
 
 If you need more tailored output, it is wise to run
-`./bin/plot_krun_results --help` and read through the options. There are a large
+`bin/plot_krun_results --help` and read through the options. There are a large
 number of switches to this script, but ones that users are most likely to need
 are:
 
@@ -126,3 +161,21 @@ are:
   * `--wallclock-only` to suppress most details
   * `--xlimits` and `--inset-xlimits` to "zoom in" on parts of the x-axis
 
+
+## Diffing Krun results files
+
+The `bin/diff_results` scripts takes two Krun results files as an input and
+produces a LaTeX file (which can be compiled to PDF with pdflatex or similar)
+as output:
+
+```
+bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 -o diff.tex -n 1
+```
+
+The `-n` switch controls the number of columns in the table, and we recommend
+setting this to the number of VMs that were benchmarked.
+
+The resulting LaTeX table will contain results from the `AFTER.json.bz2` file,
+compared against the `BEFORE.json.bz2` file. VMs and benchmarks that do not
+appear in both Krun results files will be omitted from the table. The table
+will be automatically converted to PDF (requires `pdflatex` to be installed).
