@@ -239,8 +239,7 @@ __LATEX_START_LONGTABLE = lambda format_, headings: """
   \\pgfline{\\pgfxy(0,0)}{\\pgfxy(#1,0)}\\color{sparklinecolor}}
 
 \\begin{longtable}{%s}
-%s \\\\
-\\hline
+%s \\\\\\hline
 \\endhead
 """ % (format_, headings)
 
