@@ -42,7 +42,7 @@ the output of `uname -a` on the machine the benchmarks were run on. Example
 usage:
 
 ```
-./bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
+bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
 ```
 
 
@@ -54,7 +54,7 @@ also needs the names of the language and VM under test, and the output of
 `uname -a` on the machine the benchmarks were run on. Example usage:
 
 ```
-./bin/warmup_stats  --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
+bin/warmup_stats  --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
 ```
 
 
@@ -73,7 +73,7 @@ the output of `uname -a` on the machine the benchmarks were run on. Example
 usage:
 
 ```
-./bin/warmup_stats  --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
+bin/warmup_stats  --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
 ```
 
 The resulting LaTeX table will contain results from the `after.csv` file,
@@ -91,7 +91,7 @@ scripts to add *outliers* and *changepoints* to your data.
 To add outliers to your Krun output, run:
 
 ```
-./bin/mark_outliers_in_json -w 200 myresults.json.bz2
+bin/mark_outliers_in_json -w 200 myresults.json.bz2
 ```
 
 `-w` gives the size of the sliding window used to draw percentiles. We recommend
@@ -105,7 +105,7 @@ This script will generate a new Krun output file called
 To add changepoints to your Krun output, run:
 
 ```
-./bin/mark_changepoints_in_json -s 500 myresults_outliers_200.json.bz2
+bin/mark_changepoints_in_json -s 500 myresults_outliers_200.json.bz2
 ```
 
 Note that we run this script **on the output of the `mark_outliers` script**.
@@ -148,11 +148,11 @@ script `bin/plot_krun_results` has a large number of command-line options, but
 will commonly be invoked as follows:
 
 ```
-./bin/plot_krun_results --with-outliers --with-changepoint-means -w 200 -o myplots.pdf myresults_outliers_200.json.bz2
+bin/plot_krun_results --with-outliers --with-changepoint-means -w 200 -o myplots.pdf myresults_outliers_200.json.bz2
 ```
 
 If you need more tailored output, it is wise to run
-`./bin/plot_krun_results --help` and read through the options. There are a large
+`bin/plot_krun_results --help` and read through the options. There are a large
 number of switches to this script, but ones that users are most likely to need
 are:
 
@@ -169,7 +169,7 @@ produces a LaTeX file (which can be compiled to PDF with pdflatex or similar)
 as output:
 
 ```
-./bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 -o diff.tex -n 1
+bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 -o diff.tex -n 1
 ```
 
 The `-n` switch controls the number of columns in the table, and we recommend
