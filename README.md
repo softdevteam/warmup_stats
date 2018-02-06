@@ -58,6 +58,29 @@ also needs the names of the language and VM under test, and the output of
 ```
 
 
+## Creating diffs
+
+Benchmarking is often performed in order to test whether a change in a given
+VM improves or worsens its performance. Unfortunately, the difference between
+benchmark performance before and after a change is rarely simple. Users will
+want to produce a detailed comparison of the results in Krun results tables
+(above) in order to get a deeper insight into the effects of their changes.
+
+The `--output-diff` flag converts data from exactly two CSV files into a LaTeX /
+PDF table. Conversion to PDF requires `pdflatex` to be installed.
+`bin/warmup_stats` also needs the names of the language and VM under test, and
+the output of `uname -a` on the machine the benchmarks were run on. Example
+usage:
+
+```
+./bin/warmup_stats  --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
+```
+
+The resulting LaTeX table will contain results from the `after.csv` file,
+compared against the `before.csv` file. VMs and benchmarks that do not appear in
+both CSV results files will be omitted from the table.
+
+
 # Warmup stats from Krun
 
 ## Initial statistical scripts
@@ -140,12 +163,6 @@ are:
 
 
 ## Diffing Krun results files
-
-Benchmarking is often performed in order to test whether a change in a given
-VM improves or worsens its performance. Unfortunately, the difference between
-benchmark performance before and after a change is rarely simple. Users will
-want to produce a detailed comparison of the results in Krun results tables
-(above) in order to get a deeper insight into the effects of their changes.
 
 The `bin/diff_results` scripts takes two Krun results files as an input and
 produces a LaTeX file (which can be compiled to PDF with pdflatex or similar)
