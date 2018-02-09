@@ -64,7 +64,10 @@ th                 { background-color: black;
                      color: white;
                      text-align: left;
                      padding: 8px; }
-tr:nth-child(even) { background-color: "#f2f2f2"; }
+tr:nth-child(even) { background-color: #f2f2f2; }
+#lightred          { background-color: #e88a8a; }
+#lightyellow       { background-color: #e8e58a; }
+#lightgreen        { background-color: #8ae89c; }
 </style>
 </head>
 <body>
@@ -73,3 +76,14 @@ tr:nth-child(even) { background-color: "#f2f2f2"; }
 </body>
 </html>
 """  # Strings from HTML_TABLE_TEMPLATE.
+
+
+DIFF_LEGEND = """
+<p>
+<strong>Diff against previous results:</strong>
+<span id="lightgreen">improved</span>
+<span id="lightred">worsened</span>
+<span id="lightyellow">different</span>
+<span>unchanged.</span>
+</p>
+"""

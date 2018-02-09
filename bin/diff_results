@@ -75,7 +75,22 @@ from warmup.latex import end_document, end_longtable, end_table, escape
 from warmup.latex import get_latex_symbol_map, preamble
 from warmup.latex import start_longtable, start_table, STYLE_SYMBOLS
 from warmup.summary_statistics import BLANK_CELL, collect_summary_statistics
-from warmup.summary_statistics import convert_to_latex
+from warmup.summary_statistics import convert_to_latex, write_html_table
+
+DESCRIPTION = lambda fname: """
+Diff two Krun results files. Input files to this script should already have
+outliers and changepoints marked (i.e. the mark_outliers_in_json and
+mark_changepoints_in_json scripts should already have been run). Output
+can be in HTML or LaTeX. A JSON file containing a raw diff is dumped to disk.
+
+Example usage (input Krun results files, output HTML):
+
+    $ python %s --json diff_summary.json --input-results before.json.bz2 after.json.bz2 --html diff.html
+
+Example usage (input JSON summary file, output LaTeX):
+
+    $ python %s --input-summary diff_summary.json --tex diff.tex
+"""
 
 ALPHA = 0.01  # Significance level.
 CATEGORIES = ['warmup', 'slowdown', 'flat', 'no steady state']
@@ -105,9 +120,14 @@ TABLE_HEADINGS2 = '&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)}
 JSON_VERSION_NUMBER = '2'
 
 
+def fatal(message):
+    print(message)
+    sys.exit(1)
+
+
 def legend():
-    key = (colour_cell(BETTER, 'improved'), colour_cell(WORSE, 'worsened'),
-           colour_cell(DIFFERENT, 'different'), colour_cell(SAME, 'unchanged'))
+    key = (colour_tex_cell(BETTER, 'improved'), colour_tex_cell(WORSE, 'worsened'),
+           colour_tex_cell(DIFFERENT, 'different'), colour_tex_cell(SAME, 'unchanged'))
     return '\\textbf{Diff against previous results:} ' + ' '.join(key) + '.'
 
 
@@ -316,7 +336,7 @@ def diff(before_file, after_file, summary_filename):
     return summary
 
 
-def colour_cell(result, text):
+def colour_tex_cell(result, text):
     """Colour a table cell containing `text` according to `result`."""
 
     assert result in (None, SAME, DIFFERENT, BETTER, WORSE)
@@ -391,10 +411,10 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                         classification = ''
                     else:
                         if vm in diff and bench in diff[vm]:
-                            classification = colour_cell(diff[vm][bench][CLASSIFICATIONS], this_summary['style'])
-                            last_cpt = colour_cell(diff[vm][bench][STEADY_ITER], this_summary['last_cpt'])
-                            time_steady = colour_cell(diff[vm][bench][STEADY_ITER], this_summary['time_to_steady_state'])
-                            last_mean = colour_cell(diff[vm][bench][STEADY_STATE_TIME], this_summary['last_mean'])
+                            classification = colour_tex_cell(diff[vm][bench][CLASSIFICATIONS], this_summary['style'])
+                            last_cpt = colour_tex_cell(diff[vm][bench][STEADY_ITER], this_summary['last_cpt'])
+                            time_steady = colour_tex_cell(diff[vm][bench][STEADY_ITER], this_summary['time_to_steady_state'])
+                            last_mean = colour_tex_cell(diff[vm][bench][STEADY_STATE_TIME], this_summary['last_mean'])
                         else:
                             classification = this_summary['style']
                             last_cpt = this_summary['last_cpt']
@@ -426,7 +446,7 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                                time_steady, last_mean]
                     if not row:  # First bench in this row, needs the vm column.
                         if vm in diff and bench in diff[vm]:
-                            bname = colour_cell(diff[vm][bench][INTERSECTION], bench)
+                            bname = colour_tex_cell(diff[vm][bench][INTERSECTION], bench)
                         else:
                             bname = bench
                         row.insert(0, escape(bname))
@@ -460,32 +480,27 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
 def create_cli_parser():
     """Create a parser to deal with command line switches."""
 
-    script = os.path.basename(__file__)
-    description = (('Diff two Krun results files. Input files to this script should '
-                    'already have outliers and changepoints marked (i.e. the '
-                    'mark_outliers_in_json and mark_changepoints_in_json scripts '
-                    'should already have been run).\n'
-                    '\n\nExample usage:\n\n'
-                    '\t$ python %s -f before.json.bz2 after.json.bz2 -o diff.tex\n'
-                    '\t$ python %s -s diff_summary.json -o diff.tex') % (script, script))
+    description = DESCRIPTION(os.path.basename(__file__))
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-o', '--output', action='store', default='diff_summary.tex',
-                        type=str, help='LaTeX file in which to write diff summary.')
     parser.add_argument('-j', '--json', action='store', default='diff_summary.json',
                         type=str, help='JSON file in which to write diff summary.')
-    parser.add_argument('--num-splits', '-n', action='store',
-                        type=int, help='Number of horizontal splits.',
-                        default=1)
+    parser.add_argument('-n', '--num-splits', action='store', default=1,
+                        type=int, help='Number of horizontal splits (LaTeX only).')
     parser.add_argument('--without-preamble', action='store_true',
                         dest='without_preamble', default=False,
-                        help='Write out only the table (for inclusion in a separate document).')
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-s', '--summary', action='store', default=None,
-                       type=str, help=('Read summary data from JSON file rather than '
-                                       'generating from a two original results files.'))
-    group.add_argument('-r', '--results-files', nargs=2, action='append', default=[], type=str,
-                       help='Exactly two Krun result files (with outliers and changepoints).')
+                        help='Write out only a LaTeX table, for inclusion in a larger document.')
+    outputs = parser.add_mutually_exclusive_group(required=True)
+    outputs.add_argument('--tex', action='store', type=str,
+                         help='LaTeX file in which to write diff summary.')
+    outputs.add_argument('--html', action='store', type=str,
+                         help='HTML file in which to write diff summary.')
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument('-s', '--input-summary', action='store', default=None,
+                        type=str, help=('Read summary data from JSON file rather than '
+                                        'generating from a two original results files.'))
+    inputs.add_argument('-r', '--input-results', nargs=2, action='append', default=[], type=str,
+                        help='Exactly two Krun result files (with outliers and changepoints).')
     return parser
 
 
@@ -493,35 +508,36 @@ if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
     diff_summary = None
-    if options.summary is None:
-        if '_outliers' not in options.results_files[0][0]:
-            print('Please run mark_outliers_in_json on file %s before diffing.' %
+    if options.html and options.without_preamble:
+        print('--without-preamble only makes sense with LaTeX output. Ignoring.')
+    if options.input_summary is None:
+        if '_outliers' not in options.input_results[0][0]:
+            fatal('Please run mark_outliers_in_json on file %s before diffing.' %
                   options.results_files[0][0])
-            sys.exit(1)
-        if '_outliers' not in options.results_files[0][1]:
-            print ('Please run mark_outliers_in_json on file %s before diffing.' %
-                   options.results_files[0][1])
-            sys.exit(1)
-        if '_changepoints' not in options.results_files[0][0]:
-            print ('Please run mark_changepoints_in_json on file %s before diffing.' %
-                   options.results_files[0][0])
-            sys.exit(1)
-        if '_changepoints' not in options.results_files[0][1]:
-            print ('Please run mark_changepoints_in_json on file %s before diffing.' %
-                   options.results_files[0][1])
-            sys.exit(1)
-        diff_summary = diff(options.results_files[0][0], options.results_files[0][1], options.json)
+        if '_outliers' not in options.input_results[0][1]:
+            fatal('Please run mark_outliers_in_json on file %s before diffing.' %
+                  options.results_files[0][1])
+        if '_changepoints' not in options.input_results[0][0]:
+            fatal('Please run mark_changepoints_in_json on file %s before diffing.' %
+                  options.results_files[0][0])
+        if '_changepoints' not in options.input_results[0][1]:
+            fatal('Please run mark_changepoints_in_json on file %s before diffing.' %
+                  options.results_files[0][1])
+        diff_summary = diff(options.input_results[0][0], options.input_results[0][1], options.json)
     else:
-        with open(options.summary, 'r') as fd:
+        with open(options.input_summary, 'r') as fd:
             diff_summary = json.load(fd)
         if diff_summary is None:
-            print('Could not open %s.' % options.summary)
-            sys.exit(1)
+            fatal('Could not open %s.' % options.input_summary)
     classifier = diff_summary[CLASSIFIER]
-    machine, bmarks, latex_summary = convert_to_latex(diff_summary[AFTER], classifier['delta'],
-                                                      classifier['steady'], diff=diff_summary[DIFF],
-                                                      previous=diff_summary[BEFORE])
-    print('Writing data to: %s' % options.output)
-    write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.output,
-                      options.num_splits, with_preamble=(not options.without_preamble),
-                      longtable=True)
+    if options.html:
+        print('Writing data to: %s' % options.html)
+        write_html_table(diff_summary[AFTER], options.html, diff=diff_summary[DIFF], previous=diff_summary[BEFORE])
+    if options.tex:
+        machine, bmarks, latex_summary = convert_to_latex(diff_summary[AFTER], classifier['delta'],
+                                                          classifier['steady'], diff=diff_summary[DIFF],
+                                                          previous=diff_summary[BEFORE])
+        print('Writing data to: %s' % options.tex)
+        write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.tex,
+                          options.num_splits, with_preamble=(not options.without_preamble),
+                          longtable=True)
