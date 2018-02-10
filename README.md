@@ -48,13 +48,20 @@ bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascr
 
 ## Creating tables
 
-The `--output-table <file.tex>` flag converts input data into a LaTeX / PDF
-table. Conversion to PDF requires `pdflatex` to be installed. `bin/warmup_stats`
-also needs the names of the language and VM under test, and the output of
-`uname -a` on the machine the benchmarks were run on. Example usage:
+The `--output-table <file>` flag converts input data into an HTML table or a
+LaTeX / PDF table. Conversion to PDF requires `pdflatex` to be installed.
+`bin/warmup_stats` also needs the names of the language and VM under test, and
+the output of `uname -a` on the machine the benchmarks were run on. Example
+usage (LaTeX / PDF):
 
 ```
-bin/warmup_stats  --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
+bin/warmup_stats --tex --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
+```
+
+Example usage (HTML):
+
+```
+bin/warmup_stats --html --output-table table.html -l javascript -v V8 -u "`uname -a`" results.csv
 ```
 
 
@@ -66,19 +73,25 @@ benchmark performance before and after a change is rarely simple. Users will
 want to produce a detailed comparison of the results in Krun results tables
 (above) in order to get a deeper insight into the effects of their changes.
 
-The `--output-diff` flag converts data from exactly two CSV files into a LaTeX /
-PDF table. Conversion to PDF requires `pdflatex` to be installed.
-`bin/warmup_stats` also needs the names of the language and VM under test, and
-the output of `uname -a` on the machine the benchmarks were run on. Example
-usage:
+The `--output-diff` flag converts data from exactly two CSV files into an HTML
+table or a LaTeX / PDF table. Conversion to PDF requires `pdflatex` to be
+installed. `bin/warmup_stats` also needs the names of the language and VM under
+test, and the output of `uname -a` on the machine the benchmarks were run on.
+Example usage (LaTeX / PDF):
 
 ```
-bin/warmup_stats  --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
+bin/warmup_stats --tex --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
 ```
 
-The resulting LaTeX table will contain results from the `after.csv` file,
-compared against the `before.csv` file. VMs and benchmarks that do not appear in
-both CSV results files will be omitted from the table.
+Example usage (HTML):
+
+```
+bin/warmup_stats --html --output-diff diff.html -l javascript -v V8 -u "`uname -a`" before.csv after.csv
+```
+
+The resulting table will contain results from the `after.csv` file, compared
+against the `before.csv` file. VMs and benchmarks that do not appear in both CSV
+results files will be omitted from the table.
 
 
 # Warmup stats from Krun
@@ -165,17 +178,18 @@ are:
 ## Diffing Krun results files
 
 The `bin/diff_results` scripts takes two Krun results files as an input and
-produces a LaTeX file (which can be compiled to PDF with pdflatex or similar)
-as output:
+produces an HTML file or a LaTeX file (which can be compiled to PDF with
+pdflatex or similar) as output:
 
 ```
-bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 -o diff.tex -n 1
+bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 --html diff.html
+bin/diff_results -r BEFORE.json.bz2 AFTER.json.bz2 --tex diff.tex -n 1
 ```
 
-The `-n` switch controls the number of columns in the table, and we recommend
-setting this to the number of VMs that were benchmarked.
+The `-n` switch (only available with `--tex`) controls the number of columns in
+the table, and we recommend setting this to the number of VMs that were
+benchmarked.
 
-The resulting LaTeX table will contain results from the `AFTER.json.bz2` file,
+The resulting table will contain results from the `AFTER.json.bz2` file,
 compared against the `BEFORE.json.bz2` file. VMs and benchmarks that do not
-appear in both Krun results files will be omitted from the table. The table
-will be automatically converted to PDF (requires `pdflatex` to be installed).
+appear in both Krun results files will be omitted from the table.

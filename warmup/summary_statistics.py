@@ -39,7 +39,7 @@ import json
 import math
 
 from collections import Counter, OrderedDict
-from warmup.html import HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
+from warmup.html import DIFF_LEGEND, HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
 from warmup.latex import end_document, end_longtable, end_table, escape, format_median_ci
 from warmup.latex import format_median_error, get_latex_symbol_map, preamble
 from warmup.latex import start_longtable, start_table, STYLE_SYMBOLS
@@ -289,7 +289,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
                 change = None
-                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] > 0 and \
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_iteration']:
                     change = bmark['steady_state_iteration'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_iteration']
@@ -302,7 +302,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
                 change = None
-                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME] > 0 and \
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_ci']:
                     change = bmark['steady_state_time'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time']
@@ -314,7 +314,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
                 change = None
-                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] > 0 and \
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']:
                     change = bmark['steady_state_time_to_reach_secs'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']
@@ -447,7 +447,26 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits,
             fp.write(end_document())
 
 
-def write_html_table(summary_data, html_filename):
+def colour_html_cell(result, text, align=None):
+    """Colour a table cell containing `text` according to `result`."""
+
+    assert result in (None, SAME, DIFFERENT, BETTER, WORSE)
+    if result == BETTER:
+        colour = 'id="lightgreen"'
+    elif result == WORSE:
+        colour = 'id="lightred"'
+    elif result == DIFFERENT:
+        colour = 'id="lightyellow"'
+    else:
+        colour = ''
+    if align:
+        text_align = 'style="text-align: %s"' % align
+    else:
+        text_align = ''
+    return '<td %s %s>%s</td>' % (text_align, colour, text)
+
+
+def write_html_table(summary_data, html_filename, diff=None, previous=None):
     assert 'warmup_format_version' in summary_data and summary_data['warmup_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
     machine = None
@@ -490,30 +509,71 @@ def write_html_table(summary_data, html_filename):
             else:  # No inconsistencies, but some process executions errored.
                 reported_category = ' %s %d' % (bmark['classification'],
                                      bmark['detailed_classification'][bmark['classification']])
+            if diff and vm in diff and bmark_name in diff[vm]:
+                category_cell = colour_html_cell(diff[vm][bmark_name][CLASSIFICATIONS], reported_category)
+            else:
+                category_cell = '<td>%s</td>' % reported_category
             if bmark['steady_state_iteration'] is not None:
-                mean_steady_iter = '%d (%d, %d)' % (int(math.ceil(bmark['steady_state_iteration'])),
-                                                    int(math.ceil(bmark['steady_state_iteration_iqr'][0])),
-                                                    int(math.ceil(bmark['steady_state_iteration_iqr'][1])))
+                change = ''
+                if diff and vm in diff and bmark_name in diff[vm] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_iteration']:
+                    delta = bmark['steady_state_iteration'] - \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_iteration']
+                    change = '<br/><small>&delta;=%.1f</small>' % delta
+                mean_steady_iter = '%.1f%s<br/><small>(%.1f, %.1f)</small>' % \
+                    (bmark['steady_state_iteration'], change,
+                     bmark['steady_state_iteration_iqr'][0], bmark['steady_state_iteration_iqr'][1])
+                if diff and vm in diff and bmark_name in diff[vm]:
+                    mean_steady_iter_cell = colour_html_cell(diff[vm][bmark_name][STEADY_ITER], mean_steady_iter, align="center")
+                else:
+                    mean_steady_iter_cell = '<td style="text-align: center;">%s</td>' % mean_steady_iter
             else:
-                mean_steady_iter = ''
+                mean_steady_iter_cell = '<td></td>'
             if bmark['steady_state_time'] is not None:
-                mean_steady = '%.5f&plusmn;%.6f' % (bmark['steady_state_time'],
-                                                    bmark['steady_state_time_ci'])
+                change = ''
+                if diff and vm in diff and bmark_name in diff[vm] and diff[vm][bmark_name][STEADY_STATE_TIME] != SAME and \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time']:
+                    delta = bmark['steady_state_time'] - \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time']
+                    change = '<br/><small>&delta;=%.6f</small>' % delta
+                mean_steady = '%.5f%s<br/><small>&plusmn;%.6f</small>' % (bmark['steady_state_time'],
+                                                                          change,
+                                                                          bmark['steady_state_time_ci'])
+                if diff and vm in diff and bmark_name in diff[vm]:
+                    mean_steady_cell = colour_html_cell(diff[vm][bmark_name][STEADY_STATE_TIME], mean_steady, align="right")
+                else:
+                    mean_steady_cell = '<td style="text-align: right;">%s</td>' % mean_steady
             else:
-                mean_steady = ''
+                mean_steady_cell = '<td></td>'
             if bmark['steady_state_time_to_reach_secs'] is not None:
-                time_to_steady = '%.3f (%.3f, %.3f)' % (bmark['steady_state_time_to_reach_secs'],
-                                                        bmark['steady_state_time_to_reach_secs_iqr'][0],
-                                                        bmark['steady_state_time_to_reach_secs_iqr'][1])
+                change = ''
+                if diff and vm in diff and bmark_name in diff[vm] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']:
+                    delta = bmark['steady_state_time_to_reach_secs'] - \
+                        previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']
+                    change = '<br/><small>&delta;=%.3f</small>' % delta
+                time_to_steady = '%.3f%s<br/><small>(%.3f, %.3f)</small>' % (bmark['steady_state_time_to_reach_secs'],
+                                                                             change,
+                                                                             bmark['steady_state_time_to_reach_secs_iqr'][0],
+                                                                             bmark['steady_state_time_to_reach_secs_iqr'][1])
+                if diff and vm in diff and bmark_name in diff[vm]:
+                    time_steady_cell = colour_html_cell(diff[vm][bmark_name][STEADY_ITER], time_to_steady, align="center")
+                else:
+                    time_steady_cell = '<td style="text-align: center;">%s</td>' % time_to_steady
             else:
-                time_to_steady = ''
+                time_steady_cell = '<td></td>'
+            if diff and vm in diff and bmark_name in diff[vm]:
+                bmark_cell = colour_html_cell(diff[vm][bmark_name][INTERSECTION], bmark_name)
+            else:
+                bmark_cell = '<td>%s</td>' % bmark_name
             # Benchmark name, classification, steady iter, time to reach, steady perf
-            row = ('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' %
-                   (bmark_name, reported_category, mean_steady_iter,
-                    time_to_steady, mean_steady))
+            row = ('<tr>%s%s%s%s%s</tr>\n' %
+                   (bmark_cell, category_cell, mean_steady_iter_cell, time_steady_cell, mean_steady_cell))
             html_rows += row
         html_table_contents[vm] = html_rows
     page_contents = ''
+    if diff:
+        page_contents += DIFF_LEGEND
     for vm in html_table_contents:
         page_contents += HTML_TABLE_TEMPLATE % (vm, html_table_contents[vm])
         page_contents += '\n\n'
