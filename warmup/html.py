@@ -35,6 +35,57 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import math
+import numpy
+
+
+def html_histogram(data, nth):
+    """HTML version of the LaTeX Sparkline histograms."""
+    histogram, bin_edges = numpy.histogram(data, bins=10)
+    total = math.fsum(histogram)
+    median_index = int(math.floor(len(data) / 2.0))
+    cum_freq = 0  # Cumulative frequency.
+    normed = [value / total for value in histogram]
+    for index, bin_value in enumerate(histogram):
+        cum_freq += bin_value
+        if cum_freq >= median_index:
+            median_bin_index = index
+            break
+    data_s = "[ ['bin', 'value', { role: 'style' } ],\n"
+    for index, value in enumerate(normed):
+        colour = 'black'
+        if index == median_bin_index:
+            colour = 'red'
+        data_s += "['%d', %.3f, '%s'], " % (index, value, colour)
+    data_s += "]"
+    return """
+<script type="text/javascript">
+google.charts.setOnLoadCallback(draw_chart%d);
+function draw_chart%d() {
+    var data = google.visualization.arrayToDataTable(%s);
+    var view = new google.visualization.DataView(data);
+    var options = { width: 100,
+                    height: 70,
+                    bars: 'vertical',
+                    legend: { position: 'none' },
+                    backgroundColor: 'transparent',
+                    hAxis: { title: '',
+                             gridlines: { count: 0 },
+                             textPosition: 'none',
+                           },
+                    vAxis: { title: '',
+                             viewWindowMode: 'explicit',
+                             viewWindow: { min: 0.0, max: 1.1, },
+                             gridlines: { count: 0 },
+                             textPosition: 'none',
+                           },
+                  };
+    var chart = new google.visualization.ColumnChart(document.getElementById("bar%d"));
+    chart.draw(view, options);}
+</script>
+""" % (nth, nth, data_s, nth)
+
+
 HTML_TABLE_TEMPLATE = """<h2>Results for %s</h2>
 <table>
 <tr>
@@ -55,20 +106,50 @@ HTML_PAGE_TEMPLATE = """<html>
 <style>
 body               { background-color: white;
                      border-collapse: collapse; }
-table              { width: 100%%; }
-td                 { white-space: pre-wrap;
-                     word-wrap: break-word;
-                     text-align: left;
-                     padding: 8px; }
+table              { width: 100%%;
+                     vertical-align: middle;
+                     valign: middle;
+                     text-align: left; }
+td                 { white-space: nowrap;
+                     height: 70px;
+                     padding: 0px;
+                     margin: 0px; }
 th                 { background-color: black;
                      color: white;
-                     text-align: left;
-                     padding: 8px; }
+                     text-align: center;
+                     padding: 0px;
+                     margin: 0px; }
+tr                 { height: 70px;
+                     margin: 0px;
+                     padding: 0px; }
 tr:nth-child(even) { background-color: #f2f2f2; }
+.tdtext {
+    height: 70px;
+    padding: 0px;
+    clear: right;
+    vertical-align: middle;
+    valign: middle;
+    margin: 0px;
+    display: block;
+}
+.histogram {
+    height: 70px;
+    width: 100px;
+    float: left;
+    clear: both;
+    vertical-align: middle;
+    valign: middle;
+    margin: 0px;
+    padding: 0px;
+}
 #lightred          { background-color: #e88a8a; }
 #lightyellow       { background-color: #e8e58a; }
 #lightgreen        { background-color: #8ae89c; }
 </style>
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script type="text/javascript">
+google.charts.load('current', {'packages':['corechart']});
+</script>
 </head>
 <body>
 <h1>Benchmark results</h1>

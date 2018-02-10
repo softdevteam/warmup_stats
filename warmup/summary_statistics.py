@@ -39,7 +39,7 @@ import json
 import math
 
 from collections import Counter, OrderedDict
-from warmup.html import DIFF_LEGEND, HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE
+from warmup.html import DIFF_LEGEND, HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE, html_histogram
 from warmup.latex import end_document, end_longtable, end_table, escape, format_median_ci
 from warmup.latex import format_median_error, get_latex_symbol_map, preamble
 from warmup.latex import start_longtable, start_table, STYLE_SYMBOLS
@@ -466,6 +466,10 @@ def colour_html_cell(result, text, align=None):
     return '<td %s %s>%s</td>' % (text_align, colour, text)
 
 
+def htmlify_histogram(nth):
+    return '<span id="bar%d" class="histogram"></span>' % nth
+
+
 def write_html_table(summary_data, html_filename, diff=None, previous=None):
     assert 'warmup_format_version' in summary_data and summary_data['warmup_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
@@ -478,6 +482,8 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
         else:
             machine = key
     html_table_contents = dict()  # VM name -> html rows
+    n_charts = 0
+    histograms = ''  # Javascript.
     for vm in sorted(summary_data['machines'][machine]):
         html_rows = ''  # Just the table rows, no table header, etc.
         for bmark_name in sorted(summary_data['machines'][machine][vm]):
@@ -515,51 +521,57 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
                 category_cell = '<td>%s</td>' % reported_category
             if bmark['steady_state_iteration'] is not None:
                 change = ''
+                histograms += html_histogram(bmark['steady_state_iteration_list'], n_charts)
                 if diff and vm in diff and bmark_name in diff[vm] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_iteration']:
                     delta = bmark['steady_state_iteration'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_iteration']
                     change = '<br/><small>&delta;=%.1f</small>' % delta
-                mean_steady_iter = '%.1f%s<br/><small>(%.1f, %.1f)</small>' % \
-                    (bmark['steady_state_iteration'], change,
+                mean_steady_iter = '%s<p class="tdtext">%.1f%s<br/><small>(%.1f, %.1f)</small></p>' % \
+                    (htmlify_histogram(n_charts), bmark['steady_state_iteration'], change,
                      bmark['steady_state_iteration_iqr'][0], bmark['steady_state_iteration_iqr'][1])
                 if diff and vm in diff and bmark_name in diff[vm]:
                     mean_steady_iter_cell = colour_html_cell(diff[vm][bmark_name][STEADY_ITER], mean_steady_iter, align="center")
                 else:
                     mean_steady_iter_cell = '<td style="text-align: center;">%s</td>' % mean_steady_iter
+                n_charts += 1
             else:
                 mean_steady_iter_cell = '<td></td>'
             if bmark['steady_state_time'] is not None:
                 change = ''
+                histograms += html_histogram(bmark['steady_state_time_list'], n_charts)
                 if diff and vm in diff and bmark_name in diff[vm] and diff[vm][bmark_name][STEADY_STATE_TIME] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time']:
                     delta = bmark['steady_state_time'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time']
                     change = '<br/><small>&delta;=%.6f</small>' % delta
-                mean_steady = '%.5f%s<br/><small>&plusmn;%.6f</small>' % (bmark['steady_state_time'],
-                                                                          change,
-                                                                          bmark['steady_state_time_ci'])
+                mean_steady = '%s<p class="tdtext">%.5f%s<br/><small>&plusmn;%.6f</small></p>' % \
+                        (htmlify_histogram(n_charts), bmark['steady_state_time'], change, bmark['steady_state_time_ci'])
                 if diff and vm in diff and bmark_name in diff[vm]:
                     mean_steady_cell = colour_html_cell(diff[vm][bmark_name][STEADY_STATE_TIME], mean_steady, align="right")
                 else:
                     mean_steady_cell = '<td style="text-align: right;">%s</td>' % mean_steady
+                n_charts += 1
             else:
                 mean_steady_cell = '<td></td>'
             if bmark['steady_state_time_to_reach_secs'] is not None:
                 change = ''
+                histograms += html_histogram(bmark['steady_state_time_to_reach_secs_list'], n_charts)
                 if diff and vm in diff and bmark_name in diff[vm] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']:
                     delta = bmark['steady_state_time_to_reach_secs'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']
                     change = '<br/><small>&delta;=%.3f</small>' % delta
-                time_to_steady = '%.3f%s<br/><small>(%.3f, %.3f)</small>' % (bmark['steady_state_time_to_reach_secs'],
-                                                                             change,
-                                                                             bmark['steady_state_time_to_reach_secs_iqr'][0],
-                                                                             bmark['steady_state_time_to_reach_secs_iqr'][1])
+                time_to_steady = '%s<p class="tdtext">%.3f%s<br/><small>(%.3f, %.3f)</small></p>' % (htmlify_histogram(n_charts),
+                                                                               bmark['steady_state_time_to_reach_secs'],
+                                                                               change,
+                                                                               bmark['steady_state_time_to_reach_secs_iqr'][0],
+                                                                               bmark['steady_state_time_to_reach_secs_iqr'][1])
                 if diff and vm in diff and bmark_name in diff[vm]:
                     time_steady_cell = colour_html_cell(diff[vm][bmark_name][STEADY_ITER], time_to_steady, align="center")
                 else:
                     time_steady_cell = '<td style="text-align: center;">%s</td>' % time_to_steady
+                n_charts += 1
             else:
                 time_steady_cell = '<td></td>'
             if diff and vm in diff and bmark_name in diff[vm]:
@@ -577,5 +589,6 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
     for vm in html_table_contents:
         page_contents += HTML_TABLE_TEMPLATE % (vm, html_table_contents[vm])
         page_contents += '\n\n'
+        page_contents += histograms + '\n\n'
     with open(html_filename, 'w') as fp:
         fp.write(HTML_PAGE_TEMPLATE % page_contents)
