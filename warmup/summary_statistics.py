@@ -289,7 +289,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                      bmark['detailed_classification'][bmark['classification']])
             if bmark['steady_state_iteration'] is not None:
                 change = None
-                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] > 0 and \
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_iteration']:
                     change = bmark['steady_state_iteration'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_iteration']
@@ -302,7 +302,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
                 change = None
-                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME] > 0 and \
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_ci']:
                     change = bmark['steady_state_time'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time']
@@ -314,7 +314,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
                 change = None
-                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] > 0 and \
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_ITER] != SAME and \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']:
                     change = bmark['steady_state_time_to_reach_secs'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time_to_reach_secs']
