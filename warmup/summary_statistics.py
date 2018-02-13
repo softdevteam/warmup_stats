@@ -489,7 +489,7 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
         for bmark_name in sorted(summary_data['machines'][machine][vm]):
             bmark = summary_data['machines'][machine][vm][bmark_name]
             if bmark['classification'] == 'bad inconsistent':
-                reported_category = 'bad inconsistent:'
+                reported_category = 'bad inconsistent:<br/>'
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
                                                  key=lambda x: x[1], reverse=True))
                 cat_counts = list()
@@ -499,7 +499,7 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
                     cat_counts.append('%d %s' % (cats_sorted[category], category))
                 reported_category += ' %s' % ', '.join(cat_counts)
             elif bmark['classification'] == 'good inconsistent':
-                reported_category = 'good inconsistent:'
+                reported_category = 'good inconsistent:<br/>'
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
                                                  key=lambda x: x[1], reverse=True))
                 cat_counts = list()
