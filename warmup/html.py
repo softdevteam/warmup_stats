@@ -115,7 +115,7 @@ table {
   text-align: left;
 }
 td {
-  white-space: nowrap;
+  white-space: pre-line;
   padding-left: 5px;
   padding-right: 5px;
   margin: 0px;
