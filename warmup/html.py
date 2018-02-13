@@ -104,47 +104,76 @@ HTML_PAGE_TEMPLATE = """<html>
 <head>
 <title>Benchmark results</title>
 <style>
-body               { background-color: white;
-                     border-collapse: collapse; }
-table              { width: 100%%;
-                     vertical-align: middle;
-                     valign: middle;
-                     text-align: left; }
-td                 { white-space: nowrap;
-                     height: 70px;
-                     padding: 0px;
-                     margin: 0px; }
-th                 { background-color: black;
-                     color: white;
-                     text-align: center;
-                     padding: 0px;
-                     margin: 0px; }
-tr                 { height: 70px;
-                     margin: 0px;
-                     padding: 0px; }
-tr:nth-child(even) { background-color: #f2f2f2; }
-.tdtext {
-    height: 70px;
-    padding: 0px;
-    clear: right;
-    vertical-align: middle;
-    valign: middle;
-    margin: 0px;
-    display: block;
+body {
+  background-color: white;
+  border-collapse: collapse;
+}
+table {
+  width: 100%%;
+  vertical-align: middle;
+  valign: middle;
+  text-align: left;
+}
+td {
+  white-space: nowrap;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 0px;
+}
+th {
+  background-color: black;
+  color: white;
+  text-align: center;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 0px;
+}
+tr {
+  height: 70px;
+  margin: 0px;
+  padding: 0px;
+}
+tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+.wrapper {
+  height: 70px;
+  display: inline-block;
+  text-align: right;
+}
+.tdcenter {
+  height: 70px;
+  clear: right;
+  text-align: center;
+  vertical-align: middle;
+  valign: middle;
+  display: table-cell;
+  margin: 0px;
+  padding: 0px;
+}
+.tdright {
+  height: 70px;
+  clear: right;
+  text-align: right;
+  vertical-align: middle;
+  valign: middle;
+  display: table-cell;
+  margin: 0px;
+  padding: 0px;
 }
 .histogram {
-    height: 70px;
-    width: 100px;
-    float: left;
-    clear: both;
-    vertical-align: middle;
-    valign: middle;
-    margin: 0px;
-    padding: 0px;
+  height: 70px;
+  width: 100px;
+  float: left;
+  clear: both;
+  vertical-align: middle;
+  valign: middle;
+  margin: 0px;
+  padding: 0px;
 }
-#lightred          { background-color: #e88a8a; }
-#lightyellow       { background-color: #e8e58a; }
-#lightgreen        { background-color: #8ae89c; }
+#lightred { background-color: #e88a8a; }
+#lightyellow { background-color: #e8e58a; }
+#lightgreen { background-color: #8ae89c; }
 </style>
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 <script type="text/javascript">
