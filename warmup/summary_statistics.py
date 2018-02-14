@@ -39,7 +39,8 @@ import json
 import math
 
 from collections import Counter, OrderedDict
-from warmup.html import DIFF_LEGEND, HTML_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE, html_histogram
+from warmup.html import DIFF_LEGEND, get_symbol, html_histogram, HTML_TABLE_TEMPLATE
+from warmup.html import HTML_PAGE_TEMPLATE, HTML_SYMBOLS
 from warmup.latex import end_document, end_longtable, end_table, escape, format_median_ci
 from warmup.latex import format_median_error, get_latex_symbol_map, preamble
 from warmup.latex import start_longtable, start_table, STYLE_SYMBOLS
@@ -489,31 +490,31 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
         for bmark_name in sorted(summary_data['machines'][machine][vm]):
             bmark = summary_data['machines'][machine][vm][bmark_name]
             if bmark['classification'] == 'bad inconsistent':
-                reported_category = 'bad inconsistent:<br/>'
+                reported_category = get_symbol('bad inconsistent')
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
                                                  key=lambda x: x[1], reverse=True))
                 cat_counts = list()
                 for category in cats_sorted:
                     if cats_sorted[category] == 0:
                         continue
-                    cat_counts.append('%d %s' % (cats_sorted[category], category))
-                reported_category += ' %s' % ', '.join(cat_counts)
+                    cat_counts.append('%d %s' % (cats_sorted[category], get_symbol(category)))
+                reported_category += ' (%s)' % ', '.join(cat_counts)
             elif bmark['classification'] == 'good inconsistent':
-                reported_category = 'good inconsistent:<br/>'
+                reported_category = get_symbol('good inconsistent')
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
                                                  key=lambda x: x[1], reverse=True))
                 cat_counts = list()
                 for category in cats_sorted:
                     if cats_sorted[category] == 0:
                         continue
-                    cat_counts.append('%d %s' % (cats_sorted[category], category))
-                reported_category += ' %s' % ', '.join(cat_counts)
+                    cat_counts.append('%d %s' % (cats_sorted[category], get_symbol(category)))
+                reported_category += ' (%s)' % ', '.join(cat_counts)
             elif (sum(bmark['detailed_classification'].values()) ==
                   bmark['detailed_classification'][bmark['classification']]):
                 # Consistent benchmark with no errors.
-                reported_category = bmark['classification']
+                reported_category = get_symbol(bmark['classification'])
             else:  # No inconsistencies, but some process executions errored.
-                reported_category = ' %s %d' % (bmark['classification'],
+                reported_category = ' %s %d' % (get_symbol(bmark['classification']),
                                      bmark['detailed_classification'][bmark['classification']])
             if diff and vm in diff and bmark_name in diff[vm]:
                 category_cell = colour_html_cell(diff[vm][bmark_name][CLASSIFICATIONS], reported_category)
@@ -588,5 +589,6 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
         page_contents += HTML_TABLE_TEMPLATE % (vm, html_table_contents[vm])
         page_contents += '\n\n'
         page_contents += histograms + '\n\n'
+    page_contents += HTML_SYMBOLS + '\n\n'
     with open(html_filename, 'w') as fp:
         fp.write(HTML_PAGE_TEMPLATE % page_contents)
