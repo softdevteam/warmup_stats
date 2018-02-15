@@ -545,7 +545,7 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
                         previous['machines'][machine][vm][bmark_name]['steady_state_time']:
                     delta = bmark['steady_state_time'] - \
                         previous['machines'][machine][vm][bmark_name]['steady_state_time']
-                    change = '<br/><small>&delta;=%.6f</small>' % delta
+                    change = '<br/><small>&delta;=%.5f</small>' % delta
                 mean_steady = '%s<div class="wrapper"><div class="tdright">%.5f%s<br/><small>&plusmn;%.6f</small></div></div>' % \
                         (htmlify_histogram(n_charts), bmark['steady_state_time'], change, bmark['steady_state_time_ci'])
                 if diff and vm in diff and bmark_name in diff[vm]:
