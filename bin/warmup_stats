@@ -62,6 +62,7 @@ from distutils.spawn import find_executable
 from logging import debug, error, info, warn
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import csv_to_krun_json, parse_krun_file_with_changepoints
+from warmup.krun_results import read_krun_results_file
 from warmup.summary_statistics import collect_summary_statistics, convert_to_latex
 from warmup.summary_statistics import write_html_table, write_latex_table
 
@@ -92,14 +93,18 @@ except ImportError:
 
 
 DESCRIPTION = lambda fname: """
-Analyse CSV results file and produce a JSON summary, result table, result plots
-or diff table. Tables of results or diffs can be produced in HTML or LaTeX/PDF.
+Analyse CSV or Krun results file(s) and produce a JSON summary, result table,
+result plots or diff table. Tables of results or diffs can be produced in HTML
+or LaTeX/PDF.
 
-CSV input file(s) should be in the following format:
+Input files may be in the following CSV format:
 
     process num, bench_name, 0, 1, 2, ...
     0, spectral norm, 0.2, 0.1, 0.4, ...
     1, spectral norm, 0.3, 0.15, 0.2, ...
+
+or be json.bz2 files, output by the Krun(*) tool.
+(*) Krun: http://soft-dev.org/src/krun/
 
 Example usage - output JSON summary:
 
@@ -107,7 +112,7 @@ Example usage - output JSON summary:
 
 Example usage - output HTML table:
 
-    $ python %s --html --output-table results.html -l javascript -v V8 -u "`uname -a`" results.csv
+    $ python %s --html --output-table results.html -l javascript -v V8 -u "`uname -a`" results.json.bz2
 
 Example usage - output PDF plot:
 
@@ -128,21 +133,18 @@ def fatal(msg):
 def create_arg_parser():
     parser = argparse.ArgumentParser(description=DESCRIPTION(os.path.basename(__file__)),
                                      formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('input_files', nargs='+', action='append', default=[],
+                        type=str, help='One or more CSV or Krun results files.')
     parser.add_argument('--debug', '-d', action='store', default='WARN',
                         dest='debug_level',
                         help='Debug level used by logger. Must be one of: '
                              'DEBUG, INFO, WARN, DEBUG, CRITICAL, ERROR')
-    parser.add_argument('csv_files', nargs='+', action='append', default=[],
-                        type=str, help='One or more CSV result files.')
     parser.add_argument('--language', '-l', dest='language', action='store',
-                        type=str,  required=True,
-                        help='Language under test (in lower-case).')
+                        type=str, help='Language under test (in lower-case).')
     parser.add_argument('--vm', '-v', dest='vm', action='store', type=str,
-                        required=True,
                         help='Virtual machine under test (in title-case).')
     parser.add_argument('--uname', '-u', dest='uname', action='store', default='',
-                        required=True, type=str,
-                        help='Full output of `uname -a` from benchmarking machine.')
+                        type=str, help='Full output of `uname -a` from benchmarking machine.')
     # What output file format should be generated?
     format_group = parser.add_mutually_exclusive_group(required=True)
     format_group.add_argument('--html', dest='type_html', action='store_true', default=False,
@@ -151,7 +153,7 @@ def create_arg_parser():
     format_group.add_argument('--tex', dest='type_latex', action='store_true', default=False,
                               help=('Output a LaTeX file and convert to PDF. Valid '
                                     'with --output-table and --output-diff.'))
-    # What output should
+    # What output should warmup_stats generate?
     output_group = parser.add_argument_group('Output format')
     output_group.add_argument('--output-plots', dest='output_plots', action='store',
                               type=str, metavar='PDF_FILENAME', default=None,
@@ -171,6 +173,7 @@ def create_arg_parser():
 
 def setup_logging(options):
     """Setup logging. Logging level passed in on command line."""
+
     level_str = options.debug_level.upper()
     if level_str not in ('DEBUG', 'INFO', 'WARN', 'DEBUG', 'CRITICAL', 'ERROR'):
         fatal('Bad debug level: %s' % level_str)
@@ -231,9 +234,8 @@ def check_environment(need_outliers=True, need_changepoints=True, need_latex=Tru
 class BenchmarkFile(object):
     """Information about each benchmark, including CLI options to other scripts."""
 
-    def __init__(self, csv_filename, options, python_path, pypy_path, pdflatex_path, r_path):
-        self.basename = os.path.splitext(csv_filename)[0]
-        self.csv_filename = csv_filename
+    def __init__(self, filename, options, python_path, pypy_path, pdflatex_path, r_path):
+        self.basename = os.path.splitext(filename)[0]
         self.language = options.language
         self.vm = options.vm
         self.uname = options.uname
@@ -241,12 +243,54 @@ class BenchmarkFile(object):
         self.pypy_path = pypy_path
         self.pdflatex_path = pdflatex_path
         self.r_path = r_path
+        self.csv_filename = None
+        self.krun_filename = None
+        self.krun_filename_outliers = None
+        self.krun_filename_changepoints = None
+        assert filename.endswith('.csv') or filename.endswith('.json.bz2'), \
+            'Unknown file type: %s. Please use CSV or Krun output.' % filename
+        if filename.endswith('.csv'):
+            self.csv_filename = filename
+            # self.iterations is set in self.convert_to_krun_json().
+        if filename.endswith('_changepoints.json.bz2'):
+            self.krun_filename_changepoints = filename
+        if '_outliers_w' in filename:
+            self.krun_filename_outliers = filename
+        if filename.endswith('.json.bz2'):
+            self.krun_filename = filename
+            if not os.path.exists(filename):
+                fatal('File %s does not exist.' % filename)
+            # If the input file comes from Krun, we must still set
+            # self.iterations, which is needed by other methods. We assume the
+            # same number of iterations for all pexecs.
+            data = read_krun_results_file(filename)
+            found_full_pexec = False
+            for bench in data['wallclock_times']:
+                if found_full_pexec:
+                    break
+                for pexec in data['wallclock_times'][bench]:
+                    if pexec == []:  # Crashed benchmark.
+                        continue
+                    else:
+                        self.iterations = len(pexec)
+                        debug('%d iterations per pexec in %s.' % (self.iterations, filename))
+                        found_full_pexec = True
+                        break
+            if not found_full_pexec:
+                fatal('Could not find a non-crashing pexec in %s.' % filename)
 
     def check_input_file(self):
-        if not (os.path.isfile(self.csv_filename) and os.access(self.csv_filename, os.R_OK)):
+        if not self.csv_filename and not (os.path.isfile(self.krun_filename) and
+                                          os.access(self.krun_filename, os.R_OK)):
+            fatal('File %s not found.' % self.krun_filename)
+        if self.csv_filename and not (os.path.isfile(self.csv_filename) and
+                                      os.access(self.csv_filename, os.R_OK)):
             fatal('File %s not found.' % self.csv_filename)
 
     def convert_to_krun_json(self):
+        if self.krun_filename is not None:
+            debug('Krun file already exists: %s' % self.krun_filename)
+            return
         header, self.krun_filename = csv_to_krun_json([self.csv_filename],
                                              self.language, self.vm, self.uname)
         info('Writing out: %s' % self.krun_filename)
@@ -262,6 +306,9 @@ class BenchmarkFile(object):
         assert False
 
     def mark_outliers(self):
+        if self.krun_filename_outliers is not None:
+            debug('Krun file already has outliers: %s' % self.krun_filename_outliers)
+            return
         self.window = int(self.iterations * DEFAULT_WINDOW_RATIO)
         python_runner = self.python_path
         # mark_outliers_in_json is optimised for PyPy.
@@ -274,6 +321,9 @@ class BenchmarkFile(object):
         debug('Written out: %s' % self.krun_filename_outliers)
 
     def mark_changepoints(self):
+        if self.krun_filename_changepoints is not None:
+            debug('Krun file already has changepoints: %s' % self.krun_filename_changepoints)
+            return
         self.steady = int(self.iterations * DEFAULT_STEADY_RATIO)
         cli = [self.python_path, SCRIPT_MARK_CHANGEPOINTS, '-s', str(self.steady),
                self.krun_filename_outliers]
@@ -284,33 +334,48 @@ class BenchmarkFile(object):
 
 
 def main(options):
+    info('Checking sanity of CLI options.')
     need_latex = (options.output_table or options.output_diff) and options.type_latex
     need_plots = options.output_plots
     if options.output_table and not (options.type_latex or options.type_html):
         fatal('--output-table must be used with either --html or --tex.')
     if options.output_diff and not (options.type_latex or options.type_html):
         fatal('--output-diff must be used with either --html or --tex.')
-    csv_files = options.csv_files[0]
-    if options.output_diff and len(csv_files) != 2:
+    input_files = options.input_files[0]
+    for filename in input_files:
+        if filename.endswith('.csv'):
+            if not options.language:
+                fatal('--language or -l must be used with CSV input files.')
+            if not options.vm:
+                fatal('--vm or -v must be used with CSV input files.')
+            if not options.uname:
+                fatal('--uname or -u must be used with CSV input files.')
+    if options.output_diff and len(input_files) != 2:
         fatal('--output-diff expects exactly 2 CSV input files.')
     python_path, pypy_path, pdflatex_path, r_path = check_environment(need_latex=need_latex,
                                                                       need_plots=need_plots)
-    info('Converting CSV to Krun JSON format.')
+    info('Processing input files, converting to Krun JSON if necessary.')
     benchmarks = list()
-    for filename in csv_files:
+    for filename in input_files:
+        if not (filename.endswith('.csv') or filename.endswith('json.bz2')):
+            fatal('Cannot determine filetype of %s. Please use .csv or .json.bz2 (Krun) files only.' % filename)
         benchmarks.append(BenchmarkFile(filename, options, python_path, pypy_path, pdflatex_path, r_path))
     info('Checking input files.')
     for benchmark in benchmarks:
         benchmark.check_input_file()
     info('Converting CSV to Krun JSON.')
     for benchmark in benchmarks:
-        benchmark.convert_to_krun_json()
+        if benchmark.csv_filename:
+            benchmark.convert_to_krun_json()
     info('Marking outliers in JSON.')
     for benchmark in benchmarks:
-        benchmark.mark_outliers()
+        if not benchmark.krun_filename_outliers:
+            benchmark.mark_outliers()
     info('Marking changepoints in JSON.')
     for benchmark in benchmarks:
-        benchmark.mark_changepoints()
+        if not benchmark.krun_filename_changepoints:
+            benchmark.mark_changepoints()
+    # Generate appropriate output.
     if options.output_diff and options.type_latex:
         info('Generating LaTeX diff table.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
