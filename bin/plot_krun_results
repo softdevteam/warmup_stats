@@ -730,9 +730,9 @@ class ProcessExecChart(object):
         for index, idata in enumerate(self.instr_data):
             self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0],
                                                     sharex=self.wallclock_axis)
-            self.instr_axes[index].plot(self.iterations, idata.data,
+            self.instr_axes[index].plot(self.iterations, idata.data[self.x_bounds[0]:self.x_bounds[1]],
                         color=INSTR_COLOR, label=idata.title,
-                      linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
+                        linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             self.instr_axes[index].set_ylim(self.instr_y_ranges[index])
             self.style_axis(self.instr_axes[index], self.instr_y_ranges[index],
                             None, idata.title, color=INSTR_COLOR)
