@@ -183,11 +183,11 @@ def get_instr_data(key, machine, instr_dir, pexec_idxs):
         for pexec_idx in pexec_idxs:
             file_ = os.path.join(instr_dir, "%s__%s__%s__%s.json.bz2" %
                                  (bench, vm, variant, pexec_idx))
-            print("Loading: %s" % file_)
+            print('Loading: %s' % file_)
             try:
                 js = read_krun_results_file(file_)
             except IOError:
-                print("WARNING: Missing instrumentation data for: %s:%s:%s" % \
+                print('WARNING: Missing instrumentation data for: %s:%s:%s' % \
                       (machine, key, pexec_idx))
                 ret.append(None)  # missing instr data
                 continue
@@ -318,8 +318,8 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
     try:
         for index, page in enumerate(pages):
             bmark, vm, mc = all_subplot_titles[index][0].split(', ')[:3]
-            print 'Plotting %s: %s (%s) on page %02d of %02d.' % \
-                  (mc, bmark, vm, index + 1, len(pages))
+            print('Plotting %s: %s (%s) on page %02d of %02d.' % \
+                  (mc, bmark, vm, index + 1, len(pages)))
 
             # Strip out indices where the benchmark crashed.
             def only_uncrashed(data):
@@ -335,8 +335,8 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                             ret.append([])
                     else:
                         if data == page:  # Stops repeated printing of warning.
-                            print("WARNING: requested pexec crashed: "
-                                  "%s, %s, %s, %s" % (mc, bmark, vm, i))
+                            print('WARNING: requested pexec crashed: '
+                                  '%s, %s, %s, %s' % (mc, bmark, vm, i))
                 return ret
 
             wct_page = only_uncrashed(page)
@@ -868,7 +868,7 @@ def draw_page(is_interactive, executions, cycles_executions,
 
     n_execs = len(executions)
     if n_execs == 0:
-        print("WARNING: empty page")
+        print('WARNING: empty page')
         return None
 
     n_rows = int(math.ceil(float(len(executions)) / MAX_SUBPLOTS_PER_ROW))
@@ -1133,8 +1133,8 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                         data_dictionary['common_outliers'][key] = dict()
                         data_dictionary['unique_outliers'][key] = dict()
                     data_dictionary['data'][key][machine] = data['wallclock_times'][key]
-                    print ('Found: %s:%s (%d executions).' % (machine, key,
-                                            len(data['wallclock_times'][key])))
+                    print('Found: %s:%s (%d executions).' % (machine, key,
+                                                             len(data['wallclock_times'][key])))
                     if wallclock_only:
                         data_dictionary['cycles_counts'][key][machine] = None
                         data_dictionary['instr_data'][key][machine] = None
@@ -1208,8 +1208,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                     # Hope the key appears in another file, checked below.
                     continue
                 if len(data['wallclock_times'][key]) == 0:
-                    print('WARNING: Skipping: %s from %s (no executions)' %
-                          (key, machine))
+                    print('WARNING: Skipping: %s from %s (no executions)' % (key, machine))
                     if machine not in skipped_keys:
                         skipped_keys[machine] = list()
                     skipped_keys[machine].append(key)
@@ -1276,7 +1275,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 '%g process executions for the benchmark.' %
                                 (p_exec, key, machine, len(data['wallclock_times'][key])))
                         # Add run sequence to data dictionary.
-                        print 'Adding run sequence to ', key, machine
+                        print('Adding run sequence to ', key, machine)
                         data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
                         if not wallclock_only:
                             data_dictionary['cycles_counts'][key][machine].append(data['core_cycle_counts'][key][p_exec])
@@ -1539,7 +1538,7 @@ if __name__ == '__main__':
                 core_cycles = [int(cycle) for cycle in cycles_str]
             except ValueError:
                 fatal_error('invalid --core-cycles argument')
-            print 'Plotting cycle counts for core(s): %s' % ','.join([str(core) for core in core_cycles])
+            print('Plotting cycle counts for core(s): %s' % ','.join([str(core) for core in core_cycles]))
     else:
         core_cycles = None
 
@@ -1605,8 +1604,7 @@ if __name__ == '__main__':
                         iter_lens = len(pexec)
                         raise StopIteration()  # to break out of all loops at once
         else:
-            print('could not find a non-crashing pexec')
-            sys.exit(1)
+            fatal_error('Could not find a non-crashing pexec')
     except StopIteration:
         pass  # good, we found some non-crash data
 
