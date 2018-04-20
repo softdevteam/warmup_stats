@@ -145,6 +145,9 @@ def create_arg_parser():
                         help='Virtual machine under test (in title-case).')
     parser.add_argument('--uname', '-u', dest='uname', action='store', default='',
                         type=str, help='Full output of `uname -a` from benchmarking machine.')
+    parser.add_argument('--instr-dir', dest='instr_dir', action='store', default='',
+                        type=str, help=('Directory containing instrumentation data. '
+                                        'Only useful when generating plots.'))
     # What output file format should be generated?
     format_group = parser.add_mutually_exclusive_group(required=True)
     format_group.add_argument('--html', dest='type_html', action='store_true', default=False,
@@ -265,6 +268,8 @@ class BenchmarkFile(object):
             # same number of iterations for all pexecs.
             data = read_krun_results_file(filename)
             found_full_pexec = False
+            if 'window_size' in data:
+                self.window = data['window_size']
             for bench in data['wallclock_times']:
                 if found_full_pexec:
                     break
@@ -352,6 +357,15 @@ def main(options):
                 fatal('--uname or -u must be used with CSV input files.')
     if options.output_diff and len(input_files) != 2:
         fatal('--output-diff expects exactly 2 CSV input files.')
+    if options.instr_dir:
+        if not os.path.exists(options.instr_dir):
+            fatal('%s (VM instrumentation data directory) does not exist.' % options.instr_dir)
+        elif not os.path.isdir(options.instr_dir):
+            fatal('%s (VM instrumentation data directory) is not a directory.' % options.instr_dir)
+        else:
+            debug('Collecting instrumentation data for from %s.' % options.instr_dir)
+    else:
+        debug('No VM instrumentation data is available.')
     python_path, pypy_path, pdflatex_path, r_path = check_environment(need_latex=need_latex,
                                                                       need_plots=need_plots)
     info('Processing input files, converting to Krun JSON if necessary.')
@@ -420,9 +434,14 @@ def main(options):
                                      'same number of iterations.' %
                                      (bm.csv_filename, bm.iterations, iterations))
                     sys.exit(1)
-        cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
-               '--with-outliers', '-o', options.output_plots, '-w', str(window),
-               ' '.join(input_files)]
+        if options.instr_dir:
+            cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
+                   '--with-outliers', '-o', options.output_plots, '-w', str(window),
+                   '--instr-dir', options.instr_dir, ' '.join(input_files)]
+        else:
+            cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
+                   '--with-outliers', '-o', options.output_plots, '-w', str(window),
+                   ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
         _ = subprocess.check_output(' '.join(cli), shell=True)
         debug('Written out: %s' % options.output_plots)
