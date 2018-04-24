@@ -43,7 +43,6 @@ Plot data from Krun results file(s).
 
 import argparse
 import datetime
-import glob
 import math
 import matplotlib
 matplotlib.use('Agg')
@@ -1472,8 +1471,11 @@ def create_cli_parser():
                         action='store',
                         dest='core_cycles',
                         default=None,
-                        help='Only plot the core cycles for specified cores'
-                              '(comma separated). e.g: 0,1,2,3')
+                        help='Only plot the core cycles for specified cores '
+                             '(comma separated). e.g: 0,1,2,3 or "" for no '
+                             'plots. If this argument is not set, the default '
+                             'behaviour is to plot as much data as is found in '
+                             'the input files.')
     parser.add_argument('--inset-xlimits', '-X',
                         action='store',
                         dest='inset_xlimits',
@@ -1531,7 +1533,7 @@ if __name__ == '__main__':
 
     if options.core_cycles is not None and not options.wallclock:
         if options.core_cycles.strip() == "":
-            core_cycles = list()
+            core_cycles = list()  # Plot no CC data.
         else:
             try:
                 cycles_str = options.core_cycles.split(',')
@@ -1540,7 +1542,8 @@ if __name__ == '__main__':
                 fatal_error('invalid --core-cycles argument')
             print('Plotting cycle counts for core(s): %s' % ','.join([str(core) for core in core_cycles]))
     else:
-        core_cycles = None
+        core_cycles = None  # Default: plot all data in input file.
+        print('Plotting all available cycle counts data.')
 
     if options.xlimits:
         try:
