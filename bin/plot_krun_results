@@ -43,7 +43,6 @@ Plot data from Krun results file(s).
 
 import argparse
 import datetime
-import glob
 import math
 import matplotlib
 matplotlib.use('Agg')
