@@ -60,7 +60,8 @@ from warmup.krun_results import pretty_print_machine, read_krun_results_file
 from warmup.outliers import get_window
 from warmup.plotting import add_inset_to_axis, add_margin_to_axes
 from warmup.plotting import collide_rect, compute_grid_offsets, format_yticks_scientific
-from warmup.plotting import get_unified_yrange, style_axis, STYLE_DICT, zoom_y_min, zoom_y_max
+from warmup.plotting import get_unified_yrange, style_axis, STYLE_DICT, wrap_ylabel
+from warmup.plotting import zoom_y_min, zoom_y_max
 from warmup.vm_instruments import INSTRUMENTATION_PARSERS
 
 pyplot.figure(tight_layout=True)
@@ -731,11 +732,10 @@ class ProcessExecChart(object):
             self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0],
                                                     sharex=self.wallclock_axis)
             self.instr_axes[index].plot(self.iterations, idata.data[self.x_bounds[0]:self.x_bounds[1]],
-                        color=INSTR_COLOR, label=idata.title,
-                        linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
+                        color=INSTR_COLOR, linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             self.instr_axes[index].set_ylim(self.instr_y_ranges[index])
             self.style_axis(self.instr_axes[index], self.instr_y_ranges[index],
-                            None, idata.title, color=INSTR_COLOR)
+                            None, wrap_ylabel(idata.title), color=INSTR_COLOR)
             if index == 0:
                 # Add all items to page legend (only once).
                 handles, labels = self.instr_axes[index].get_legend_handles_labels()

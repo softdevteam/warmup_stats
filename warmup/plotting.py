@@ -37,6 +37,7 @@
 
 import math
 import numpy
+import textwrap
 
 from matplotlib import pyplot
 from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
@@ -49,6 +50,8 @@ ZORDER_GRID = 1
 DARK_GRAY = '.15'
 LIGHT_GRAY = '.8'
 BASE_FONTSIZE = 8
+
+MAX_INSTR_YLABEL_CHARS = 12
 
 STYLE_DICT = {
     'figure.facecolor': 'white',
@@ -77,6 +80,10 @@ STYLE_DICT = {
     'pdf.fonttype': 42,
     'ps.fonttype': 42,
 }
+
+
+def wrap_ylabel(text, width=MAX_INSTR_YLABEL_CHARS):
+    return textwrap.TextWrapper(width=width).fill(text.replace('_', '\n'))
 
 
 def zoom_y_min(data, outliers, start_from=0):
