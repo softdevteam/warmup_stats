@@ -92,6 +92,8 @@ except ImportError:
     pass
 
 
+CSV_COMBO_MSG = 'Note that CSV files should contain data for EXACTLY one language / VM combination.'
+
 DESCRIPTION = lambda fname: """
 Analyse CSV or Krun results file(s) and produce a JSON summary, result table,
 result plots or diff table. Tables of results or diffs can be produced in HTML
@@ -106,6 +108,8 @@ Input files may be in the following CSV format:
 or be json.bz2 files, output by the Krun(*) tool.
 (*) Krun: http://soft-dev.org/src/krun/
 
+%s
+
 Example usage - output JSON summary:
 
     $ python %s --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
@@ -118,14 +122,19 @@ Example usage - output PDF plot:
 
     $ python %s --output-plots plots.pdf -l javascript -v V8 -u "`uname -a`" results.csv
 
+Example usage - output PDF plot with VM instrumentation data:
+
+    $ python %s --output-plots plots.pdf --instr-dir vm_instr_data/ results.json.bz2
+
 Example usage - output LaTeX/PDF diff:
 
     $ python %s --tex --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
-""" % (fname, fname, fname, fname)
+""" % (CSV_COMBO_MSG, fname, fname, fname, fname, fname)
 
 
 def fatal(msg):
     """Log error and exit."""
+
     error(msg)
     sys.exit(1)
 
@@ -139,17 +148,21 @@ def create_arg_parser():
                         dest='debug_level',
                         help='Debug level used by logger. Must be one of: '
                              'DEBUG, INFO, WARN, DEBUG, CRITICAL, ERROR')
+    csv_only_msg = 'Only needed if input files are in CSV format.'
     parser.add_argument('--language', '-l', dest='language', action='store',
-                        type=str, help='Language under test (in lower-case).')
+                        type=str, help=('Language under test (in lower-case). %s %s'
+                                        % (csv_only_msg, CSV_COMBO_MSG)))
     parser.add_argument('--vm', '-v', dest='vm', action='store', type=str,
-                        help='Virtual machine under test (in title-case).')
+                        help=('Virtual machine under test (in title-case). %s %s'
+                              % (csv_only_msg, CSV_COMBO_MSG)))
     parser.add_argument('--uname', '-u', dest='uname', action='store', default='',
-                        type=str, help='Full output of `uname -a` from benchmarking machine.')
+                        type=str, help=('Full output of `uname -a` from benchmarking machine. '
+                                        'Only needed if input files are in CSV format.'))
     parser.add_argument('--instr-dir', dest='instr_dir', action='store', default='',
                         type=str, help=('Directory containing instrumentation data. '
                                         'Only useful when generating plots.'))
     # What output file format should be generated?
-    format_group = parser.add_mutually_exclusive_group(required=True)
+    format_group = parser.add_mutually_exclusive_group(required=False)
     format_group.add_argument('--html', dest='type_html', action='store_true', default=False,
                               help=('Output an HTML file. Valid with --output-table '
                                     'and --output-diff.'))
@@ -157,7 +170,7 @@ def create_arg_parser():
                               help=('Output a LaTeX file and convert to PDF. Valid '
                                     'with --output-table and --output-diff.'))
     # What output should warmup_stats generate?
-    output_group = parser.add_argument_group('Output format')
+    output_group = parser.add_mutually_exclusive_group(required=True)
     output_group.add_argument('--output-plots', dest='output_plots', action='store',
                               type=str, metavar='PDF_FILENAME', default=None,
                               help='Output a PDF file containing plots (HTML unavailable).')
@@ -356,7 +369,7 @@ def main(options):
             if not options.uname:
                 fatal('--uname or -u must be used with CSV input files.')
     if options.output_diff and len(input_files) != 2:
-        fatal('--output-diff expects exactly 2 CSV input files.')
+        fatal('--output-diff expects exactly 2 input files.')
     if options.instr_dir:
         if not os.path.exists(options.instr_dir):
             fatal('%s (VM instrumentation data directory) does not exist.' % options.instr_dir)
