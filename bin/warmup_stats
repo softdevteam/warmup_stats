@@ -417,7 +417,8 @@ def main(options):
         info('Compiling diff table as PDF.')
         cli = [pdflatex_path, '-interaction=batchmode', options.output_diff]
         debug('Running: %s' % ' '.join(cli))
-        _ = subprocess.check_output(' '.join(cli), shell=True)
+        subprocess.check_output(' '.join(cli), shell=True)
+        subprocess.check_output(' '.join(cli), shell=True)
     if options.output_diff and options.type_html:
         info('Generating HTML diff table.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
@@ -456,7 +457,7 @@ def main(options):
                    '--with-outliers', '-o', options.output_plots, '-w', str(window),
                    ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
-        _ = subprocess.check_output(' '.join(cli), shell=True)
+        subprocess.check_output(' '.join(cli), shell=True)
         debug('Written out: %s' % options.output_plots)
     if options.output_json:
         info('Generating JSON.')
@@ -474,7 +475,8 @@ def main(options):
         info('Compiling table as PDF.')
         cli = [pdflatex_path, '-interaction=batchmode', options.output_table]
         debug('Running: %s' % ' '.join(cli))
-        _ = subprocess.check_output(' '.join(cli), shell=True)
+        subprocess.check_output(' '.join(cli), shell=True)
+        subprocess.check_output(' '.join(cli), shell=True)
     if options.output_table and options.type_html:
         info('Generating HTML table.')
         write_html_table(summary, options.output_table)
