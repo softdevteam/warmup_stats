@@ -332,29 +332,17 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
     return machine, list(sorted(benchmark_names)), latex_summary
 
 
-def write_latex_table(machine, all_benchs, summary, tex_file, num_splits,
-                      with_preamble=False, longtable=False):
-    """Write a tex table to disk"""
+def write_latex_table(machine, all_benchs, summary, tex_file, with_preamble=False, longtable=False):
+    """Write a tex table to disk.
+    This is NOT used to create diff tables or the tables for the warmup
+    experiment (a separate script in the other repo exists for that). However,
+    we need to factor this as a separate function so that it can be imported
+    by `../bin/warmup_stats` and `../bin/table_classification_summaries_others`.
+    """
 
     num_benchmarks = len(all_benchs)
     all_vms = sorted(summary.keys())
     num_vms = len(summary)
-
-    # decide how to lay out the splits
-    num_vms_rounded = int(math.ceil(num_vms / float(num_splits)) * num_splits)
-    vms_per_split = int(num_vms_rounded / float(num_splits))
-    splits = [[] for x in xrange(num_splits)]
-    vm_num = 0
-    split_idx = 0
-    for vm_idx in xrange(num_vms_rounded):
-        if vm_idx < len(all_vms):
-            vm = all_vms[vm_idx]
-        else:
-            vm = None
-        splits[split_idx].append(vm)
-        vm_num += 1
-        if vm_num % vms_per_split == 0:
-            split_idx += 1
 
     with open(tex_file, 'w') as fp:
         if with_preamble:
@@ -366,63 +354,59 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits,
                 fp.write('\\begin{table*}[hptb]\n')
                 fp.write('\\vspace{.8cm}\n')
                 fp.write('\\begin{adjustbox}{totalheight=12.4cm}\n')
-        # emit table header
-        heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1] * num_splits)
-        heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2] * num_splits)
+        heads1 = TABLE_HEADINGS_START1 + '&'.join([TABLE_HEADINGS1])
+        heads2 = TABLE_HEADINGS_START2 + '&'.join([TABLE_HEADINGS2])
         heads = '%s\\\\%s' % (heads1, heads2)
         if longtable:
             fp.write(start_longtable(TABLE_FORMAT, heads))
         else:
             fp.write(start_table(TABLE_FORMAT, heads))
         split_row_idx = 0
-        for row_vms in zip(*splits):
+        for vm in all_vms:
             bench_idx = 0
             for bench in sorted(all_benchs):
                 row = []
-                for vm in row_vms:
-                    if vm is None:
-                        continue # no more results
-                    try:
-                        this_summary = summary[vm][bench]
-                    except KeyError:
+                if vm is None:
+                    continue # no more results
+                try:
+                    this_summary = summary[vm][bench]
+                except KeyError:
+                    last_cpt = BLANK_CELL
+                    time_steady = BLANK_CELL
+                    last_mean = BLANK_CELL
+                    classification = ''
+                else:
+                    classification = this_summary['style']
+                    last_cpt = this_summary['last_cpt']
+                    time_steady = this_summary['time_to_steady_state']
+                    last_mean = this_summary['last_mean']
+
+                    classification = '\\multicolumn{1}{l}{%s}' % classification
+                    if classification == STYLE_SYMBOLS['flat']:
                         last_cpt = BLANK_CELL
                         time_steady = BLANK_CELL
-                        last_mean = BLANK_CELL
-                        classification = ''
-                    else:
-                        classification = this_summary['style']
-                        last_cpt = this_summary['last_cpt']
-                        time_steady = this_summary['time_to_steady_state']
-                        last_mean = this_summary['last_mean']
+                if last_cpt == '':
+                    last_cpt = BLANK_CELL
+                if time_steady == '':
+                    time_steady = BLANK_CELL
+                if last_mean == '':
+                    last_mean = BLANK_CELL
 
-                        classification = '\\multicolumn{1}{l}{%s}' % classification
-                        if classification == STYLE_SYMBOLS['flat']:
-                            last_cpt = BLANK_CELL
-                            time_steady = BLANK_CELL
-                    if last_cpt == '':
-                        last_cpt = BLANK_CELL
-                    if time_steady == '':
-                        time_steady = BLANK_CELL
-                    if last_mean == '':
-                        last_mean = BLANK_CELL
-
-                    if bench_idx == 0:
-                        if num_benchmarks == 10:
-                            fudge = 4
-                        elif num_benchmarks == 12:
-                            fudge = 5
-                        else:
-                            fudge = 0
-                        vm_cell = '\\multirow{%s}{*}{\\rotatebox[origin=c]{90}{%s}}' \
-                            % (num_benchmarks + fudge, vm)
+                if bench_idx == 0:
+                    if num_benchmarks == 10:
+                        fudge = 4
+                    elif num_benchmarks == 12:
+                        fudge = 5
                     else:
-                        vm_cell = ''
-                    row_add = [BLANK_CELL, vm_cell, classification, last_cpt,
-                               time_steady, last_mean]
-                    if not row:  # first bench in this row, needs the vm column
-                        row.insert(0, escape(bench))
-                    row.extend(row_add)
-                    vm_idx += 1
+                        fudge = 0
+                    vm_cell = '\\multirow{%s}{*}{\\rotatebox[origin=c]{90}{%s}}' \
+                        % (num_benchmarks + fudge, vm)
+                else:
+                    vm_cell = ''
+                row_add = [BLANK_CELL, vm_cell, classification, last_cpt,
+                           time_steady, last_mean]
+                row.insert(0, escape(bench))
+                row.extend(row_add)
                 fp.write('&'.join(row))
                 # Only -ve space row if not next to a midrule
                 if bench_idx < num_vms - 1:
@@ -430,7 +414,7 @@ def write_latex_table(machine, all_benchs, summary, tex_file, num_splits,
                 else:
                     fp.write('\\\\ \n')
                 bench_idx += 1
-            if split_row_idx < vms_per_split - 1:
+            if split_row_idx < num_vms - 1:
                 if longtable:
                     fp.write('\\hline\n')
                 else:
