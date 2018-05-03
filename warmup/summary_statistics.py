@@ -409,7 +409,7 @@ def write_latex_table(machine, all_benchs, summary, tex_file, with_preamble=Fals
                 row.extend(row_add)
                 fp.write('&'.join(row))
                 # Only -ve space row if not next to a midrule
-                if bench_idx < num_vms - 1:
+                if not longtable and bench_idx < num_vms - 1:
                     fp.write('\\\\[-3pt] \n')
                 else:
                     fp.write('\\\\ \n')
