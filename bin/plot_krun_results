@@ -1274,7 +1274,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                                 '%g process executions for the benchmark.' %
                                 (p_exec, key, machine, len(data['wallclock_times'][key])))
                         # Add run sequence to data dictionary.
-                        print('Adding run sequence to ', key, machine)
+                        print('Adding run sequence to %s %s' % (key, machine))
                         data_dictionary['data'][key][machine].append(data['wallclock_times'][key][p_exec])
                         if not wallclock_only:
                             data_dictionary['cycles_counts'][key][machine].append(data['core_cycle_counts'][key][p_exec])
