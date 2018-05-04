@@ -126,8 +126,10 @@ def fatal(message):
 
 
 def legend():
-    key = (colour_tex_cell(BETTER, 'improved'), colour_tex_cell(WORSE, 'worsened'),
-           colour_tex_cell(DIFFERENT, 'different'), colour_tex_cell(SAME, 'unchanged'))
+    key = (colour_tex_cell(BETTER, 'improved', legend=True),
+           colour_tex_cell(WORSE, 'worsened', legend=True),
+           colour_tex_cell(DIFFERENT, 'different', legend=True),
+           colour_tex_cell(SAME, 'unchanged', legend=True))
     return '\\textbf{Diff against previous results:} ' + ' '.join(key) + '.'
 
 
@@ -336,10 +338,14 @@ def diff(before_file, after_file, summary_filename):
     return summary
 
 
-def colour_tex_cell(result, text):
+def colour_tex_cell(result, text, legend=False):
     """Colour a table cell containing `text` according to `result`."""
 
     assert result in (None, SAME, DIFFERENT, BETTER, WORSE)
+    if legend:
+        cmd = 'legendcell'
+    else:
+        cmd = 'ccell'
     if not text or result is None or result == SAME:
         return text
     if result == BETTER:
@@ -348,7 +354,7 @@ def colour_tex_cell(result, text):
         colour = 'lightred'
     else:
         colour = 'lightyellow'
-    return '\\ccell{%s}{%s}' % (colour, text)
+    return '\\%s{%s}{%s}' % (cmd, colour, text)
 
 
 def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
@@ -454,7 +460,7 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                     vm_idx += 1
                 fp.write('&'.join(row))
                 # Only -ve space row if not next to a midrule
-                if bench_idx < num_vms - 1:
+                if not longtable and bench_idx < num_vms - 1:
                     fp.write('\\\\[-3pt] \n')
                 else:
                     fp.write('\\\\ \n')

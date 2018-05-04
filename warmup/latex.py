@@ -167,7 +167,20 @@ $\\begin{array}{rr}
 }
 \\def\\@ccell#1#2#3{%
    \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=0mm,%
-           boxsep=0.5pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
+           boxsep=0pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
+           colback=#2!85!white]{#3}
+}
+\\makeatother
+%
+% Coloured cells for legends (do not force a newline after the box).
+%
+\\makeatletter
+\\protected\\def\\legendcell#1#{%
+  \\@legendcell{#1}%
+}
+\\def\\@legendcell#1#2#3{%
+   \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=0mm,%
+           boxsep=0pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
            colback=#2!85!white,before=\\relax,after=\\relax]{#3}
 }
 \\makeatother
