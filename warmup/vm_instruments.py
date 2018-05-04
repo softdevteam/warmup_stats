@@ -175,5 +175,5 @@ class PyPyInstrumentParser(VMInstrumentParser):
 # Mapping from VM name -> parser class.
 # This enables the main scripts to parse instrumentation data based only
 # on the vm:bench:language triplets found in Krun data files.
-INSTRUMENTATION_PARSERS = { 'Hotspot': HotSpotInstrumentParser,
+INSTRUMENTATION_PARSERS = { 'HotSpot': HotSpotInstrumentParser,
                             'PyPy': PyPyInstrumentParser, }
