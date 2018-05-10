@@ -165,6 +165,7 @@ ZOOM_OUTLIER_SIZE = 8
 TICK_FONTSIZE = 8
 TITLE_FONT_SIZE = 10
 AXIS_FONTSIZE = 8
+YAXIS_FONTSIZE = 8
 LEGEND_FONTSIZE = 10
 YTICK_FORMAT = '%.4f'
 
@@ -561,7 +562,7 @@ class ProcessExecChart(object):
             pyplot.setp(axis.get_xticklabels(), visible=False)
             y_axis = axis.get_yaxis()
             y_axis.set_tick_params(labelsize=TICK_FONTSIZE, colors=LABEL_COLOUR, zorder=ZORDER_GRID)
-        axis.set_ylabel(y_label, fontsize=AXIS_FONTSIZE, color=LABEL_COLOUR)
+        axis.set_ylabel(y_label, fontsize=YAXIS_FONTSIZE, color=LABEL_COLOUR)
         axis.yaxis.set_label_position('right')
 
     def _get_scatter_points_within_bounds(self, scatter, x_bounds):
