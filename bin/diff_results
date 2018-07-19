@@ -519,16 +519,16 @@ if __name__ == '__main__':
     if options.input_summary is None:
         if '_outliers' not in options.input_results[0][0]:
             fatal('Please run mark_outliers_in_json on file %s before diffing.' %
-                  options.results_files[0][0])
+                  options.input_results[0][0])
         if '_outliers' not in options.input_results[0][1]:
             fatal('Please run mark_outliers_in_json on file %s before diffing.' %
-                  options.results_files[0][1])
+                  options.input_results[0][1])
         if '_changepoints' not in options.input_results[0][0]:
             fatal('Please run mark_changepoints_in_json on file %s before diffing.' %
-                  options.results_files[0][0])
+                  options.input_results[0][0])
         if '_changepoints' not in options.input_results[0][1]:
             fatal('Please run mark_changepoints_in_json on file %s before diffing.' %
-                  options.results_files[0][1])
+                  options.input_results[0][1])
         diff_summary = diff(options.input_results[0][0], options.input_results[0][1], options.json)
     else:
         with open(options.input_summary, 'r') as fd:
