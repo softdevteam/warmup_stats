@@ -231,7 +231,7 @@ def diff(before_file, after_file, summary_filename):
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = BETTER
                     break
                 elif (sample['detailed_classification']['no steady state'] + sample['detailed_classification']['slowdown'] >
-                        base_case['detailed_classification']['slowdown'] + base_case['detailed_classification']['slowdown']):
+                        base_case['detailed_classification']['no steady state'] + base_case['detailed_classification']['slowdown']):
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = WORSE
                     break
                 else:
@@ -246,6 +246,15 @@ def diff(before_file, after_file, summary_filename):
                 base_case['detailed_classification']['slowdown'] == sample['detailed_classification']['slowdown'] and \
                 base_case['detailed_classification']['no steady state'] == sample['detailed_classification']['no steady state']:
             summary[DIFF][vm][bench][CLASSIFICATIONS] = SAME
+        # If the CIs do overlap, but the classification has moved from bad
+        # inconsistent to good inconsistent, then we say the result was better.
+        if summary[DIFF][vm][bench][CLASSIFICATIONS] == SAME and \
+                base_case['detailed_classification']['no steady state'] > 0 and \
+                sample['detailed_classification']['no steady state'] == 0:
+            summary[DIFF][vm][bench][CLASSIFICATIONS] = BETTER
+        # That completes the category data. The remaining logic deals with the
+        # numerical data (time to reach a steady state, steady state time per
+        # iteration), and produces an overall classification for this benchmark.
         # Case 1) All flat.
         if (all_flat(sample['detailed_classification']) and all_flat(base_case['detailed_classification'])):
             summary[DIFF][vm][bench][STEADY_ITER] = SAME
