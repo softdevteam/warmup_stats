@@ -231,7 +231,7 @@ def diff(before_file, after_file, summary_filename):
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = BETTER
                     break
                 elif (sample['detailed_classification']['no steady state'] + sample['detailed_classification']['slowdown'] >
-                        base_case['detailed_classification']['slowdown'] + base_case['detailed_classification']['slowdown']):
+                        base_case['detailed_classification']['no steady state'] + base_case['detailed_classification']['slowdown']):
                     summary[DIFF][vm][bench][CLASSIFICATIONS] = WORSE
                     break
                 else:
