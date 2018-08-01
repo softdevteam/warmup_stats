@@ -12,9 +12,9 @@ installation work needed.
 # Basic usage
 
 User should directly call the `bin/warmup_stats`, which is a front-end to other
-scripts in `bin/`. `warmup_stats` takes either CSV files or [Krun](http://soft-
-dev.org/src/krun/) results files as input. As output it can create HTML or LaTeX
-/ PDF tables and diffs, or PDF plots.
+scripts in `bin/`. `warmup_stats` takes either CSV files or
+[Krun](http://soft-dev.org/src/krun/) results files as input. As output it can
+create HTML or LaTeX / PDF tables and diffs, or PDF plots.
 
 ## CSV format
 
@@ -46,7 +46,7 @@ benchmarks were run on.
 
 Example usage:
 
-```
+```sh
 bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
 bin/warmup_stats  --output-plots plots.pdf --output-json summary.json results.json.bz2
 ```
@@ -62,14 +62,14 @@ benchmarks were run on.
 
 Example usage (LaTeX / PDF):
 
-```
+```sh
 bin/warmup_stats --tex --output-table table.tex -l javascript -v V8 -u "`uname -a`" results.csv
 bin/warmup_stats --tex --output-table table.tex results.json.bz2
 ```
 
 Example usage (HTML):
 
-```
+```sh
 bin/warmup_stats --html --output-table table.html -l javascript -v V8 -u "`uname -a`" results.csv
 bin/warmup_stats --html --output-table table.html results.json.bz2
 ```
@@ -92,14 +92,14 @@ benchmarks were run on.
 
 Example usage (LaTeX / PDF):
 
-```
+```sh
 bin/warmup_stats --tex --output-diff diff.tex -l javascript -v V8 -u "`uname -a`" before.csv after.csv
 bin/warmup_stats --tex --output-diff diff.tex before.json.bz2 after.json.bz2
 ```
 
 Example usage (HTML):
 
-```
+```sh
 bin/warmup_stats --html --output-diff diff.html -l javascript -v V8 -u "`uname -a`" before.csv after.csv
 bin/warmup_stats --html --output-diff diff.html before.json.bz2 after.json.bz2
 ```
