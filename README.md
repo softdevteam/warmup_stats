@@ -4,10 +4,9 @@ This system has various scripts for analysing the output of VM benchmarking. Any
 system can be used to perform the benchmarking, e.g.
 [Krun](http://soft-dev.org/src/krun/).
 
-# Installation
+# Build
 
-First run the `build.sh` script which should perform most, if not all, of the
-installation work needed.
+Run `./build.sh` to build warmup_stats.
 
 # Basic usage
 
