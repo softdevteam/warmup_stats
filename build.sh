@@ -20,12 +20,12 @@ fi
 
 set -e
 
-HERE_DIR=$(dirname $(readlink -f "$0"))
-R_INST_DIR=${HERE_DIR}/work/R-inst
-PIP_TARGET_DIR=${HERE_DIR}/work/pylibs
-mkdir -p ${R_INST_DIR}
+mkdir -p work
+R_INST_DIR=`pwd`/work/R-inst
+PIP_TARGET_DIR=`pwd`/work/pylibs
 
 # Download a recent version of R (must be 3.3.1 or later).
+mkdir -p ${R_INST_DIR}
 cd work
 wget https://cran.r-project.org/src/base/R-3/R-3.3.2.tar.gz
 tar -xzf R-3.3.2.tar.gz
