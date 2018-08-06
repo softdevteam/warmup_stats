@@ -194,15 +194,24 @@ def main(in_files, delta, steady_state):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, delta, steady_state, p_exec, outliers)
-                changepoints[bench].append(segments.changepoints)
-                changepoint_means[bench].append(segments.means)
-                changepoint_vars[bench].append(segments.variances)
-                try:
-                    classifications[bench].append(segments.get_classification())
-                except ValueError:
-                    print 'Could not classify %s execution %d' % (bench, index + 1)
-                    sys.exit(1)
+                if len(p_exec) > steady_state:
+                  segments = get_segments(cpt, delta, steady_state, p_exec, outliers)
+                  changepoints[bench].append(segments.changepoints)
+                  changepoint_means[bench].append(segments.means)
+                  changepoint_vars[bench].append(segments.variances)
+                  try:
+                      classifications[bench].append(segments.get_classification())
+                  except ValueError:
+                      print 'Could not classify %s execution %d' % (bench, index + 1)
+                      sys.exit(1)
+                else:
+                  p_exec[:0]
+                  print 'Skipping crashed %s execution %d' % (bench, index + 1)
+                  classifications[bench].append("flat")
+                  changepoints[bench].append(list())
+                  changepoint_means[bench].append(list())
+                  changepoint_vars[bench].append(list())
+                  
         krun_data[filename]['changepoints'] = changepoints
         krun_data[filename]['changepoint_means'] = changepoint_means
         krun_data[filename]['changepoint_vars'] = changepoint_vars

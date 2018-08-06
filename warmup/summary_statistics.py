@@ -105,17 +105,24 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
             # Lists of changepoints, outliers and segment means for each process execution.
             changepoints, outliers, segments = list(), list(), list()
             for p_exec in xrange(n_pexecs):
+                classification = data_dictionaries[machine]['classifications'][key][p_exec]
+ 
                 segments_for_bootstrap_this_pexec = list()  # Steady state segments for this pexec.
                 changepoints.append(data_dictionaries[machine]['changepoints'][key][p_exec])
                 segments.append(data_dictionaries[machine]['changepoint_means'][key][p_exec])
                 outliers.append(data_dictionaries[machine]['all_outliers'][key][p_exec])
-                categories.append(data_dictionaries[machine]['classifications'][key][p_exec])
+                categories.append(classification)
                 # Next we calculate the iteration at which a steady state was
                 # reached, it's average segment mean and the time to reach a
                 # steady state. However, the last segment may be equivalent to
                 # its adjacent segments, so we first need to know which segments
                 # are steady-state segments.
-                if data_dictionaries[machine]['classifications'][key][p_exec] == 'no steady state':
+                if classification == 'no steady state':
+                    continue
+
+                if len(data_dictionaries[machine]['wallclock_times'][key][p_exec]) == 0:
+                    print('WARNING: Skipping: pexec %d in %s from %s (benchmark crashed)' %
+                          (p_exec, key, machine))
                     continue
                 # Capture the last steady state segment for bootstrapping.
                 segment_data = list()
