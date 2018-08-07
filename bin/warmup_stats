@@ -41,10 +41,10 @@
 import os
 import sys
 
-if ('LD_LIBRARY_PATH' not in os.environ or 'R-inst' not in os.environ['LD_LIBRARY_PATH']):
-    # R packages are stored relative to the top-level of the repo.
-    os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                              'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
+# R packages are stored relative to the top-level of the repo.
+if ('R_LIBS_USER' not in os.environ or 'rlibs' not in os.environ['R_LIBS_USER']):
+    os.environ['R_LIBS_USER'] = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                             'work', 'rlibs')
     args = [sys.executable]
     args.extend(sys.argv)
     os.execv(sys.executable, args)
