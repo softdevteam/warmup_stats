@@ -41,13 +41,10 @@
 import os
 import sys
 
-if ('LD_LIBRARY_PATH' not in os.environ or 'R-inst' not in os.environ['LD_LIBRARY_PATH']
-      or 'R_HOME' not in os.environ):
-    # R packages are stored relative to the top-level of the repo.
-    os.environ['R_HOME'] = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                        'work', 'R-inst', 'lib', 'R')
-    os.environ['LD_LIBRARY_PATH'] = ':'.join([os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                              'work', 'R-inst', 'lib', 'R', 'lib'), os.environ.get('LD_LIBRARY_PATH', '')])
+# R packages are stored relative to the top-level of the repo.
+if ('R_LIBS_USER' not in os.environ or 'rlibs' not in os.environ['R_LIBS_USER']):
+    os.environ['R_LIBS_USER'] = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                             'work', 'rlibs')
     args = [sys.executable]
     args.extend(sys.argv)
     os.execv(sys.executable, args)
@@ -183,7 +180,7 @@ def create_arg_parser():
     output_group.add_argument('--output-diff', dest='output_diff', action='store',
                               type=str, metavar='DIFF_FILENAME', default=None,
                               help='Output a file containing a diff table. Requires '
-                              '--tex or --html. Expects exactly two CSV input files.')
+                              '--tex or --html. Expects exactly two input files.')
     return parser
 
 
@@ -232,7 +229,7 @@ def check_environment(need_outliers=True, need_changepoints=True, need_latex=Tru
         try:
             import rpy2
         except ImportError:
-            fatal('Please install and the Python rpy2 library to generate changepoints.')
+            fatal('Please install the Python rpy2 library to generate changepoints.')
     if need_latex:
         pdflatex_path = find_executable('pdflatex')
         if pdflatex_path is None:
@@ -241,9 +238,12 @@ def check_environment(need_outliers=True, need_changepoints=True, need_latex=Tru
     if need_plots:
         try:
             import matplotlib
-            matplotlib.use('Agg')
         except ImportError:
             fatal('Please install the Python matplotlib library, with Agg backend, to generate plots.')
+        try:
+            matplotlib.use('Agg')
+        except:
+            fatal('Python matplotlib is installed, but the Agg backend is also needed to generate plots.')
     return python_path, pypy_path, pdflatex_path, r_path
 
 

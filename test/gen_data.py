@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/usr/bin/env python2.7
 #
 # Copyright (c) 2018 King's College London
 # created by the Software Development Team <http://soft-dev.org/>
@@ -37,66 +37,41 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Build dependencies for scripts in bin/
+"""Generate random Krun JSON files."""
 
-set -e
+import os
+import os.path
+import random
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from warmup.krun_results import write_krun_results_file
 
-# Local directories for installing Python and R packages.
-R_LIB_DIR=`pwd`/work/rlibs
-PIP_TARGET_DIR=`pwd`/work/pylibs
 
-# Check requirements.
-which git > /dev/null 2>&1
-if [ $? != 0 ]; then
-    echo "git must be installed" >&2
-    exit 1
-fi
+UNAME = 'Linux bencher8 4.9.0-3-amd64 #1 SMP Debian 4.9.30-2+deb9u5 (2017-09-19) x86_64 GNU/Linux'
+AUDIT = { 'uname': UNAME }
+ITERS = 2000
+KEY = 'dummyvm:dummybmark:0'  # 0th pexec.
 
-which python2.7 > /dev/null 2>&1
-if [ $? != 0 ]; then
-    echo "python2.7 must be installed" >&2
-    exit 1
-fi
 
-python2.7 -c "import setuptools" > /dev/null 2>&1
-if [ $? != 0 ]; then
-    echo "setuptools for python2.7 must be installed" >&2
-    exit 1
-fi
+def create_filename(nth):
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        'example' + str(nth) + '.json.bz2')
 
-which R > /dev/null 2>&1
-if [ $? != 0 ]; then
-    echo "R version 3.3.1 or later must be installed"
-    exit 1
-fi
 
-version() {
-    echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }';
-}
+def create_random_results():
+    results = { 'audit': AUDIT,
+                'wallclock_times': { KEY: [[]] },
+                'core_cycle_counts': { KEY: [[]] },
+              }
+    for _ in xrange(ITERS):
+        results['wallclock_times'][KEY][0].append(random.random())
+    return results
 
-if [ $(($(version "$(R --version | awk 'NR==1 {print $3}')") <= $(version "3.3.1"))) = 1 ]; then
-    echo "R version 3.3.1 or later must be installed"
-    exit 1
-fi
 
-# Install R changepoint package.
-mkdir -p ${R_LIB_DIR}
-echo "install.packages('devtools', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save
-echo "install.packages('MultinomialCI', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save
-echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'master')" | R_LIBS_USER=${R_LIB_DIR} R --no-save
-
-# Install rpy2 Python package.
-DEB8_HACK="0"
-if [ "$(lsb_release -si)" = "Debian" ]; then
-    DEB_MAJOR_V=`lsb_release -sr | cut -c1`
-    if [ "${DEB_MAJOR_V}" = "8" ] || [ "${DEB_MAJOR_V}" = "9" ]; then
-        DEB8_HACK="1"
-    fi
-fi
-
-if [ "${DEB8_HACK}" = "1" ]; then
-    # Debian 8 or 9
-    pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5"
-else
-    pip install --target "${PIP_TARGET_DIR}" "rpy2==2.8.5"
-fi
+if __name__ == '__main__':
+    seed = random.randrange(sys.maxsize)
+    random.seed(seed)
+    print('Test data was generated with seed:', seed)
+    # We create two example data files, so that we can diff them.
+    write_krun_results_file(create_random_results(), create_filename(1))
+    write_krun_results_file(create_random_results(), create_filename(2))
