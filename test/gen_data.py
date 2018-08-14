@@ -69,9 +69,9 @@ def create_random_results():
 
 
 if __name__ == '__main__':
-    seed = random.randrange(sys.maxsize)
-    random.seed(seed)
-    print('Test data was generated with seed:', seed)
+    seed = random.randrange(sys.maxint)
+    random.seed(a=seed)
+    print('Test data was generated with seed: %d' % seed)
     # We create two example data files, so that we can diff them.
     write_krun_results_file(create_random_results(), create_filename(1))
     write_krun_results_file(create_random_results(), create_filename(2))
