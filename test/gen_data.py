@@ -50,7 +50,7 @@ from warmup.krun_results import write_krun_results_file
 UNAME = 'Linux bencher8 4.9.0-3-amd64 #1 SMP Debian 4.9.30-2+deb9u5 (2017-09-19) x86_64 GNU/Linux'
 AUDIT = { 'uname': UNAME }
 ITERS = 2000
-KEY = 'dummyvm:dummybmark:0'  # 0th pexec.
+KEY = 'dummybmark:dummyvm:0'  # 0th pexec.
 
 
 def create_filename(nth):

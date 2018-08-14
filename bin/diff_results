@@ -95,8 +95,10 @@ MCI = rpy2.interactive.packages.importr('MultinomialCI')
 # List indices (used in favour of dictionary keys).
 CLASSIFICATIONS = 0  # Indices for top-level summary lists.
 STEADY_ITER = 1
-STEADY_STATE_TIME = 2
-INTERSECTION = 3
+STEADY_ITER_VAR = 2
+STEADY_STATE_TIME = 3
+STEADY_STATE_TIME_VAR = 4
+INTERSECTION = 5
 SAME = 0  # Indices for nested lists.
 DIFFERENT = 1
 BETTER = 2
@@ -137,6 +139,18 @@ def do_intervals_differ((x1, y1), (x2, y2)):
     return y1 < x2 or y2 < x1
 
 
+def does_interval_narrow((x1, y1), (x2, y2)):
+    """Return True if the second interval is narrower than the first."""
+
+    assert y1 >= x1 and y2 >= x2
+    ratio = float(y2 - x2) / float(y1 - x1)
+    if ratio == 1.0:
+        return SAME
+    elif ratio < 1.0:
+        return BETTER
+    return WORSE
+
+
 def do_mean_cis_differ(mean1, ci1, mean2, ci2):
     """Given two means +/- CIs return True if they do NOT overlap."""
 
@@ -146,6 +160,22 @@ def do_mean_cis_differ(mean1, ci1, mean2, ci2):
     x2 = mean2 - ci2
     y2 = mean2 + ci2
     return do_intervals_differ((x1, y1), (x2, y2))
+
+
+def does_ci_narrow(mean1, ci1, mean2, ci2):
+    """Return True if the second interval is narrower than the first."""
+
+    assert ci1 >= 0.0 and ci2 >= 0.0, 'Found negative confidence interval from bootstrapping.'
+    x1 = mean1 - ci1
+    y1 = mean1 + ci1
+    x2 = mean2 - ci2
+    y2 = mean2 + ci2
+    ratio = float(y2 - x2) / float(y1 - x1)
+    if ratio == 1.0:
+        return SAME
+    elif ratio < 1.0:
+        return BETTER
+    return WORSE
 
 
 def all_flat(classifications):
@@ -206,7 +236,7 @@ def diff(before_file, after_file, summary_filename):
             bench, vm = key.split(':')[:-1]
             if vm not in summary[DIFF]:
                 summary[DIFF][vm] = dict()
-            summary[DIFF][vm][bench] = [None, None, None, None]
+            summary[DIFF][vm][bench] = [None, None, None, None, None, None]
     for key in after_results[machine]['classifications']:
         if len(after_results[machine]['classifications'][key]) == 0:  # Skipped benchmark.
             continue
@@ -265,6 +295,9 @@ def diff(before_file, after_file, summary_filename):
                     summary[DIFF][vm][bench][STEADY_STATE_TIME] = WORSE
             else:
                 summary[DIFF][vm][bench][STEADY_STATE_TIME] = SAME
+                var = does_ci_narrow(base_case['steady_state_time'], base_case['steady_state_time_ci'],
+                                     sample['steady_state_time'], sample['steady_state_time_ci'])
+                summary[DIFF][vm][bench][STEADY_STATE_TIME_VAR] = var
         # Case 2) One ALL FLAT, one not.
         elif (all_flat(sample['detailed_classification']) or all_flat(base_case['detailed_classification'])):
             if (any_nss(sample['detailed_classification']) or any_nss(base_case['detailed_classification'])):
@@ -293,9 +326,11 @@ def diff(before_file, after_file, summary_filename):
                     summary[DIFF][vm][bench][STEADY_STATE_TIME] = WORSE
             else:
                 summary[DIFF][vm][bench][STEADY_STATE_TIME] = SAME
+                var = does_ci_narrow(base_case['steady_state_time'], base_case['steady_state_time_ci'],
+                                     sample['steady_state_time'], sample['steady_state_time_ci'])
+                summary[DIFF][vm][bench][STEADY_STATE_TIME_VAR] = var
         # Case 3) One contains an NSS (therefore no steady iter / perf available).
-        elif (any_nss(sample['detailed_classification']) or
-              any_nss(base_case['detailed_classification'])):
+        elif (any_nss(sample['detailed_classification']) or any_nss(base_case['detailed_classification'])):
             pass
         # Case 4) All three measures should be available in both the DEFAULT_ITER and last_iter cases.
         else:
@@ -312,14 +347,19 @@ def diff(before_file, after_file, summary_filename):
                         summary[DIFF][vm][bench][STEADY_ITER] = WORSE
                 else:
                     summary[DIFF][vm][bench][STEADY_ITER] = SAME
+                summary[DIFF][vm][bench][STEADY_ITER_VAR] = SAME
             elif do_intervals_differ(base_case['steady_state_iteration_iqr'],
                                      sample['steady_state_iteration_iqr']):
                 if sample['steady_state_iteration'] < base_case['steady_state_iteration']:
                     summary[DIFF][vm][bench][STEADY_ITER] = BETTER
                 else:
                     summary[DIFF][vm][bench][STEADY_ITER] = WORSE
+                var = does_interval_narrow(base_case['steady_state_iteration_iqr'], sample['steady_state_iteration_iqr'])
+                summary[DIFF][vm][bench][STEADY_ITER_VAR] = var
             else:
                 summary[DIFF][vm][bench][STEADY_ITER] = SAME
+                var = does_interval_narrow(base_case['steady_state_iteration_iqr'], sample['steady_state_iteration_iqr'])
+                summary[DIFF][vm][bench][STEADY_ITER_VAR] = var
             if do_mean_cis_differ(base_case['steady_state_time'], base_case['steady_state_time_ci'],
                                   sample['steady_state_time'], sample['steady_state_time_ci']):
                 if sample['steady_state_time'] < base_case['steady_state_time']:
@@ -328,6 +368,9 @@ def diff(before_file, after_file, summary_filename):
                     summary[DIFF][vm][bench][STEADY_STATE_TIME] = WORSE
             else:
                 summary[DIFF][vm][bench][STEADY_STATE_TIME] = SAME
+            var = does_ci_narrow(base_case['steady_state_time'], base_case['steady_state_time_ci'],
+                                 sample['steady_state_time'], sample['steady_state_time_ci'])
+            summary[DIFF][vm][bench][STEADY_STATE_TIME_VAR] = var
         # Was the benchmark better or worse overall?
         if not (BETTER in summary[DIFF][vm][bench] or WORSE in summary[DIFF][vm][bench] or
                 DIFFERENT in summary[DIFF][vm][bench]):
