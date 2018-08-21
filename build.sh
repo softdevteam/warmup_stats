@@ -39,8 +39,6 @@
 
 # Build dependencies for scripts in bin/
 
-set -e
-
 # Local directories for installing Python and R packages.
 R_LIB_DIR=`pwd`/work/rlibs
 PIP_TARGET_DIR=`pwd`/work/pylibs
@@ -71,7 +69,7 @@ if [ $? != 0 ]; then
 fi
 
 version() {
-    echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }';
+    echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
 }
 
 if [ $(($(version "$(R --version | awk 'NR==1 {print $3}')") <= $(version "3.3.1"))) = 1 ]; then
@@ -80,23 +78,19 @@ if [ $(($(version "$(R --version | awk 'NR==1 {print $3}')") <= $(version "3.3.1
 fi
 
 # Install R changepoint package.
-mkdir -p ${R_LIB_DIR}
-echo "install.packages('devtools', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save
-echo "install.packages('MultinomialCI', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save
-echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'master')" | R_LIBS_USER=${R_LIB_DIR} R --no-save
+mkdir -p ${R_LIB_DIR} || exit $?
+echo "install.packages('devtools', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
+echo "install.packages('MultinomialCI', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
+echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'master')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
 
-# Install rpy2 Python package.
-DEB8_HACK="0"
-if [ "$(lsb_release -si)" = "Debian" ]; then
-    DEB_MAJOR_V=`lsb_release -sr | cut -c1`
-    if [ "${DEB_MAJOR_V}" = "8" ] || [ "${DEB_MAJOR_V}" = "9" ]; then
-        DEB8_HACK="1"
+# Install the rpy2 Python package.
+which lsb_release > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    if [ "$(lsb_release -si)" = "Ubuntu" ]; then
+        pip install --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
+    else
+        pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
     fi
-fi
-
-if [ "${DEB8_HACK}" = "1" ]; then
-    # Debian 8 or 9
-    pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5"
 else
-    pip install --target "${PIP_TARGET_DIR}" "rpy2==2.8.5"
+    pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
 fi
