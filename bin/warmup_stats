@@ -448,11 +448,11 @@ def main(options):
                                      (bm.csv_filename, bm.iterations, iterations))
                     sys.exit(1)
         if options.instr_dir:
-            cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
+            cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoints',
                    '--with-outliers', '-o', options.output_plots,
                    '--instr-dir', options.instr_dir, ' '.join(input_files)]
         else:
-            cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
+            cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoints',
                    '--with-outliers', '-o', options.output_plots,
                    ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
