@@ -439,7 +439,6 @@ def main(options):
         info('Generating PDF plots.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
         iterations = benchmarks[0].iterations
-        window = benchmarks[0].window
         if len(benchmarks) > 1:
             for bm in benchmarks:
                 if bm.iterations != iterations:
@@ -450,11 +449,11 @@ def main(options):
                     sys.exit(1)
         if options.instr_dir:
             cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
-                   '--with-outliers', '-o', options.output_plots, '-w', str(window),
+                   '--with-outliers', '-o', options.output_plots,
                    '--instr-dir', options.instr_dir, ' '.join(input_files)]
         else:
             cli = [python_path, SCRIPT_PLOT_KRUN_RESULTS, '--with-changepoint-means',
-                   '--with-outliers', '-o', options.output_plots, '-w', str(window),
+                   '--with-outliers', '-o', options.output_plots,
                    ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
         subprocess.check_output(' '.join(cli), shell=True)

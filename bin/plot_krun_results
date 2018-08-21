@@ -1009,6 +1009,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                       }
 
     plot_titles = dict()  # All subplot titles.
+    window_size = None
 
     # Find out what data the user requested.
     # In bmark key -> machine  -> process execs format.
@@ -1278,7 +1279,7 @@ def get_data_dictionaries(json_files, benchmarks=[], wallclock_only=False,
                             'found in the Krun results files.' %
                             (key, machine))
 
-    return data_dictionary, plot_titles
+    return data_dictionary, window_size, plot_titles
 
 
 def create_cli_parser():
@@ -1287,7 +1288,7 @@ def create_cli_parser():
     script = os.path.basename(__file__)
     description = (('Plot data from Krun results file(s).'
                     '\n\nExample usage:\n\t$ python %s results1.json.bz2\n'
-                    '\t$ python %s -i --window 250 '
+                    '\t$ python %s -i '
                     '--with-outliers results1.json.bz2 results2.json.bz2\n'
                     '\t$ python %s -b binarytrees:Hotspot:default-java'
                     ' results.json.bz2\n') %
@@ -1335,13 +1336,6 @@ def create_cli_parser():
                         dest='one_page',
                         default=False,
                         help='Place all charts on a single page')
-    parser.add_argument('--window', '-w',
-                        action='store',
-                        dest='window_size',
-                        default=200,
-                        type=int,
-                        help='Size of the sliding window used to draw a '
-                             'rolling median and/or Tukey interval.')
     parser.add_argument('--xlimits', '-x',
                         action='store',
                         dest='xlimits',
@@ -1451,8 +1445,7 @@ if __name__ == '__main__':
         print 'Saving results to: %s' % options.outfile
     print('Using matplotlib version %s with backend %s' %
             (matplotlib.__version__, matplotlib.get_backend()))
-    print(('Charting with sliding window size: %d, xlimits: %s') %
-           (options.window_size, options.xlimits))
+    print('Charting with xlimits: %s' % options.xlimits)
 
     # Set process execution plot-stack sizes
     try:
@@ -1534,11 +1527,13 @@ if __name__ == '__main__':
         AXIS_FONTSIZE = 14
         BASE_FONTSIZE = 13
 
-    data, plot_titles = get_data_dictionaries(options.json_files[0],
-                            options.benchmarks, options.wallclock,
-                            options.outliers, options.unique_outliers,
-                            options.changepoints or options.changepoint_means,
-                            options.instr_dir)
+    data, window_size, plot_titles = get_data_dictionaries(options.json_files[0],
+                                        options.benchmarks, options.wallclock,
+                                        options.outliers, options.unique_outliers,
+                                        options.changepoints or options.changepoint_means,
+                                        options.instr_dir)
+    if window_size:
+        print('Data generated with window size: %d.' % window_size)
 
     # Find the number of in-proc iterations in a non-crashed pexec
     # Assumes we use the same number of in-proc iterations for all pexecs.
@@ -1557,16 +1552,16 @@ if __name__ == '__main__':
     except StopIteration:
         pass  # good, we found some non-crash data
 
-    if options. window_size >= iter_lens:
+    if window_size and window_size >= iter_lens:
         fatal_error('Window size (%d) must be strictly less than the number '
                     'of iterations in each process execution (%d). Use '
                     '-w or --window on the command line.' %
-                    (options.window_size, iter_lens))
+                    (window_size, iter_lens))
 
     main(options.outfile is None,
          data,
          plot_titles,
-         options.window_size,
+         window_size,
          options.outfile,
          options.xlimits,
          options.outliers,
