@@ -105,7 +105,6 @@ GRID_MAJOR_Y_DIVS_SMALLER_PLOTS = 2
 LINE_COLOUR = '0.6'
 LABEL_COLOUR = 'k'
 STEADY_COLOUR = 'k'
-MEDIAN_COLOUR = '#0072B2'
 FILL_ALPHA = 0.2
 
 # line widths, measured in pts
@@ -130,8 +129,6 @@ CHANGEPOINT_LINE_WIDTH = 0.8
 
 ZORDER_GRID = 1
 ZORDER_DATA = 5
-ZORDER_FILL_REGION = 7
-ZORDER_MEDIAN = 8
 ZORDER_CHANGEPOINTS = 10
 ZORDER_MARKERS = 20
 ZORDER_INSET_BACKGROUND = 30
@@ -200,7 +197,7 @@ def get_instr_data(key, machine, instr_dir, pexec_idxs):
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, changepoints, changepoint_means,
-         median=False, tukey=False, inset=False, zoom=True, one_page=False,
+         inset=False, zoom=True, one_page=False,
          legend_off=True, core_cycles=(0,1,2,3), cycles_ylimits=None,
          inset_xlimits=None):
     """Determine which plots to put on each page of output.
@@ -358,7 +355,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                          unique, common, changepoints,
                                          changepoint_means, changepoint_vars,
                                          classifications, classifier,
-                                         median, tukey, inset, zoom, legend_off,
+                                         inset, zoom, legend_off,
                                          core_cycles, cycles_ylimits, inset_xlimits)
             if fig is not None:
                 if not is_interactive:
@@ -380,7 +377,7 @@ class ProcessExecChart(object):
     def __init__(self, grid_cell, data, cycles_data, instr_data, instr_y_ranges,
                  title, x_bounds, y_range, y_range_zoom, window_size, outliers,
                  unique, common, changepoints, changepoint_means, changepoint_vars,
-                 classification, classifier, median, tukey, core_cycles,
+                 classification, classifier, core_cycles,
                  cycles_ylimits, inset_xbounds):
         self.grid_cell = grid_cell
         self.title = title
@@ -441,8 +438,6 @@ class ProcessExecChart(object):
                 self.segment_means.append([(self.changepoints[-1], self.changepoint_means[-1]),
                              (self.x_bounds[1], self.changepoint_means[-1])])
             assert len(self.segment_means) == len(self.changepoint_means)
-        self.median = median
-        self.tukey = tukey
         self.core_cycles = core_cycles
         self.cycles_ylimits = cycles_ylimits
         self.instr_y_ranges = instr_y_ranges
@@ -464,26 +459,6 @@ class ProcessExecChart(object):
         self.instr_data = list()
         if instr_data:
             self.instr_data = instr_data
-        # Generate medians and Tukey interval, if necessary.
-        self.medians = None
-        self.tukey_interval = (None, None)
-        if self.median or self.tukey:
-            self.medians = list()
-            self.tukey_interval = (list(), list())
-            for index, datum in enumerate(self.wallclock_data[self.x_bounds[0]:self.x_bounds[1]]):
-                window = get_window(index + self.x_bounds[0], self.window_size, data)
-                if not window:
-                    self.medians.append(numpy.nan)
-                else:
-                    self.medians.append(numpy.median(window))
-                if self.tukey and not window:
-                    self.tukey_interval[0].append(numpy.nan)
-                    self.tukey_interval[1].append(numpy.nan)
-                elif self.tukey and window:
-                    band = (3 * (numpy.percentile(window, 90.0) -
-                                 numpy.percentile(window, 10.0)))
-                    self.tukey_interval[0].append(self.medians[index] - band)
-                    self.tukey_interval[1].append(self.medians[index] + band)
         # Shared information for grid styles. We treat the x-ticks as a special
         # case, we want the xticklabels to be a closed interval, e.g. if the
         # indices of self.wallclock_times runs from 0-99, we want the xticklabels
@@ -586,10 +561,6 @@ class ProcessExecChart(object):
         self._plot_changepoints(self.wallclock_axis, large_markers=True)
         self._plot_outliers(self.wallclock_axis, large_markers=True)
         self._plot_steady_equivalent(self.wallclock_axis)
-        if self.median:  # Plot the median.
-            self.plot_median(self.wallclock_axis)
-        if self.tukey:  # Fill between the Tukey band.
-            self.plot_tukey_interval(self.wallclock_axis)
         self.style_axis(self.wallclock_axis, self.y_range, 'In-process iteration',
                         'Time (secs)', smaller_plot=False)
         # Add all items to page legend.
@@ -599,15 +570,6 @@ class ProcessExecChart(object):
         # Plot title goes above the top subplot (only once).
         if not self.cycles_data and not self.instr_data and self.y_range_zoom[0] == None:
             self.wallclock_axis.set_title(self.title, fontsize=TITLE_FONT_SIZE)
-
-    def plot_median(self, axis):
-        axis.plot(self.iterations, self.medians, label='Median', zorder=ZORDER_MEDIAN,
-                  linewidth=LINE_WIDTH, color=MEDIAN_COLOUR)
-
-    def plot_tukey_interval(self, axis):
-        axis.fill_between(self.iterations, self.tukey_interval[0], self.tukey_interval[1],
-                          alpha=FILL_ALPHA, facecolor=LINE_COLOUR, edgecolor=LINE_COLOUR,
-                          zorder=ZORDER_FILL_REGION)
 
     def _plot_outliers(self, axis, large_markers=True):
         if large_markers:
@@ -861,7 +823,7 @@ def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means,
               changepoint_vars, classifications, classifier,
-              median, tukey, inset=False, zoom=True, legend_off=True,
+              inset=False, zoom=True, legend_off=True,
               core_cycles=(0,1,2,3), cycles_ylimits=None, inset_xlimits=None):
     """Plot a page of benchmarks.
     """
@@ -981,8 +943,8 @@ def draw_page(is_interactive, executions, cycles_executions,
                  instr_data, instr_y_ranges, titles[index], x_bounds, [y_min, y_max],
                  y_range_zoom[index], window_size, outliers_exec, unique_exec,
                  common_exec, changepoint_exec, changepoint_mean_exec,
-                 changepoint_var_exec, classification_exec, classifier, median,
-                 tukey, core_cycles, cycles_ylimits, inset_x_bounds))
+                 changepoint_var_exec, classification_exec, classifier,
+                 core_cycles, cycles_ylimits, inset_x_bounds))
         p_exec_charts[index].plot_stack()
         col += 1
         if col == MAX_SUBPLOTS_PER_ROW:
@@ -996,11 +958,6 @@ def draw_page(is_interactive, executions, cycles_executions,
     if inset and ((x_bounds[1] - x_bounds[0]) / 100.0) * 2.5 > 1:
         for chart in p_exec_charts:
             chart.plot_inset(chart.wallclock_axis, fig)
-    if tukey:  # Add Tukey band to legend.
-        fill_patch = matplotlib.patches.Patch(color=LINE_COLOUR,
-                                              alpha=FILL_ALPHA)
-        p_exec_charts[0].handles_labels[0].append(fill_patch)
-        p_exec_charts[0].handles_labels[1].append('$\pm3(90^\mathrm{th}-10^\mathrm{th} \mathrm{percentile})$')
     # One legend per page.
     if not legend_off:
         fig.legend(p_exec_charts[0].handles_labels[0], p_exec_charts[0].handles_labels[1],
@@ -1330,7 +1287,7 @@ def create_cli_parser():
     script = os.path.basename(__file__)
     description = (('Plot data from Krun results file(s).'
                     '\n\nExample usage:\n\t$ python %s results1.json.bz2\n'
-                    '\t$ python %s -i --window 250 --median --tukey '
+                    '\t$ python %s -i --window 250 '
                     '--with-outliers results1.json.bz2 results2.json.bz2\n'
                     '\t$ python %s -b binarytrees:Hotspot:default-java'
                     ' results.json.bz2\n') %
@@ -1385,18 +1342,6 @@ def create_cli_parser():
                         type=int,
                         help='Size of the sliding window used to draw a '
                              'rolling median and/or Tukey interval.')
-    parser.add_argument('--median', '-m',
-                        action='store_true',
-                        dest='median',
-                        default=False,
-                        help='Draw a rolling median.')
-    parser.add_argument('--tukey', '-t',
-                        action='store_true',
-                        dest='tukey',
-                        default=False,
-                        help=('Draw an interval around the rolling median '
-                              'which indicates the limits of "valid" data '
-                              'points (i.e. data not identified as outliers).'))
     parser.add_argument('--xlimits', '-x',
                         action='store',
                         dest='xlimits',
@@ -1628,8 +1573,6 @@ if __name__ == '__main__':
          options.unique_outliers,
          options.changepoints,
          options.changepoint_means,
-         median=options.median,
-         tukey=options.tukey,
          inset=not options.inset,
          zoom=not options.zoom,
          one_page=options.one_page,
