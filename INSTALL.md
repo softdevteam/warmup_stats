@@ -15,6 +15,7 @@
   * R (version 3.3.1 or later)
   * readline (including header files)
   * wget
+  * lsb-release (needed on Ubuntu systems)
 
 ## Optional requirements
 
@@ -34,8 +35,8 @@ Debian-based systems:
 $ sudo apt-get install build-essential python2.7 pypy bzip2 libssl-dev \
        pkg-config libcurl4-openssl-dev python-numpy python-matplotlib \
        python-pip texlive-latex-extra wget python2.7-dev libreadline-dev \
-       libbz2-dev liblzma-dev libpcre3-dev gfortran r-base
-$ ./build_stats.sh
+       libbz2-dev liblzma-dev libpcre3-dev gfortran r-base lsb-release
+$ ./build.sh
 ```
 
 ## Setting up R
