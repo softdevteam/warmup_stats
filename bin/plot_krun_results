@@ -196,7 +196,7 @@ def get_instr_data(key, machine, instr_dir, pexec_idxs):
 
 
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
-         xlimits, with_outliers, unique_outliers, changepoints, changepoint_means,
+         xlimits, with_outliers, unique_outliers, changepoint_means,
          inset=False, zoom=True, one_page=False,
          legend_off=True, core_cycles=(0,1,2,3), cycles_ylimits=None,
          inset_xlimits=None):
@@ -253,11 +253,6 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                     else:
                         page_common.append(None)
                         page_unique.append(None)
-                    if changepoints:
-                        page_changepoints.append(data_dcts['changepoints'][key][machine][index])
-                        page_changepoint_means.append(None)
-                        page_changepoint_vars.append(None)
-                        page_classifications.append(data_dcts['classifications'][key][machine][index])
                     if changepoint_means:
                         page_changepoints.append(data_dcts['changepoints'][key][machine][index])
                         page_changepoint_means.append(data_dcts['changepoint_means'][key][machine][index])
@@ -296,12 +291,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                 else:
                     all_common.append(None)
                     all_unique.append(None)
-                if changepoints:
-                    all_changepoints.append(data_dcts['changepoints'][key][machine])
-                    all_changepoint_means.append(None)
-                    all_changepoint_vars.append(None)
-                    all_classifications.append(data_dcts['classifications'][key][machine])
-                elif changepoint_means:
+                if changepoint_means:
                     all_changepoints.append(data_dcts['changepoints'][key][machine])
                     all_changepoint_means.append(data_dcts['changepoint_means'][key][machine])
                     all_changepoint_vars.append(data_dcts['changepoint_vars'][key][machine])
@@ -558,7 +548,7 @@ class ProcessExecChart(object):
         self.wallclock_axis.plot(self.iterations, self.wallclock_data, label='Measurement',
                         color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=LINE_WIDTH)
         self.wallclock_axis.autoscale(enable=False, axis='both')
-        self._plot_changepoints(self.wallclock_axis, large_markers=True)
+        self._plot_changepoints(self.wallclock_axis)
         self._plot_outliers(self.wallclock_axis, large_markers=True)
         self._plot_steady_equivalent(self.wallclock_axis)
         self.style_axis(self.wallclock_axis, self.y_range, 'In-process iteration',
@@ -645,11 +635,7 @@ class ProcessExecChart(object):
                       self.wallclock_data[self.last_changepoint - self.x_bounds[0]:],
                       color=STEADY_COLOUR, zorder=ZORDER_DATA + 1, linewidth=LINE_WIDTH)
 
-    def _plot_changepoints(self, axis, large_markers=True):
-        if large_markers:
-            size = OUTLIER_SIZE
-        else:
-            size = ZOOM_OUTLIER_SIZE
+    def _plot_changepoints(self, axis):
         if self.changepoint_means:
             for index, x_location in enumerate(self.changepoints):
                 axis.axvline(x_location, linestyle=CHANGEPOINT_LINE_STYLE,
@@ -660,10 +646,6 @@ class ProcessExecChart(object):
                                    linewidths=[CHANGEPOINT_LINE_WIDTH
                                    for _ in xrange(len(self.segment_means))])
             axis.add_collection(lines)
-        if self.changepoints and not self.changepoint_means:
-            axis.scatter(self.changepoints, [self.y_range[0] for _ in self.changepoints],
-                              c=LINE_COLOUR, marker=OUTLIER_MARKER, s=size,
-                              zorder=ZORDER_CHANGEPOINTS)
 
     def plot_cycles_data(self):
         """Add core cycles data on another set of charts."""
@@ -718,7 +700,7 @@ class ProcessExecChart(object):
                               color=LINE_COLOUR, zorder=ZORDER_DATA, linewidth=LINE_WIDTH)
         self.style_axis(self.zoomed_axis, self.y_range_zoom, None, 'Time (secs)')
         add_margin_to_axes(self.zoomed_axis, x=0.0, y=ZOOM_EXTRA_Y_LIM_PADDING)
-        self._plot_changepoints(self.zoomed_axis, large_markers=False)
+        self._plot_changepoints(self.zoomed_axis)
         self._plot_outliers(self.zoomed_axis, large_markers=False)
         # Plot title goes above the top subplot (only once).
         if not self.cycles_data and not self.instr_data:
@@ -802,7 +784,7 @@ class ProcessExecChart(object):
                                color=STEADY_COLOUR, linewidth=LINE_WIDTH, zorder=ZORDER_DATA)
             inset.set_xlim(inset_xlimit[0], inset_xlimit[1], auto=False)
             self._plot_outliers(inset, large_markers=False)
-            self._plot_changepoints(inset, large_markers=False)
+            self._plot_changepoints(inset)
 
             # Scale the y-axis to only the data the inset shows.
             y_min, y_max = get_unified_yrange([self.wallclock_data], start,
@@ -1378,18 +1360,12 @@ def create_cli_parser():
                              'executions differently. Only use this if '
                              'your Krun results file contains outlier '
                              'information.')
-    parser.add_argument('--with-changepoint-means',
+    parser.add_argument('--with-changepoints',
                         action='store_true',
                         dest='changepoint_means',
                         default=False,
                         help='Annotate changepoints and their means as vertical '
                              'and horizontal lines. Only use this if your Krun '
-                             'results file contains changepoint information.')
-    parser.add_argument('--with-changepoints',
-                        action='store_true',
-                        dest='changepoints',
-                        default=False,
-                        help='Annotate changepoints. Only use this if your Krun '
                              'results file contains changepoint information.')
     parser.add_argument('--no-legend',
                         action='store_true',
@@ -1530,7 +1506,7 @@ if __name__ == '__main__':
     data, window_size, plot_titles = get_data_dictionaries(options.json_files[0],
                                         options.benchmarks, options.wallclock,
                                         options.outliers, options.unique_outliers,
-                                        options.changepoints or options.changepoint_means,
+                                        options.changepoint_means,
                                         options.instr_dir)
     if window_size:
         print('Data generated with window size: %d.' % window_size)
@@ -1566,7 +1542,6 @@ if __name__ == '__main__':
          options.xlimits,
          options.outliers,
          options.unique_outliers,
-         options.changepoints,
          options.changepoint_means,
          inset=not options.inset,
          zoom=not options.zoom,
