@@ -163,7 +163,6 @@ TICK_FONTSIZE = 8
 TITLE_FONT_SIZE = 10
 AXIS_FONTSIZE = 8
 YAXIS_FONTSIZE = 8
-LEGEND_FONTSIZE = 10
 YTICK_FORMAT = '%.4f'
 
 MAX_SUBPLOTS_PER_ROW = 2
@@ -198,7 +197,7 @@ def get_instr_data(key, machine, instr_dir, pexec_idxs):
 def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
          xlimits, with_outliers, unique_outliers, changepoint_means,
          inset=False, zoom=True, one_page=False,
-         legend_off=True, core_cycles=(0,1,2,3), cycles_ylimits=None,
+         core_cycles=(0,1,2,3), cycles_ylimits=None,
          inset_xlimits=None):
     """Determine which plots to put on each page of output.
     Plot all data.
@@ -345,7 +344,7 @@ def main(is_interactive, data_dcts, plot_titles, window_size, outfile,
                                          unique, common, changepoints,
                                          changepoint_means, changepoint_vars,
                                          classifications, classifier,
-                                         inset, zoom, legend_off,
+                                         inset, zoom,
                                          core_cycles, cycles_ylimits, inset_xlimits)
             if fig is not None:
                 if not is_interactive:
@@ -475,8 +474,6 @@ class ProcessExecChart(object):
             heights.append(1)
             self.inner_grid = gridspec.GridSpecFromSubplotSpec(self.n_rows, 1,
                               self.grid_cell, height_ratios=heights, hspace=0.2)
-        # Collect handles and labels, so that we can draw one legend per page.
-        self.handles_labels = [list(), list()]
         # Scaffold axes.
         self.wallclock_axis = None
         self.cycles_axes = None
@@ -553,10 +550,6 @@ class ProcessExecChart(object):
         self._plot_steady_equivalent(self.wallclock_axis)
         self.style_axis(self.wallclock_axis, self.y_range, 'In-process iteration',
                         'Time (secs)', smaller_plot=False)
-        # Add all items to page legend.
-        handles, labels = self.wallclock_axis.get_legend_handles_labels()
-        self.handles_labels[0] += handles
-        self.handles_labels[1] += labels
         # Plot title goes above the top subplot (only once).
         if not self.cycles_data and not self.instr_data and self.y_range_zoom[0] == None:
             self.wallclock_axis.set_title(self.title, fontsize=TITLE_FONT_SIZE)
@@ -659,20 +652,13 @@ class ProcessExecChart(object):
             self.style_axis(self.cycles_axes[core], (self.cycles_min, self.cycles_max),
                             None, 'CC #%d' % self.core_cycles[core], color=CYCLES_COLOR)
             if core == 0:
-                # Add all items to page legend (only once).
-                handles, labels = self.cycles_axes[core].get_legend_handles_labels()
-                self.handles_labels[0] += handles
-                self.handles_labels[1].append('Normalised core cycles')
                 # Plot title goes above the top subplot (only once).
                 self.cycles_axes[core].set_title(self.title, fontsize=TITLE_FONT_SIZE)
             self.row += 1
 
     def plot_instr_data(self):
         """Add any VM instrumentation data on another set of charts."""
-        legend_texts = set()
         self.instr_axes = [None] * len(self.instr_data)
-        for index, idata in enumerate(self.instr_data):
-            legend_texts.add(idata.legend_text)
         for index, idata in enumerate(self.instr_data):
             self.instr_axes[index] = pyplot.subplot(self.inner_grid[self.row, 0],
                                                     sharex=self.wallclock_axis)
@@ -682,10 +668,6 @@ class ProcessExecChart(object):
             self.style_axis(self.instr_axes[index], self.instr_y_ranges[index],
                             None, wrap_ylabel(idata.title), color=INSTR_COLOR)
             if index == 0:
-                # Add all items to page legend (only once).
-                handles, labels = self.instr_axes[index].get_legend_handles_labels()
-                self.handles_labels[0] += handles
-                self.handles_labels[1].append(', '.join(legend_texts))
                 # Plot title goes above the top subplot (only once).
                 if not self.cycles_data:
                     self.instr_axes[index].set_title(self.title, fontsize=TITLE_FONT_SIZE)
@@ -805,7 +787,7 @@ def draw_page(is_interactive, executions, cycles_executions,
               instr_executions, titles, window_size, xlimits,
               outliers, unique, common, changepoints, changepoint_means,
               changepoint_vars, classifications, classifier,
-              inset=False, zoom=True, legend_off=True,
+              inset=False, zoom=True,
               core_cycles=(0,1,2,3), cycles_ylimits=None, inset_xlimits=None):
     """Plot a page of benchmarks.
     """
@@ -940,10 +922,6 @@ def draw_page(is_interactive, executions, cycles_executions,
     if inset and ((x_bounds[1] - x_bounds[0]) / 100.0) * 2.5 > 1:
         for chart in p_exec_charts:
             chart.plot_inset(chart.wallclock_axis, fig)
-    # One legend per page.
-    if not legend_off:
-        fig.legend(p_exec_charts[0].handles_labels[0], p_exec_charts[0].handles_labels[1],
-                   loc='upper center', fontsize=LEGEND_FONTSIZE, ncol=10, borderaxespad=0)
     if is_interactive:
         mng = pyplot.get_current_fig_manager()
         mng.resize(*mng.window.maxsize())
@@ -1367,11 +1345,6 @@ def create_cli_parser():
                         help='Annotate changepoints and their means as vertical '
                              'and horizontal lines. Only use this if your Krun '
                              'results file contains changepoint information.')
-    parser.add_argument('--no-legend',
-                        action='store_true',
-                        dest='legend_off',
-                        default=True,
-                        help='Do not draw a legend.')
     parser.add_argument('--export-size',
                         action='store',
                         default='12, 10',
@@ -1546,7 +1519,6 @@ if __name__ == '__main__':
          inset=not options.inset,
          zoom=not options.zoom,
          one_page=options.one_page,
-         legend_off=options.legend_off,
          core_cycles=core_cycles,
          cycles_ylimits=cycles_ylimits,
          inset_xlimits=options.inset_xlimits)
