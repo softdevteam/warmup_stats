@@ -100,6 +100,22 @@ HTML_TABLE_TEMPLATE = """<h2>Results for %s</h2>
 """  # VM name, table rows.
 
 
+HTML_DIFF_TABLE_TEMPLATE = """<h2>Results for %s</h2>
+<table>
+<tr>
+<th>Benchmark</th>
+<th>Classification</th>
+<th>Steady iteration (&#35;)</th>
+<th>Steady iteration variation</th>
+<th>Steady iteration (secs)</th>
+<th>Steady performance (secs)</th>
+<th>Steady performance variation</th>
+</tr>
+%s
+</table>
+"""  # VM name, table rows.
+
+
 HTML_PAGE_TEMPLATE = """<html>
 <head>
 <title>Benchmark results</title>
