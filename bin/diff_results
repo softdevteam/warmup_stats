@@ -143,7 +143,15 @@ def does_interval_narrow((x1, y1), (x2, y2)):
     """Return True if the second interval is narrower than the first."""
 
     assert y1 >= x1 and y2 >= x2
-    ratio = float(y2 - x2) / float(y1 - x1)
+    # Sometimes there is no variation in a dataset (more likely for steady iter
+    # than steady perf, for obvious reasons). So, we check for special cases,
+    # rather than causing a divide by zero.
+    diff1, diff2 = y1 - x1, y2 - x2
+    if diff1 == 0 and diff2 == 0:
+        return SAME
+    if diff1 == 0 and diff2 > 0:
+        return WORSE
+    ratio = float(diff2) / float(diff1)
     if ratio == 1.0:
         return SAME
     elif ratio < 1.0:
@@ -170,12 +178,7 @@ def does_ci_narrow(mean1, ci1, mean2, ci2):
     y1 = mean1 + ci1
     x2 = mean2 - ci2
     y2 = mean2 + ci2
-    ratio = float(y2 - x2) / float(y1 - x1)
-    if ratio == 1.0:
-        return SAME
-    elif ratio < 1.0:
-        return BETTER
-    return WORSE
+    return does_interval_narrow((x1, y1), (x2, y2))
 
 
 def all_flat(classifications):
