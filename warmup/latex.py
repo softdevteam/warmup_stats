@@ -318,20 +318,32 @@ def _histogram(data):
     return '\n'.join(sparkline)
 
 
-def format_median_error(median, error, data, one_dp=False, two_dp=False, change=None):
-    if one_dp:
-        median_s = '%.1f' % median
+def format_median_error(median, error, data, one_dp=False, two_dp=False, change=None, was=None):
+    if was:  # median should be None, used for steady iter variance.
         error_s = '(%.1f, %.1f)' % (error[0], error[1])
-    elif two_dp:
-        median_s = '%.2f' % median
-        error_s = '(%.3f, %.3f)' % (error[0], error[1])
+        change_s = 'was: (%.1f, %.1f)' % (was[0], was[1])
     else:
-        assert False
+        if one_dp:
+            median_s = '%.1f' % median
+            error_s = '(%.1f, %.1f)' % (error[0], error[1])
+        elif two_dp:
+            median_s = '%.2f' % median
+            error_s = '(%.3f, %.3f)' % (error[0], error[1])
+        else:
+            assert False
     if change and one_dp:
         change_s = '%+.1f' % change
     elif change and two_dp:
         change_s = '%+.3f' % change
-    if change:
+    if was:
+        tex = """$
+\\begin{array}{c}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{%s} \\\\[-6pt]
+\\end{array}
+$
+"""  % (error_s, change_s)
+    elif change:
         tex = """$
 \\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
@@ -356,7 +368,15 @@ $
 def format_median_ci(median, error, data, change=None):
     median_s = '%.5f' % median
     error_s = '%.6f' % error
-    if change:
+    if change and not data:
+        tex = """$
+\\begin{array}{c}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{\\pm%+.5f}
+\\end{array}
+$
+"""  % (median_s, change)
+    elif change:
         tex = """$
 \\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
