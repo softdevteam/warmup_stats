@@ -393,12 +393,14 @@ def diff(before_file, after_file, summary_filename):
     return summary
 
 
-def colour_tex_cell(result, text, legend=False):
+def colour_tex_cell(result, text, large=False, legend=False):
     """Colour a table cell containing `text` according to `result`."""
 
     assert result in (None, SAME, DIFFERENT, BETTER, WORSE)
     if legend:
         cmd = 'legendcell'
+    elif large:
+        cmd = 'largeccell'
     else:
         cmd = 'ccell'
     if not text or result is None or result == SAME:
@@ -474,7 +476,8 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                         if vm in diff and bench in diff[vm]:
                             classification = colour_tex_cell(diff[vm][bench][CLASSIFICATIONS], this_summary['style'])
                             last_cpt = colour_tex_cell(diff[vm][bench][STEADY_ITER], this_summary['last_cpt'])
-                            steady_iter_var = colour_tex_cell(diff[vm][bench][STEADY_ITER_VAR], this_summary['steady_iter_var'])
+                            steady_iter_var = colour_tex_cell(diff[vm][bench][STEADY_ITER_VAR],
+                                                              this_summary['steady_iter_var'], large=True)
                             time_steady = colour_tex_cell(diff[vm][bench][STEADY_ITER], this_summary['time_to_steady_state'])
                             last_mean = colour_tex_cell(diff[vm][bench][STEADY_STATE_TIME], this_summary['last_mean'])
                             steady_time_var = colour_tex_cell(diff[vm][bench][STEADY_STATE_TIME_VAR], this_summary['steady_time_var'])
