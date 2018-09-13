@@ -110,11 +110,14 @@ CLASSIFIER = 'classifier'
 DIFF = 'diff'
 # LaTeX output.
 TITLE = 'Summary of benchmark classifications'
-TABLE_FORMAT = 'll@{\hspace{0cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}l@{\hspace{.3cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r'
+TABLE_FORMAT = ('ll@{\hspace{0cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}'
+                'l@{\hspace{.3cm}}ll@{\hspace{-1cm}}r@{\hspace{0cm}}r@{\hspace{0cm}}rr@{\hspace{0cm}}r')
 TABLE_HEADINGS_START1 = '\\multicolumn{1}{c}{\\multirow{2}{*}{}}&'
 TABLE_HEADINGS_START2 = '&'
-TABLE_HEADINGS1 = '&&\\multicolumn{1}{c}{} &\\multicolumn{1}{c}{Steady}&\\multicolumn{1}{c}{Steady}&\\multicolumn{1}{c}{Steady}'
-TABLE_HEADINGS2 = '&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)} &\\multicolumn{1}{c}{iter (s)}&\\multicolumn{1}{c}{perf (s)}'
+TABLE_HEADINGS1 = ('&&\\multicolumn{1}{c}{} &\\multicolumn{1}{c}{Steady} &\\multicolumn{1}{c}{Steady iter.} '
+                   '&\\multicolumn{1}{c}{Steady} &\\multicolumn{1}{c}{Steady} &\\multicolumn{1}{c}{Steady perf.}')
+TABLE_HEADINGS2 = ('&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)} &\\multicolumn{1}{c}{variation} '
+                   '&\\multicolumn{1}{c}{iter (s)} &\\multicolumn{1}{c}{perf (s)} &\\multicolumn{1}{c}{variation}')
 
 JSON_VERSION_NUMBER = '2'
 
@@ -390,12 +393,14 @@ def diff(before_file, after_file, summary_filename):
     return summary
 
 
-def colour_tex_cell(result, text, legend=False):
+def colour_tex_cell(result, text, large=False, legend=False):
     """Colour a table cell containing `text` according to `result`."""
 
     assert result in (None, SAME, DIFFERENT, BETTER, WORSE)
     if legend:
         cmd = 'legendcell'
+    elif large:
+        cmd = 'largeccell'
     else:
         cmd = 'ccell'
     if not text or result is None or result == SAME:
@@ -471,13 +476,18 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                         if vm in diff and bench in diff[vm]:
                             classification = colour_tex_cell(diff[vm][bench][CLASSIFICATIONS], this_summary['style'])
                             last_cpt = colour_tex_cell(diff[vm][bench][STEADY_ITER], this_summary['last_cpt'])
+                            steady_iter_var = colour_tex_cell(diff[vm][bench][STEADY_ITER_VAR],
+                                                              this_summary['steady_iter_var'], large=True)
                             time_steady = colour_tex_cell(diff[vm][bench][STEADY_ITER], this_summary['time_to_steady_state'])
                             last_mean = colour_tex_cell(diff[vm][bench][STEADY_STATE_TIME], this_summary['last_mean'])
+                            steady_time_var = colour_tex_cell(diff[vm][bench][STEADY_STATE_TIME_VAR], this_summary['steady_time_var'])
                         else:
                             classification = this_summary['style']
                             last_cpt = this_summary['last_cpt']
+                            steady_iter_var = this_summary['steady_iter_var']
                             time_steady = this_summary['time_to_steady_state']
                             last_mean = this_summary['last_mean']
+                            steady_time_var = this_summary['steady_time_var']
                         classification = '\\multicolumn{1}{l}{%s}' % classification
                         if classification == STYLE_SYMBOLS['flat']:
                             last_cpt = BLANK_CELL
@@ -501,7 +511,7 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                     else:
                         vm_cell = ''
                     row_add = [BLANK_CELL, vm_cell, classification, last_cpt,
-                               time_steady, last_mean]
+                               steady_iter_var, time_steady, last_mean, steady_time_var]
                     if not row:  # First bench in this row, needs the vm column.
                         if vm in diff and bench in diff[vm]:
                             bname = colour_tex_cell(diff[vm][bench][INTERSECTION], bench)

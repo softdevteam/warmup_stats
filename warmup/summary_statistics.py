@@ -262,6 +262,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
         for bmark_name in summary_data['machines'][machine][vm]:
             bmark = summary_data['machines'][machine][vm][bmark_name]
             benchmark_names.add(bmark_name)
+            steady_iter_var, steady_time_var = '', ''
             if bmark['classification'] == 'bad inconsistent':
                 reported_category = STYLE_SYMBOLS['bad inconsistent']
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),
@@ -301,6 +302,13 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                                        bmark['steady_state_iteration_list'],
                                                        one_dp=True,
                                                        change=change)
+                if diff[vm][bmark_name][STEADY_ITER_VAR] and diff[vm][bmark_name][STEADY_ITER_VAR] != 'SAME':
+                    was = previous['machines'][machine][vm][bmark_name]['steady_state_iteration_iqr']
+                    steady_iter_var = format_median_error(None,
+                                                          bmark['steady_state_iteration_iqr'],
+                                                          bmark['steady_state_iteration_list'],
+                                                          one_dp=True,
+                                                          was=was)
             else:
                 mean_steady_iter = ''
             if bmark['steady_state_time'] is not None:
@@ -313,6 +321,12 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                                bmark['steady_state_time_ci'],
                                                bmark['steady_state_time_list'],
                                                change=change)
+            if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME_VAR] is not None:
+                change = abs(bmark['steady_state_time_ci'] - previous['machines'][machine][vm][bmark_name]['steady_state_time_ci'])
+                steady_time_var = format_median_ci(bmark['steady_state_time_ci'],
+                                                   bmark['steady_state_time_ci'],
+                                                   None,
+                                                   change=change)
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
@@ -330,7 +344,9 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                 time_to_steady = ''
             latex_summary[vm][bmark_name] = {'style': reported_category,
                 'last_cpt': mean_steady_iter, 'last_mean': mean_steady,
-                'time_to_steady_state':time_to_steady}
+                'time_to_steady_state': time_to_steady,
+                'steady_iter_var': steady_iter_var,
+                'steady_time_var': steady_time_var}
     return machine, list(sorted(benchmark_names)), latex_summary
 
 

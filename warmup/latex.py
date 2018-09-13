@@ -159,6 +159,8 @@ $\\begin{array}{rr}
 
 %
 % Coloured table cells.
+% We don't use colortbl or [table]xcolor because it causes a compiler error
+% on our table headers.
 % https://tex.stackexchange.com/questions/360461/get-a-transparent-nestable-wrappable-background
 %
 \\makeatletter
@@ -171,8 +173,22 @@ $\\begin{array}{rr}
            colback=#2!85!white]{#3}
 }
 \\makeatother
+
+\\makeatletter
+\\protected\\def\\largeccell#1#{%
+  \\@largeccell{#1}%
+}
+\\def\\@largeccell#1#2#3{%
+   \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=2mm,%
+           boxsep=0pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
+           colback=#2!85!white]{#3}
+}
+\\makeatother
+
 %
 % Coloured cells for legends (do not force a newline after the box).
+% We don't use colortbl or [table]xcolor because it causes a compiler error
+% on our table headers.
 %
 \\makeatletter
 \\protected\\def\\legendcell#1#{%
@@ -318,20 +334,32 @@ def _histogram(data):
     return '\n'.join(sparkline)
 
 
-def format_median_error(median, error, data, one_dp=False, two_dp=False, change=None):
-    if one_dp:
-        median_s = '%.1f' % median
+def format_median_error(median, error, data, one_dp=False, two_dp=False, change=None, was=None):
+    if was:  # median should be None, used for steady iter variance.
         error_s = '(%.1f, %.1f)' % (error[0], error[1])
-    elif two_dp:
-        median_s = '%.2f' % median
-        error_s = '(%.3f, %.3f)' % (error[0], error[1])
+        change_s = 'was: (%.1f, %.1f)' % (was[0], was[1])
     else:
-        assert False
+        if one_dp:
+            median_s = '%.1f' % median
+            error_s = '(%.1f, %.1f)' % (error[0], error[1])
+        elif two_dp:
+            median_s = '%.2f' % median
+            error_s = '(%.3f, %.3f)' % (error[0], error[1])
+        else:
+            assert False
     if change and one_dp:
         change_s = '%+.1f' % change
     elif change and two_dp:
         change_s = '%+.3f' % change
-    if change:
+    if was:
+        tex = """$
+\\begin{array}{c}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{%s} \\\\[-6pt]
+\\end{array}
+$
+"""  % (error_s, change_s)
+    elif change:
         tex = """$
 \\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
@@ -356,7 +384,15 @@ $
 def format_median_ci(median, error, data, change=None):
     median_s = '%.5f' % median
     error_s = '%.6f' % error
-    if change:
+    if change and not data:
+        tex = """$
+\\begin{array}{c}
+\\scriptstyle{%s} \\\\[-6pt]
+\\scriptscriptstyle{\\pm%+.5f}
+\\end{array}
+$
+"""  % (median_s, change)
+    elif change:
         tex = """$
 \\begin{array}{c}
 \\scriptstyle{%s} \\\\[-6pt]
