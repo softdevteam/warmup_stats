@@ -197,6 +197,8 @@ def get_unified_yrange(executions, xlimits_start, xlimits_stop, padding=0.02):
     range_ = y_max - y_min
     adj = range_ * padding
     y_min -= adj
+    if y_min < 0:
+        y_min = 0
     y_max += adj
     return y_min, y_max
 

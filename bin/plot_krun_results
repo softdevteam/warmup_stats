@@ -443,6 +443,8 @@ class ProcessExecChart(object):
                 for core in self.core_cycles:
                     self.cycles_min = min(min(cycles_data[core][x_bounds[0]:x_bounds[1]]), self.cycles_min)
                     self.cycles_max = max(max(cycles_data[core][x_bounds[0]:x_bounds[1]]), self.cycles_max)
+            if self.cycles_min < 0.0:
+                self.cycles_min = 0.0
             for core in self.core_cycles:  # For each core specified on command line.
                 self.cycles_data.append(numpy.array(cycles_data[core][x_bounds[0]:x_bounds[1]]))
         self.instr_data = list()
