@@ -302,7 +302,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                                        bmark['steady_state_iteration_list'],
                                                        one_dp=True,
                                                        change=change)
-                if diff[vm][bmark_name][STEADY_ITER_VAR] and diff[vm][bmark_name][STEADY_ITER_VAR] != 'SAME':
+                if diff and diff[vm][bmark_name][STEADY_ITER_VAR] and diff[vm][bmark_name][STEADY_ITER_VAR] != 'SAME':
                     was = previous['machines'][machine][vm][bmark_name]['steady_state_iteration_iqr']
                     steady_iter_var = format_median_error(None,
                                                           bmark['steady_state_iteration_iqr'],
