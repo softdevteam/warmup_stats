@@ -66,12 +66,14 @@ __MACROS = """
 %
 % blankheight.
 %
+\\AtBeginDocument{
 \\newlength{\\blankheight}
 \\settototalheight{\\blankheight}{
 $\\begin{array}{rr}
 \\scriptstyle{0.16} \\\\[-6pt]
 \\scriptscriptstyle{\\pm0.000}
 \\end{array}$
+}
 }
 
 
@@ -158,50 +160,6 @@ $\\begin{array}{rr}
 \\end{sparkline}\\xspace}
 
 %
-% Coloured table cells.
-% We don't use colortbl or [table]xcolor because it causes a compiler error
-% on our table headers.
-% https://tex.stackexchange.com/questions/360461/get-a-transparent-nestable-wrappable-background
-%
-\\makeatletter
-\\protected\\def\\ccell#1#{%
-  \\@ccell{#1}%
-}
-\\def\\@ccell#1#2#3{%
-   \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=0mm,%
-           boxsep=0pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
-           colback=#2!85!white]{#3}
-}
-\\makeatother
-
-\\makeatletter
-\\protected\\def\\largeccell#1#{%
-  \\@largeccell{#1}%
-}
-\\def\\@largeccell#1#2#3{%
-   \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=2mm,%
-           boxsep=0pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
-           colback=#2!85!white]{#3}
-}
-\\makeatother
-
-%
-% Coloured cells for legends (do not force a newline after the box).
-% We don't use colortbl or [table]xcolor because it causes a compiler error
-% on our table headers.
-%
-\\makeatletter
-\\protected\\def\\legendcell#1#{%
-  \\@legendcell{#1}%
-}
-\\def\\@legendcell#1#2#3{%
-   \\tcbox[tcbox raise base,left=0mm,right=0mm,top=0mm,bottom=0mm,%
-           boxsep=0pt,arc=0mm,boxrule=0pt,opacityfill=0.3,enhanced jigsaw,%
-           colback=#2!85!white,before=\\relax,after=\\relax]{#3}
-}
-\\makeatother
-
-%
 % Colours.
 %
 \\definecolor{lightred}{HTML}{e88a8a}
@@ -218,6 +176,7 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\usepackage{amssymb}
 \\usepackage{booktabs}
 \\usepackage{calc}
+\\usepackage{colortbl}
 \\usepackage[margin=1.0cm]{geometry}
 \\usepackage{longtable}
 \\usepackage{mathtools}
@@ -226,8 +185,6 @@ __LATEX_PREAMBLE = lambda title, doc_opts=DEFAULT_DOCOPTS: """
 \\usepackage{pdflscape}
 \\usepackage{rotating}
 \\usepackage{sparklines}
-\\usepackage{tcolorbox}
-\\tcbuselibrary{most}
 \\usepackage{xspace}
 
 

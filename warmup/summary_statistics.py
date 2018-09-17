@@ -321,12 +321,12 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                                bmark['steady_state_time_ci'],
                                                bmark['steady_state_time_list'],
                                                change=change)
-            if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME_VAR] is not None:
-                change = abs(bmark['steady_state_time_ci'] - previous['machines'][machine][vm][bmark_name]['steady_state_time_ci'])
-                steady_time_var = format_median_ci(bmark['steady_state_time_ci'],
-                                                   bmark['steady_state_time_ci'],
-                                                   None,
-                                                   change=change)
+                if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME_VAR] is not None:
+                    change = abs(bmark['steady_state_time_ci'] - previous['machines'][machine][vm][bmark_name]['steady_state_time_ci'])
+                    steady_time_var = format_median_ci(bmark['steady_state_time_ci'],
+                                                       bmark['steady_state_time_ci'],
+                                                       None,
+                                                       change=change)
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
