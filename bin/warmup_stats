@@ -158,6 +158,11 @@ def create_arg_parser():
     parser.add_argument('--instr-dir', dest='instr_dir', action='store', default='',
                         type=str, help=('Directory containing instrumentation data. '
                                         'Only useful when generating plots.'))
+    parser.add_argument('--diff-vms', action='append', nargs=2, dest='diff_vms', default=[],
+                         help='Compare one VM against another. \nRequires two '
+                              'VM names as arguments. By default, the\ndiffer '
+                              'will compare all benchmarks / VMs which appear\n'
+                              'in both input files.\nOnly makes sense with --output-diff.')
     # What output file format should be generated?
     format_group = parser.add_mutually_exclusive_group(required=False)
     format_group.add_argument('--html', dest='type_html', action='store_true', default=False,
@@ -359,6 +364,8 @@ def main(options):
         fatal('--output-table must be used with either --html or --tex.')
     if options.output_diff and not (options.type_latex or options.type_html):
         fatal('--output-diff must be used with either --html or --tex.')
+    if options.diff_vms and not options.output_diff:
+        fatal('--diff-vms must be used with --output-diff.')
     input_files = options.input_files[0]
     for filename in input_files:
         if filename.endswith('.csv'):
@@ -407,8 +414,13 @@ def main(options):
         info('Generating LaTeX diff table.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
         assert len(input_files) == 2
-        cli = [python_path, SCRIPT_DIFF_RESULTS, '--tex', options.output_diff,
-               '--input-results', ' '.join(input_files)]
+        if options.diff_vms:
+            cli = [python_path, SCRIPT_DIFF_RESULTS, '--tex', options.output_diff,
+                   '--input-results', ' '.join(input_files), '--vm',
+                   options.diff_vms[0][0], options.diff_vms[0][1]]
+        else:
+            cli = [python_path, SCRIPT_DIFF_RESULTS, '--tex', options.output_diff,
+                   '--input-results', ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
         output = subprocess.check_output(' '.join(cli), shell=True)
         for line in output.strip().split('\n'):
@@ -423,8 +435,13 @@ def main(options):
         info('Generating HTML diff table.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
         assert len(input_files) == 2
-        cli = [python_path, SCRIPT_DIFF_RESULTS, '--html', options.output_diff,
-               '--input-results', ' '.join(input_files)]
+        if options.diff_vms:
+            cli = [python_path, SCRIPT_DIFF_RESULTS, '--html', options.output_diff,
+                       '--input-results', ' '.join(input_files), '--vm',
+                       options.diff_vms[0][0], options.diff_vms[0][1]]
+        else:
+            cli = [python_path, SCRIPT_DIFF_RESULTS, '--html', options.output_diff,
+                   '--input-results', ' '.join(input_files)]
         debug('Running: %s' % ' '.join(cli))
         output = subprocess.check_output(' '.join(cli), shell=True)
         for line in output.strip().split('\n'):
