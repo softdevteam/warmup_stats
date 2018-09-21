@@ -68,6 +68,8 @@ SAME = 0  # Indices for nested lists.
 DIFFERENT = 1
 BETTER = 2
 WORSE = 3
+SKIPPED_BEFORE = 0
+SKIPPED_AFTER = 1
 
 
 def collect_summary_statistics(data_dictionaries, delta, steady_state):
@@ -260,6 +262,10 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
     for vm in summary_data['machines'][machine]:
         latex_summary[vm] = dict()
         for bmark_name in summary_data['machines'][machine][vm]:
+            # If a bmark appears in the summary data but was skipped in the
+            # 'previous' data, then we do not want it to appear in the diff.
+            if diff and bmark_name not in previous['machines'][machine][vm]:
+                continue
             bmark = summary_data['machines'][machine][vm][bmark_name]
             benchmark_names.add(bmark_name)
             steady_iter_var, steady_time_var = '', ''
@@ -474,7 +480,7 @@ def htmlify_histogram(nth):
     return '<div id="bar%d" class="histogram"></div>' % nth
 
 
-def write_html_table(summary_data, html_filename, diff=None, previous=None):
+def write_html_table(summary_data, html_filename, diff=None, skipped=None, previous=None):
     assert 'warmup_format_version' in summary_data and summary_data['warmup_format_version'] == JSON_VERSION_NUMBER, \
         'Cannot process data from old JSON formats.'
     machine = None
@@ -490,8 +496,32 @@ def write_html_table(summary_data, html_filename, diff=None, previous=None):
     histograms = ''  # Javascript.
     for vm in sorted(summary_data['machines'][machine]):
         html_rows = ''  # Just the table rows, no table header, etc.
-        for bmark_name in sorted(summary_data['machines'][machine][vm]):
+        skipped_before = [b for (b, v) in skipped[SKIPPED_BEFORE] if v == vm]
+        skipped_after = [b for (b, v) in skipped[SKIPPED_AFTER] if v == vm]
+        for bmark_name in sorted(summary_data['machines'][machine][vm].keys()):
             bmark = summary_data['machines'][machine][vm][bmark_name]
+            # If a bmark appears in the summary data but was skipped in the
+            # 'previous' data, then we do not want it to appear in the diff.
+            if diff and bmark_name not in previous['machines'][machine][vm]:
+                if bmark_name in skipped_before or bmark_name in skipped_after:
+                    if diff and vm in diff and bmark_name in diff[vm]:
+                        bmark_cell = colour_html_cell(diff[vm][bmark_name][INTERSECTION], bmark_name)
+                    else:
+                        bmark_cell = '<td>%s</td>' % bmark_name
+                    category_cell = '<td><em>Skipped</em></td>'
+                    blank_cell = '<td></td>'
+                    if diff:
+                        # Benchmark name, classification, steady iter, steady iter variation, time to reach,
+                        # steady perf, steady perf variation
+                        row = ('<tr>%s%s%s%s%s%s%s</tr>\n' %
+                               (bmark_cell, category_cell, blank_cell, blank_cell, blank_cell,
+                                blank_cell, blank_cell))
+                    else:
+                        # Benchmark name, classification, steady iter, time to reach, steady perf
+                        row = ('<tr>%s%s%s%s%s</tr>\n' %
+                               (bmark_cell, category_cell, blank_cell, blank_cell, blank_cell))
+                    html_rows += row
+                continue
             if bmark['classification'] == 'bad inconsistent':
                 reported_category = get_symbol('bad inconsistent')
                 cats_sorted = OrderedDict(sorted(bmark['detailed_classification'].items(),

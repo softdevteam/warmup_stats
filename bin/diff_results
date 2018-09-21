@@ -104,11 +104,14 @@ SAME = 0  # Indices for nested lists.
 DIFFERENT = 1
 BETTER = 2
 WORSE = 3
+SKIPPED_BEFORE = 0
+SKIPPED_AFTER = 1
 # Dictionary keys
 BEFORE = 'before'
 AFTER = 'after'
 CLASSIFIER = 'classifier'
 DIFF = 'diff'
+SKIPPED = 'skipped'
 # LaTeX output.
 TITLE = 'Summary of benchmark classifications'
 TABLE_FORMAT = ('ll@{\hspace{0cm}}ll@{\hspace{0cm}}r@{\hspace{.4cm}}r@{\hspace{.4cm}}r@{\hspace{.4cm}}r@{\hspace{.4cm}}'
@@ -233,7 +236,7 @@ def diff(before_file, after_file, summary_filename, diff_vms=[]):
     before_results = None
     # In the JSON dump, we need the diff, and  the original summaries of the
     # before / after results, so that they can be written into a LaTeX table.
-    summary = {DIFF: dict(), BEFORE: None, AFTER: None, CLASSIFIER: None}
+    summary = {DIFF: dict(), SKIPPED: [[], []], BEFORE: None, AFTER: None, CLASSIFIER: None}
     print('Loading %s.' % before_file)
     classifiers[BEFORE], before_results = parse_krun_file_with_changepoints([before_file])
     print('Loading %s.' % after_file)
@@ -295,11 +298,15 @@ def diff(before_file, after_file, summary_filename, diff_vms=[]):
                 summary[DIFF][vm] = dict()
             summary[DIFF][vm][bench] = [None, None, None, None, None, None]
     for key in after_results[machine]['classifications']:
-        if len(after_results[machine]['classifications'][key]) == 0:  # Skipped benchmark.
-            continue
-        if not key in before_results[machine]['classifications']:
-            continue
         bench, vm = key.split(':')[:-1]
+        # Deal with skipped benchmarks.
+        if (not key in before_results[machine]['classifications']
+            or len(before_results[machine]['classifications'][key]) == 0):
+            summary[SKIPPED][SKIPPED_BEFORE].append((bench, vm))
+            continue
+        elif len(after_results[machine]['classifications'][key]) == 0:
+            summary[SKIPPED][SKIPPED_AFTER].append((bench, vm))
+            continue
         # Classifications are available, whether or not summary statistics can be generated.
         trunc_cat = [summary[AFTER]['machines'][machine][vm][bench]['process_executons'][p]['classification'] \
                      for p in xrange(len(summary[AFTER]['machines'][machine][vm][bench]['process_executons']))]
@@ -459,7 +466,7 @@ def colour_tex_cell(result, text):
     return '\\cellcolor{%s!25}{%s}' % (colour, text)
 
 
-def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
+def write_latex_table(machine, all_benchs, summary, diff, skipped, tex_file, num_splits,
                       with_preamble=False, longtable=False, diff_vms=[]):
     """Write a tex table to disk"""
 
@@ -508,7 +515,9 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
         split_row_idx = 0
         for row_vms in zip(*splits):
             bench_idx = 0
-            for bench in sorted(all_benchs):
+            skipped_before = [b for (b, v) in skipped[SKIPPED_BEFORE] if v == row_vms[0]]
+            skipped_after = [b for (b, v) in skipped[SKIPPED_AFTER] if v == row_vms[0]]
+            for bench in sorted(all_benchs + skipped_before + skipped_after):
                 row = []
                 for vm in row_vms:
                     if vm is None:
@@ -516,10 +525,15 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
                     try:
                         this_summary = summary[vm][bench]
                     except KeyError:
+                        if bench in skipped_before or bench in skipped_after:
+                            classification = '\\emph{Skipped}'
+                        else:
+                            classification = ''
                         last_cpt = BLANK_CELL
                         time_steady = BLANK_CELL
                         last_mean = BLANK_CELL
-                        classification = ''
+                        steady_iter_var = BLANK_CELL
+                        steady_time_var = BLANK_CELL
                     else:
                         if vm in diff and bench in diff[vm]:
                             classification = colour_tex_cell(diff[vm][bench][CLASSIFICATIONS], this_summary['style'])
@@ -662,18 +676,20 @@ if __name__ == '__main__':
     classifier = diff_summary[CLASSIFIER]
     if options.html:
         print('Writing data to: %s' % options.html)
-        write_html_table(diff_summary[AFTER], options.html, diff=diff_summary[DIFF], previous=diff_summary[BEFORE])
+        write_html_table(diff_summary[AFTER], options.html, diff=diff_summary[DIFF],
+                         skipped=diff_summary[SKIPPED], previous=diff_summary[BEFORE])
     if options.tex:
         machine, bmarks, latex_summary = convert_to_latex(diff_summary[AFTER], classifier['delta'],
                                                           classifier['steady'], diff=diff_summary[DIFF],
                                                           previous=diff_summary[BEFORE])
         print('Writing data to: %s' % options.tex)
         if options.vm:
-            write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.tex,
-                              options.num_splits, with_preamble=(not options.without_preamble),
+            write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF],
+                              diff_summary[SKIPPED], options.tex, options.num_splits,
+                              with_preamble=(not options.without_preamble),
                               longtable=True, diff_vms=options.vm[0])
         else:
-            write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.tex,
-                              options.num_splits, with_preamble=(not options.without_preamble),
-                              longtable=True)
+            write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF],
+                              diff_summary[SKIPPED], options.tex, options.num_splits,
+                              with_preamble=(not options.without_preamble), longtable=True)
 
