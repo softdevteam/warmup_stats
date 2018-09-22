@@ -42,6 +42,7 @@ Plot a chart describing the effect of re-running an experiment with fewer iterat
 MUST be run after generate_truncated_json.
 """
 
+import collections
 import math
 import os
 import sys
@@ -207,7 +208,25 @@ def any_nss(classifications):
     return classifications['no steady state'] > 0
 
 
-def diff(before_file, after_file, summary_filename):
+def _rewrite_key(key, diff_vms):
+    """Rewrite a bench:vm:language key.
+    Takes as arguments one key, and a list of two VM names, that the user wants
+    to compare - ['VM1', 'VM2']. Rewrites the key from 'bench:vm:language' to
+    'bench:VM1 vs. VM2:language'.
+
+    By default, the differ compares all VMs that appear in one results file
+    against results from the same the same VM in a second file. When the user
+    wants to compare one VM against another, this renaming fools the differ
+    into thinking that the two different VMs are the same. We choose the name
+    'VM1 vs. VM2' since that is the text we wish to appear in the output tables.
+    """
+
+    split = key.split(':')
+    combined_vm = ' vs. '.join(diff_vms)
+    return ':'.join([split[0], combined_vm, split[2]])
+
+
+def diff(before_file, after_file, summary_filename, diff_vms=[]):
     """Diff results in before_file and after_file."""
 
     classifiers = dict()
@@ -217,20 +236,49 @@ def diff(before_file, after_file, summary_filename):
     summary = {DIFF: dict(), BEFORE: None, AFTER: None, CLASSIFIER: None}
     print('Loading %s.' % before_file)
     classifiers[BEFORE], before_results = parse_krun_file_with_changepoints([before_file])
-    summary[BEFORE] = collect_summary_statistics(before_results,
-                                                 classifiers[BEFORE]['delta'], classifiers[BEFORE]['steady'])
     print('Loading %s.' % after_file)
     classifiers[AFTER], after_results = parse_krun_file_with_changepoints([after_file])
+    assert len(before_results.keys()) == 1, 'Expected one machine per results file.'
+    assert len(after_results.keys()) == 1, 'Expected one machine per results file.'
+    assert before_results.keys()[0] == after_results.keys()[0], 'Expected results to be from same machine.'
+    machine = before_results.keys()[0]
+    # Special case: the user wants to diff one VM against another (by default,
+    # we diff each VM against itself, for every VM that appears in both the
+    # before and after data). If the user wants to diff one VM against another,
+    # then we rename the "before" and "after" VMs to these special names, and
+    # rename them back before presenting the diff results back to the user. This
+    # is an unpleasant hack, but since the diff information is baked into the
+    # structure of the summary diff, improving this code (and the LaTeX / HTML
+    # output code) would be a significant task.
+    if diff_vms:
+        before_vm, after_vm = diff_vms
+        found_before_vm, found_after_vm =  False, False
+        for dtype in before_results[machine]:
+            if isinstance(before_results[machine][dtype], collections.Iterable):
+                for key in before_results[machine][dtype]:
+                    if before_vm in key:
+                        found_before_vm = True
+                        new_key = _rewrite_key(key, diff_vms)
+                        before_results[machine][dtype][new_key] = before_results[machine][dtype].pop(key)
+        if not found_before_vm:
+             fatal('Could not find requested VM in results data: ' + before_vm)
+        for dtype in after_results[machine]:
+            if isinstance(after_results[machine][dtype], collections.Iterable):
+                for key in after_results[machine][dtype]:
+                    if after_vm in key:
+                        found_after_vm = True
+                        new_key = _rewrite_key(key, diff_vms)
+                        after_results[machine][dtype][new_key] = after_results[machine][dtype].pop(key)
+        if not found_after_vm:
+             fatal('Could not find requested VM in results data: ' + after_vm)
+    summary[BEFORE] = collect_summary_statistics(before_results,
+                                                 classifiers[BEFORE]['delta'], classifiers[BEFORE]['steady'])
     summary[AFTER] = collect_summary_statistics(after_results,
                                                 classifiers[AFTER]['delta'], classifiers[AFTER]['steady'])
     for key in classifiers[BEFORE]:
         assert classifiers[BEFORE][key] == classifiers[AFTER][key], \
             'Results files generated with different values for %s' % key
     summary[CLASSIFIER] = classifiers[AFTER]
-    assert len(before_results.keys()) == 1, 'Expected one machine per results file.'
-    assert len(after_results.keys()) == 1, 'Expected one machine per results file.'
-    assert before_results.keys()[0] == after_results.keys()[0], 'Expected results to be from same machine.'
-    machine = before_results.keys()[0]
     # Generate CIs for DEFAULT_ITER classification data.
     before_class_cis = dict()
     for key in before_results[machine]['classifications']:
@@ -412,7 +460,7 @@ def colour_tex_cell(result, text):
 
 
 def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
-                      with_preamble=False, longtable=False):
+                      with_preamble=False, longtable=False, diff_vms=[]):
     """Write a tex table to disk"""
 
     num_benchmarks = len(all_benchs)
@@ -438,6 +486,9 @@ def write_latex_table(machine, all_benchs, summary, diff, tex_file, num_splits,
     with open(tex_file, 'w') as fp:
         if with_preamble:
             fp.write(preamble(TITLE))
+            if diff_vms:
+                fp.write('\\centering{%%\n\\Large{\\textbf{%s vs. %s}}%%\n}\n\\\\\n~\\\\\n\n'
+                         % (diff_vms[0], diff_vms[1]))
             legends = get_latex_symbol_map() + ' \\\\ ' + legend()
             fp.write('\\centering %s' % legends)
             fp.write('\n\n\n')
@@ -553,7 +604,17 @@ def create_cli_parser():
                         type=int, help='Number of horizontal splits (LaTeX only).')
     parser.add_argument('--without-preamble', action='store_true',
                         dest='without_preamble', default=False,
-                        help='Write out only a LaTeX table, for inclusion in a larger document.')
+                        help='Write out only a LaTeX table, for inclusion in a\nlarger document.')
+    parser.add_argument('--vm', action='append', nargs=2, dest='vm', default=[],
+                         help='Compare one VM against another. \nRequires two '
+                              'VM names as arguments. By default, the\ndiffer '
+                              'will compare all benchmarks / VMs which appear\n'
+                              'in both input files. Users should be aware that this\n'
+                              'option produces a summary file with some special JSON\n'
+                              'keys. This means that summary files (usually\ndiff_summary.json) '
+                              'usually not be suitable for\ngenerating generic diff tables, or '
+                              'tables with different\n--vm options. In this case, users should '
+                              'regenerate the\nsummary file with the original data and the -r option.')
     outputs = parser.add_mutually_exclusive_group(required=True)
     outputs.add_argument('--tex', action='store', type=str,
                          help='LaTeX file in which to write diff summary.')
@@ -561,10 +622,10 @@ def create_cli_parser():
                          help='HTML file in which to write diff summary.')
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument('-s', '--input-summary', action='store', default=None,
-                        type=str, help=('Read summary data from JSON file rather than '
-                                        'generating from a two original results files.'))
+                        type=str, help='Read summary data from JSON file rather than '
+                                       'generating\nfrom two original results files.')
     inputs.add_argument('-r', '--input-results', nargs=2, action='append', default=[], type=str,
-                        help='Exactly two Krun result files (with outliers and changepoints).')
+                        help='Exactly two Krun result files (with outliers and\nchangepoints).')
     return parser
 
 
@@ -587,7 +648,12 @@ if __name__ == '__main__':
         if '_changepoints' not in options.input_results[0][1]:
             fatal('Please run mark_changepoints_in_json on file %s before diffing.' %
                   options.input_results[0][1])
-        diff_summary = diff(options.input_results[0][0], options.input_results[0][1], options.json)
+        if options.vm:
+            diff_summary = diff(options.input_results[0][0], options.input_results[0][1],
+                                options.json, diff_vms=options.vm[0])
+        else:
+            diff_summary = diff(options.input_results[0][0], options.input_results[0][1],
+                                options.json, diff_vms=[])
     else:
         with open(options.input_summary, 'r') as fd:
             diff_summary = json.load(fd)
@@ -602,6 +668,12 @@ if __name__ == '__main__':
                                                           classifier['steady'], diff=diff_summary[DIFF],
                                                           previous=diff_summary[BEFORE])
         print('Writing data to: %s' % options.tex)
-        write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.tex,
-                          options.num_splits, with_preamble=(not options.without_preamble),
-                          longtable=True)
+        if options.vm:
+            write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.tex,
+                              options.num_splits, with_preamble=(not options.without_preamble),
+                              longtable=True, diff_vms=options.vm[0])
+        else:
+            write_latex_table(machine, bmarks, latex_summary, diff_summary[DIFF], options.tex,
+                              options.num_splits, with_preamble=(not options.without_preamble),
+                              longtable=True)
+

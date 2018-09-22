@@ -350,7 +350,8 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
     return machine, list(sorted(benchmark_names)), latex_summary
 
 
-def write_latex_table(machine, all_benchs, summary, tex_file, with_preamble=False, longtable=False):
+def write_latex_table(machine, all_benchs, summary, tex_file, with_preamble=False,
+                      longtable=False):
     """Write a tex table to disk.
     This is NOT used to create diff tables or the tables for the warmup
     experiment (a separate script in the other repo exists for that). However,
