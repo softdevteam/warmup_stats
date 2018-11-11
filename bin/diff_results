@@ -91,6 +91,7 @@ Example usage (input JSON summary file, output LaTeX):
 """
 
 ALPHA = 0.01  # Significance level.
+CI_MINIUM_SIGNIFICANT_NARROWING = 0.0001 # In seconds
 CATEGORIES = ['warmup', 'slowdown', 'flat', 'no steady state']
 MCI = rpy2.interactive.packages.importr('MultinomialCI')
 # List indices (used in favour of dictionary keys).
@@ -120,8 +121,8 @@ TABLE_HEADINGS_START1 = '\\multicolumn{1}{c}{\\multirow{2}{*}{}}&'
 TABLE_HEADINGS_START2 = '&'
 TABLE_HEADINGS1 = ('&&\\multicolumn{1}{c}{} &\\multicolumn{1}{c}{Steady} &\\multicolumn{1}{c}{Steady iter.} '
                    '&\\multicolumn{1}{c}{Steady} &\\multicolumn{1}{c}{Steady} &\\multicolumn{1}{c}{Steady perf.}')
-TABLE_HEADINGS2 = ('&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)} &\\multicolumn{1}{c}{variation} '
-                   '&\\multicolumn{1}{c}{iter (s)} &\\multicolumn{1}{c}{perf (s)} &\\multicolumn{1}{c}{variation}')
+TABLE_HEADINGS2 = ('&&\\multicolumn{1}{c}{Class.} &\\multicolumn{1}{c}{iter (\#)} &\\multicolumn{1}{c}{variation (s)} '
+                   '&\\multicolumn{1}{c}{iter (s)} &\\multicolumn{1}{c}{perf (s)} &\\multicolumn{1}{c}{variation (s)}')
 
 JSON_VERSION_NUMBER = '2'
 
@@ -184,6 +185,8 @@ def does_ci_narrow(mean1, ci1, mean2, ci2):
     """Return True if the second interval is narrower than the first."""
 
     assert ci1 >= 0.0 and ci2 >= 0.0, 'Found negative confidence interval from bootstrapping.'
+    if abs(ci1 - ci2) < CI_MINIUM_SIGNIFICANT_NARROWING:
+        return SAME
     x1 = mean1 - ci1
     y1 = mean1 + ci1
     x2 = mean2 - ci2

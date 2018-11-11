@@ -92,8 +92,8 @@ HTML_TABLE_TEMPLATE = """<h2>Results for %s</h2>
 <th>Benchmark</th>
 <th>Classification</th>
 <th>Steady iteration (&#35;)</th>
-<th>Steady iteration (secs)</th>
-<th>Steady performance (secs)</th>
+<th>Steady iteration (s)</th>
+<th>Steady performance (s)</th>
 </tr>
 %s
 </table>
@@ -107,9 +107,9 @@ HTML_DIFF_TABLE_TEMPLATE = """<h2>Results for %s</h2>
 <th>Classification</th>
 <th>Steady iteration (&#35;)</th>
 <th>Steady iteration variation</th>
-<th>Steady iteration (secs)</th>
-<th>Steady performance (secs)</th>
-<th>Steady performance variation</th>
+<th>Steady iteration (s)</th>
+<th>Steady performance (s)</th>
+<th>Steady performance variation (s)</th>
 </tr>
 %s
 </table>
