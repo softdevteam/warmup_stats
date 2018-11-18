@@ -329,10 +329,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
                                                change=change)
                 if diff and diff[vm][bmark_name] and diff[vm][bmark_name][STEADY_STATE_TIME_VAR] is not None:
                     change = abs(bmark['steady_state_time_ci'] - previous['machines'][machine][vm][bmark_name]['steady_state_time_ci'])
-                    steady_time_var = format_median_ci(bmark['steady_state_time_ci'],
-                                                       bmark['steady_state_time_ci'],
-                                                       None,
-                                                       change=change)
+                    steady_time_var = "$\\begin{array}{c}\\scriptstyle{%.5f}\\\\[-6pt]\n\\scriptscriptstyle{was: %.5f}\n\\end{array}$" % (bmark['steady_state_time_ci'], previous['machines'][machine][vm][bmark_name]['steady_state_time_ci'])
             else:
                 mean_steady = ''
             if bmark['steady_state_time_to_reach_secs'] is not None:
@@ -594,9 +591,9 @@ def write_html_table(summary_data, html_filename, diff=None, skipped=None, previ
                 if diff and vm in diff and bmark_name in diff[vm]:
                     mean_steady_cell = colour_html_cell(diff[vm][bmark_name][STEADY_STATE_TIME], mean_steady, 'right')
                     if diff[vm][bmark_name][STEADY_STATE_TIME_VAR] and diff[vm][bmark_name][STEADY_STATE_TIME_VAR] != 'SAME':
-                        var = '<div class="wrapper"><div class="tdcenter">%.6f</br><small>&plusmn;%.6f</small></div></div>' % \
+                        var = '<div class="wrapper"><div class="tdcenter">%.6f<br/><small>was: %.6f</small></div></div>' % \
                                    (bmark['steady_state_time_ci'],
-                                    abs(bmark['steady_state_time_ci'] - previous['machines'][machine][vm][bmark_name]['steady_state_time_ci']))
+                                    previous['machines'][machine][vm][bmark_name]['steady_state_time_ci'])
                         mean_steady_var_cell = colour_html_cell(diff[vm][bmark_name][STEADY_STATE_TIME_VAR], var, 'center')
                     else:
                         mean_steady_var_cell = '<td></td>'
