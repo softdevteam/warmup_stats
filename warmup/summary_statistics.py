@@ -493,8 +493,14 @@ def write_html_table(summary_data, html_filename, diff=None, skipped=None, previ
     histograms = ''  # Javascript.
     for vm in sorted(summary_data['machines'][machine]):
         html_rows = ''  # Just the table rows, no table header, etc.
-        skipped_before = [b for (b, v) in skipped[SKIPPED_BEFORE] if v == vm]
-        skipped_after = [b for (b, v) in skipped[SKIPPED_AFTER] if v == vm]
+        if skipped is not None:
+            skipped_before = [b for (b, v) in skipped[SKIPPED_BEFORE] if v == vm]
+        else:
+            skipped_before = []
+        if skipped is not None:
+            skipped_after = [b for (b, v) in skipped[SKIPPED_AFTER] if v == vm]
+        else:
+            skipped_after = []
         for bmark_name in sorted(summary_data['machines'][machine][vm].keys()):
             bmark = summary_data['machines'][machine][vm][bmark_name]
             # If a bmark appears in the summary data but was skipped in the
