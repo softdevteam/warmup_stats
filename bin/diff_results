@@ -48,9 +48,15 @@ import os
 import sys
 
 # R packages are stored relative to the top-level of the repo.
-if ('R_LIBS_USER' not in os.environ or 'rlibs' not in os.environ['R_LIBS_USER']):
-    os.environ['R_LIBS_USER'] = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                             'work', 'rlibs')
+our_rlibs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'work', 'rlibs')
+if not os.path.exists(our_rlibs):
+    sys.stderr.write("Please run build.sh first.\n")
+    sys.exit(0)
+if our_rlibs not in os.environ.get('R_LIBS_USER', ''):
+    if 'R_LIBS_USER' in os.environ:
+        os.environ['R_LIBS_USER'] = "%s:%s" % (os.environ['R_LIBS_USER'], our_rlibs)
+    else:
+        os.environ['R_LIBS_USER'] = our_rlibs
     args = [sys.executable]
     args.extend(sys.argv)
     os.execv(sys.executable, args)

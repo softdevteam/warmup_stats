@@ -87,10 +87,10 @@ echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'm
 which lsb_release > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     if [ "$(lsb_release -si)" = "Ubuntu" ]; then
-        pip install --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
+        python2.7 -m pip install --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
     else
-        pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
+        python2.7 -m pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
     fi
 else
-    pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
+    python2.7 -m pip install --system --target "${PIP_TARGET_DIR}" "rpy2==2.8.5" || exit $?
 fi
