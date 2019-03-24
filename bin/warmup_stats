@@ -55,10 +55,12 @@ from warmup.krun_results import read_krun_results_file
 from warmup.summary_statistics import collect_summary_statistics, convert_to_latex
 from warmup.summary_statistics import write_html_table, write_latex_table
 
-
 # We use a custom install of rpy2, relative to the top-level of the repo.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                'work', 'pylibs'))
+our_pylibs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'work', 'pylibs')
+if not os.path.exists(our_pylibs):
+    sys.stderr.write("Please run build.sh first.\n")
+    sys.exit(0)
+sys.path.insert(0, our_pylibs)
 
 ABS_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 BINDIR = os.path.dirname(os.path.abspath(__file__))
