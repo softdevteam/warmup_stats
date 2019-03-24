@@ -70,12 +70,7 @@ def _mean(data):
     return math.fsum(data) / float(len(data))
 
 
-def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENCE_LEVEL):
-    """This is not a general bootstrapping function.
-    Input is a list containing a list for each pexec, containing a list of
-    segments with iteration times.
-    """
-
+def _bootstrap_means(steady_segments_all_pexecs):
     # How many bootstrap samples do we need from each pexec? We want at least
     # BOOTSTRAP_ITERATIONS samples over all. If we want 100,000 samples in total
     # and we have 30 pexecs, we need 3333 samples from each pexec. In total we
@@ -97,7 +92,15 @@ def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENC
 
             means.append(sample_sum / float(num_samples))
     assert len(means) >= BOOTSTRAP_ITERATIONS
+    return means
 
+
+def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENCE_LEVEL):
+    """This is not a general bootstrapping function.
+    Input is a list containing a list for each pexec, containing a list of
+    segments with iteration times.
+    """
+    means = _bootstrap_means(steady_segments_all_pexecs)
     means.sort()
 
     # Compute reported mean and confidence interval. Code below is from libkalibera.
