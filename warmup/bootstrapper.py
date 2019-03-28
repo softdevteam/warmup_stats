@@ -82,6 +82,12 @@ def _bootstrap_means(steady_segments_all_pexecs):
     for segments in steady_segments_all_pexecs:  # Iterate over pexecs.
         for _ in xrange(n_resamples):
             num_samples = 0
+
+            # Note that summing into a float like this does cause rounding errors, but for 100,000
+            # bootstrap iterations that error is only apparent at the 9th decimal point, which is
+            # acceptable in our case. Roughly speaking, each factor of 10 bigger that
+            # BOOTSTRAP_ITERATIONS becomes, the error becomes 1 decimal place "worse",
+            # so if you ever crank BOOTSTRAP_ITERATIONS to a mammoth value, keep this in mind.
             sample_sum = 0.0
 
             for seg in segments:
