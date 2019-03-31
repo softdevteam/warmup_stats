@@ -70,12 +70,7 @@ def _mean(data):
     return math.fsum(data) / float(len(data))
 
 
-def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENCE_LEVEL):
-    """This is not a general bootstrapping function.
-    Input is a list containing a list for each pexec, containing a list of
-    segments with iteration times.
-    """
-
+def _bootstrap_means(steady_segments_all_pexecs):
     # How many bootstrap samples do we need from each pexec? We want at least
     # BOOTSTRAP_ITERATIONS samples over all. If we want 100,000 samples in total
     # and we have 30 pexecs, we need 3333 samples from each pexec. In total we
@@ -86,12 +81,32 @@ def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENC
 
     for segments in steady_segments_all_pexecs:  # Iterate over pexecs.
         for _ in xrange(n_resamples):
-            sample = list()
-            for seg in segments:
-                sample.extend([random.choice(seg) for _ in xrange(len(seg))])
-            means.append(_mean(sample))
-    assert len(means) >= BOOTSTRAP_ITERATIONS
+            num_samples = 0
 
+            # Note that summing into a float like this does cause rounding errors, but for 100,000
+            # bootstrap iterations that error is only apparent at the 9th decimal point, which is
+            # acceptable in our case. Roughly speaking, each factor of 10 bigger that
+            # BOOTSTRAP_ITERATIONS becomes, the error becomes 1 decimal place "worse",
+            # so if you ever crank BOOTSTRAP_ITERATIONS to a mammoth value, keep this in mind.
+            sample_sum = 0.0
+
+            for seg in segments:
+                seg_len = len(seg)
+                num_samples += seg_len
+                for _ in xrange(seg_len):
+                    sample_sum += seg[int(random.random() * seg_len)]
+
+            means.append(sample_sum / float(num_samples))
+    assert len(means) >= BOOTSTRAP_ITERATIONS
+    return means
+
+
+def bootstrap_steady_perf(steady_segments_all_pexecs, confidence_level=CONFIDENCE_LEVEL):
+    """This is not a general bootstrapping function.
+    Input is a list containing a list for each pexec, containing a list of
+    segments with iteration times.
+    """
+    means = _bootstrap_means(steady_segments_all_pexecs)
     means.sort()
 
     # Compute reported mean and confidence interval. Code below is from libkalibera.
