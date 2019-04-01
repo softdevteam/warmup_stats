@@ -40,11 +40,7 @@
 """
 This script is designed to be run with PyPy via a pipe.
 
-It has been factored out because the code here is too slow to run on CPython,
-and we need numpy as a dependency in related parts of the code base. Although
-there is a version of numpy for PyPy, we wanted to reduce the number of
-complications that arise for end-users.
-
+It has been factored out because the code here is too slow to run on CPython.
 It will read JSON format data from STDIN, and will write a comma-separated pair
 of floats (mean, CI) on STDOUT.
 
