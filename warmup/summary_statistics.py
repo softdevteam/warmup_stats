@@ -72,7 +72,7 @@ SKIPPED_BEFORE = 0
 SKIPPED_AFTER = 1
 
 
-def collect_summary_statistics(data_dictionaries, delta, steady_state):
+def collect_summary_statistics(data_dictionaries, delta, steady_state, quality='HIGH'):
     """Create summary statistics of a dataset with classifications.
     Note that this function returns a dict which is consumed by other code to
     create tables. It also DEFINES the JSON format which the ../bin/warmup_stats
@@ -206,13 +206,13 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state):
                 median_time_to_steady, error_time_to_steady = None, None
                 # Shell out to PyPy for speed.
                 marshalled_data = json.dumps(segments_for_bootstrap_all_pexecs)
-                mean_time, error_time = bootstrap_runner(marshalled_data)
+                mean_time, error_time = bootstrap_runner(marshalled_data, quality)
                 if mean_time is None or error_time is None:
                     raise ValueError()
             else:
                 # Shell out to PyPy for speed.
                 marshalled_data = json.dumps(segments_for_bootstrap_all_pexecs)
-                mean_time, error_time = bootstrap_runner(marshalled_data)
+                mean_time, error_time = bootstrap_runner(marshalled_data, quality)
                 if mean_time is None or error_time is None:
                     raise ValueError()
                 if steady_iters:

@@ -180,6 +180,9 @@ def create_arg_parser():
                               type=str, metavar='DIFF_FILENAME', default=None,
                               help='Output a file containing a diff table. Requires '
                               '--tex or --html. Expects exactly two input files.')
+    parser.add_argument('--quality', action='store', default='HIGH',
+                        dest='quality',
+                        help='Quality of statistics. [low|high]. Default: high.')
     return parser
 
 
@@ -445,7 +448,7 @@ def main(options):
         info('Collecting summary statistics.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
         classifier, data_dictionary = parse_krun_file_with_changepoints(input_files)
-        summary = collect_summary_statistics(data_dictionary, classifier['delta'], classifier['steady'])
+        summary = collect_summary_statistics(data_dictionary, classifier['delta'], classifier['steady'], quality=options.quality)
     if options.output_plots:
         info('Generating PDF plots.')
         input_files = [bm.krun_filename_changepoints for bm in benchmarks]
