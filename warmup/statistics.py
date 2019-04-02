@@ -51,13 +51,14 @@ def median_iqr(seq):
     return numpy.median(seq), (numpy.percentile(seq, LOW_IQR_BOUND), numpy.percentile(seq, HIGH_IQR_BOUND))
 
 
-def bootstrap_runner(marshalled_data):
+def bootstrap_runner(marshalled_data, quality='HIGH'):
     """Input should be a JSON string, containing a list of pexecs, each
     containing a list of segments, each containing a list of floats.
     """
 
     try:
-        pipe = subprocess.Popen(['pypy', BOOTSTRAPPER], stdin=subprocess.PIPE,
+        pipe = subprocess.Popen(['pypy', BOOTSTRAPPER, '--quality', quality],
+                                stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE)
         pipe.stdin.write(marshalled_data + '\n')
         pipe.stdin.flush()
