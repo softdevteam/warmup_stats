@@ -73,6 +73,13 @@ bin/warmup_stats --html --output-table table.html -l javascript -v V8 -u "`uname
 bin/warmup_stats --html --output-table table.html results.json.bz2
 ```
 
+By default, `warmup_stats` produces high quality statistics, which can take
+considerable time. If you want to quickly experiment with things, you can use
+the `--quality low` switch: this makes `warmup_stats` run considerably quicker,
+but does lead to lower quality (and thus less reliable) statistics being
+produced. Although the differences are often fairly minor, we do not encourage
+the use of `--quality low` when formally publishing benchmark results.
+
 ## Creating diffs
 
 Benchmarking is often performed in order to test whether a change in a given
