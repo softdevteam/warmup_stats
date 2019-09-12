@@ -69,6 +69,8 @@ def create_cli_parser():
     parser.add_argument('--without-preamble', action='store_true',
                         dest='without_preamble', default=False,
                         help='Write out only the table (for inclusion in a separate document).')
+    parser.add_argument('--only-vms', type=str,
+                        help='Exclude VMs not present in the provided comma-separated list')
     return parser
 
 
@@ -81,7 +83,12 @@ if __name__ == '__main__':
               'in order to compile correctly.')
     summary_data = collect_summary_statistics(data_dcts, classifier['delta'], classifier['steady'])
     machine, bmarks, latex_summary = convert_to_latex(summary_data, classifier['delta'], classifier['steady'])
+    if options.only_vms:
+        only_vms = options.only_vms.split(",")
+    else:
+        only_vms = None
+
     print('Writing data to: %s' % options.latex_file)
     write_latex_table(machine, bmarks, latex_summary, options.latex_file,
                       with_preamble=(not options.without_preamble),
-                      longtable=True)
+                      longtable=True, only_vms=only_vms)

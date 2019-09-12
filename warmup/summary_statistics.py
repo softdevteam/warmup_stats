@@ -354,7 +354,7 @@ def convert_to_latex(summary_data, delta, steady_state, diff=None, previous=None
 
 
 def write_latex_table(machine, all_benchs, summary, tex_file, with_preamble=False,
-                      longtable=False):
+                      longtable=False, only_vms=None):
     """Write a tex table to disk.
     This is NOT used to create diff tables or the tables for the warmup
     experiment (a separate script in the other repo exists for that). However,
@@ -363,7 +363,10 @@ def write_latex_table(machine, all_benchs, summary, tex_file, with_preamble=Fals
     """
 
     num_benchmarks = len(all_benchs)
-    all_vms = sorted(summary.keys())
+    if only_vms is not None:
+        all_vms = sorted([vm for vm in summary.keys() if vm in only_vms])
+    else:
+        all_vms = sorted(summary.keys())
     num_vms = len(summary)
 
     with open(tex_file, 'w') as fp:
