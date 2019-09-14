@@ -30,22 +30,24 @@ warmup_stats uses the following terminology:
 ## CSV format
 
 The `bin/warmup_stats` script can take CSV files as input. The format is as
-follows. The first row must contain a header with a process execution id,
-benchmark name and sequence of iteration numbers. Subsequent rows are data rows,
-one per process execution. Each row should contain an index for the given
-process execution, the benchmark name and a list of times in seconds for the
-corresponding in-process iteration. Each process execution must execute the same
-number of iterations as described in the header. For example:
+follows. The first row must contain a header for each required column: the
+first column must be the process execution index (conventionally a number
+`0...n`, though this is not enforced), the second column the benchmark name,
+and *n* subsequent columns for the *n* in-process iterations run (each a time
+in seconds). Each of these columns can be given arbitrary names, but the order
+is vital, and the number of in-process iterations must be the same for each
+process execution. An example is as follows:
 
 ```
-    process_exec_num, bench_name, 0, 1, 2, ...
+    process_exec_idx, bench_name, 0, 1, 2, ...
     0, spectral norm, 0.2, 0.1, 0.4, ...
     1, spectral norm, 0.3, 0.15, 0.2, ...
 ```
 
-When processing CSV files with `warmup_stats`, the `--language`, `--vm` and
-`--uname` switches must be passed to the script. These are not needed with
-Krun results files.
+When processing CSV with `warmup_stats`, the `--language`, `--vm` and
+`--uname` flags must be specified so that plots can contain the relevant
+information, though users can pass arbitrary data to each flag. Note that
+these flags are not needed with Krun results files.
 
 ## Creating plots
 
