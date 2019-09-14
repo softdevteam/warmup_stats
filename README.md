@@ -15,6 +15,18 @@ scripts in `bin/`. `warmup_stats` takes either CSV files or
 [Krun](http://soft-dev.org/src/krun/) results files as input. As output it can
 create HTML or LaTeX / PDF tables and diffs, or PDF plots.
 
+## Terminology
+
+warmup_stats uses the following terminology:
+
+  * A *process execution* is the execution of a single operating system
+    process. In other words, it is equivalent to running a program from the
+    command-line and waiting for it to terminate.
+
+  * An *in-process iteration* is a single iteration of a benchmark within a
+    process execution. In other words, a single process execution executes
+    many in-process iterations.
+
 ## CSV format
 
 The `bin/warmup_stats` script can take CSV files as input. The format is as
