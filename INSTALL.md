@@ -8,7 +8,7 @@
   * gcc and make
   * gfortran (including header files)
   * liblzma library (including header files)
-  * Python modules: numpy, pip, libcap
+  * Python modules: numpy, pip, libpcap
   * openssl (including header files)
   * pkg-config
   * pcre library (including header files)
