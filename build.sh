@@ -81,6 +81,8 @@ fi
 mkdir -p ${R_LIB_DIR} || exit $?
 echo "install.packages('devtools', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
 echo "install.packages('MultinomialCI', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
+echo "install.packages('dplyr', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
+echo "install.packages('fs', lib='${R_LIB_DIR}', repos='http://cran.us.r-project.org')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
 echo "devtools::install_git('git://github.com/rkillick/changepoint', branch = 'master')" | R_LIBS_USER=${R_LIB_DIR} R --no-save || exit $?
 
 # Install the rpy2 Python package.
