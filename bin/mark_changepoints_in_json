@@ -43,6 +43,7 @@ Annotate changepoints and classification information into a Krun JSON file.
 
 import os
 import sys
+from warmup.statistics import get_absolute_delta_using_fastest_seg
 
 # R packages are stored relative to the top-level of the repo.
 our_rlibs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'work', 'rlibs')
@@ -145,10 +146,13 @@ class Segments(object):
     def get_classification(self):
         """Return a classification for this run sequence."""
         last_segment = self.segments[-1]
+        delta = get_absolute_delta_using_fastest_seg(
+            self.delta, [s.mean for s in self.segments])
+
         lower_bound = min(last_segment.mean - last_segment.variance,
-                          last_segment.mean - self.delta)
+                          last_segment.mean - delta)
         upper_bound = max(last_segment.mean + last_segment.variance,
-                          last_segment.mean + self.delta)
+                          last_segment.mean + delta)
         classification = 'flat'
         for index in xrange(len(self.segments) - 2, -1, -1):
             current_segment = self.segments[index]
@@ -282,7 +286,7 @@ Example usage:
                         help=('Expect a steady state should be reached before '
                               'the last N iterations.'))
     parser.add_argument('--delta', '-d', action='store', dest='delta',
-                        default=0.001, type=float, metavar='D',
+                        default='0.001', type=str, metavar='D',
                         help=('Segments must differ by more than Ds from the '
                               'last (steady state) segment in order to be '
                               'considered a warmup or slowdown.'))
@@ -293,6 +297,6 @@ if __name__ == '__main__':
     parser = create_cli_parser()
     options = parser.parse_args()
     print ('Marking changepoints and classifications.\nExpecting a steady state to '
-           'be reached before the last %d iterations.\nUsing a fixed bound of %.3fs.' %
+           'be reached before the last %d iterations.\nUsing a delta of %s.' %
            (options.steady_state, options.delta))
     main(options.json_files[0], options.delta, options.steady_state)

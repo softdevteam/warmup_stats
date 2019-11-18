@@ -44,7 +44,8 @@ from warmup.html import HTML_DIFF_TABLE_TEMPLATE, HTML_PAGE_TEMPLATE, HTML_SYMBO
 from warmup.latex import end_document, end_longtable, end_table, escape, format_median_ci
 from warmup.latex import format_median_error, get_latex_symbol_map, preamble
 from warmup.latex import start_longtable, start_table, STYLE_SYMBOLS
-from warmup.statistics import bootstrap_runner, median_iqr
+from warmup.statistics import (bootstrap_runner, median_iqr,
+                               get_absolute_delta_using_fastest_seg)
 
 JSON_VERSION_NUMBER = '2'
 
@@ -78,6 +79,8 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state, quality='
     create tables. It also DEFINES the JSON format which the ../bin/warmup_stats
     script dumps to file.
     """
+
+    assert type(delta) in [str, unicode]
 
     summary_data = dict()
     # Although the caller can pass >1 json file, there should never be two
@@ -134,12 +137,15 @@ def collect_summary_statistics(data_dictionaries, delta, steady_state, quality='
                     segment_data.append(data_dictionaries[machine]['wallclock_times'][key][p_exec][segment_index])
                 segments_for_bootstrap_this_pexec.append(segment_data)
 
+                abs_delta = get_absolute_delta_using_fastest_seg(
+                    delta, data_dictionaries[machine]['changepoint_means'][key][p_exec])
+
                 first_steady_segment = len(data_dictionaries[machine]['changepoint_means'][key][p_exec]) - 1
                 num_steady_segments = 1
                 last_segment_mean = data_dictionaries[machine]['changepoint_means'][key][p_exec][-1]
                 last_segment_var = data_dictionaries[machine]['changepoint_vars'][key][p_exec][-1]
-                lower_bound = min(last_segment_mean - last_segment_var, last_segment_mean - delta)
-                upper_bound = max(last_segment_mean + last_segment_var, last_segment_mean + delta)
+                lower_bound = min(last_segment_mean - last_segment_var, last_segment_mean - abs_delta)
+                upper_bound = max(last_segment_mean + last_segment_var, last_segment_mean + abs_delta)
                 # This for loop deals with segments that are equivalent to the
                 # final, steady state segment.
                 for index in xrange(len(data_dictionaries[machine]['changepoint_means'][key][p_exec]) - 2, -1, -1):
