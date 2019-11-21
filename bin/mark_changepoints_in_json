@@ -95,8 +95,10 @@ class Segments(object):
     """
 
     def __init__(self, delta, steady_state, length, cpts, means, variances,
-                 data, outliers):
+                 data, outliers, raw_deltas):
         self.delta = delta
+        # When True, the variance not used when finding "equivalent" segments.
+        self.raw_deltas = raw_deltas
         self.steady_state = steady_state
         self.length = length  # Length of original data with outliers.
         assert self.length == len(data)
@@ -149,10 +151,15 @@ class Segments(object):
         delta = get_absolute_delta_using_fastest_seg(
             self.delta, [s.mean for s in self.segments])
 
-        lower_bound = min(last_segment.mean - last_segment.variance,
-                          last_segment.mean - delta)
-        upper_bound = max(last_segment.mean + last_segment.variance,
-                          last_segment.mean + delta)
+        if self.raw_deltas:
+            lower_bound = last_segment.mean - delta
+            upper_bound = last_segment.mean + delta
+        else:
+            lower_bound = min(last_segment.mean - last_segment.variance,
+                              last_segment.mean - delta)
+            upper_bound = max(last_segment.mean + last_segment.variance,
+                              last_segment.mean + delta)
+
         classification = 'flat'
         for index in xrange(len(self.segments) - 2, -1, -1):
             current_segment = self.segments[index]
@@ -170,7 +177,7 @@ class Segments(object):
         return classification
 
 
-def main(in_files, delta, steady_state):
+def main(in_files, delta, steady_state, raw_deltas):
     cpt = rpy2.interactive.packages.importr('changepoint')
     r_version = '.'.join(R_VERSION_BUILD[:2])
     print 'Using R version %s and changepoint library %s' % (r_version, cpt.__version__)
@@ -201,7 +208,7 @@ def main(in_files, delta, steady_state):
                     outliers = krun_data[filename]['all_outliers'][bench][index]
                 else:
                     outliers = list()
-                segments = get_segments(cpt, delta, steady_state, p_exec, outliers)
+                segments = get_segments(cpt, delta, steady_state, p_exec, outliers, raw_deltas)
                 changepoints[bench].append(segments.changepoints)
                 changepoint_means[bench].append(segments.means)
                 changepoint_vars[bench].append(segments.variances)
@@ -220,7 +227,7 @@ def main(in_files, delta, steady_state):
         write_krun_results_file(krun_data[filename], new_filename)
 
 
-def get_segments(cpt, delta, steady_state, data, outliers):
+def get_segments(cpt, delta, steady_state, data, outliers, raw_deltas):
     p_exec = data[:]  # data will be passed to Segments unchanged.
     length = len(p_exec)  # Will change when we remove outliers.
     indices = sorted(outliers, reverse=True)
@@ -243,7 +250,7 @@ def get_segments(cpt, delta, steady_state, data, outliers):
         means.append(float(mean))
     for var_ in changepoints.slots['param.est'][changepoints.slots['param.est'].names.index('variance')]:
         variances.append(float(var_))
-    return Segments(delta, steady_state, length, c_points, means, variances, data, outliers)
+    return Segments(delta, steady_state, length, c_points, means, variances, data, outliers, raw_deltas)
 
 
 def create_output_filename(in_file_name):
@@ -289,7 +296,16 @@ Example usage:
                         default='0.001', type=str, metavar='D',
                         help=('Segments must differ by more than Ds from the '
                               'last (steady state) segment in order to be '
-                              'considered a warmup or slowdown.'))
+                              'considered a warmup or slowdown. This can be '
+                              'an absolute number of seconds, or (if '
+                              'suffixed with `%%`) a percentage of the '
+                              'final segment. Note that unless `--raw-deltas` '
+                              'is passed, the variance is also used in delta '
+                              'computations.'))
+    parser.add_argument('--raw-deltas', '-r', action='store_true', dest='raw_deltas',
+                        default=False, help=(
+                            'Do not use the variance when computing '
+                            'equivalent segments'))
     return parser
 
 
@@ -299,4 +315,4 @@ if __name__ == '__main__':
     print ('Marking changepoints and classifications.\nExpecting a steady state to '
            'be reached before the last %d iterations.\nUsing a delta of %s.' %
            (options.steady_state, options.delta))
-    main(options.json_files[0], options.delta, options.steady_state)
+    main(options.json_files[0], options.delta, options.steady_state, options.raw_deltas)
