@@ -32,4 +32,4 @@ before-script:
 script:
   - ./build.sh
   - ./test/gen_data.py
-  - ./test/test.sh
+  - env PYTHONPATH=`pwd` ./test/test.sh
