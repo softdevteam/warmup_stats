@@ -60,8 +60,8 @@ benchmarks were run on.
 Example usage:
 
 ```sh
-bin/warmup_stats  --output-plots plots.pdf --output-json summary.json -l javascript -v V8 -u "`uname -a`" results.csv
-bin/warmup_stats  --output-plots plots.pdf --output-json summary.json results.json.bz2
+bin/warmup_stats  --output-plots plots.pdf -l javascript -v V8 -u "`uname -a`" results.csv
+bin/warmup_stats  --output-plots plots.pdf results.json.bz2
 ```
 
 ## Creating tables
