@@ -6,7 +6,6 @@ Annotate changepoints and classification information into a Krun JSON file.
 
 import os
 import sys
-from warmup.statistics import get_absolute_delta_using_fastest_seg
 
 # R packages are stored relative to the top-level of the repo.
 our_rlibs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'work', 'rlibs')
@@ -24,6 +23,7 @@ if our_rlibs not in os.environ.get('R_LIBS_USER', ''):
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from warmup.krun_results import read_krun_results_file, write_krun_results_file
+from warmup.statistics import get_absolute_delta_using_fastest_seg
 
 # We use a custom install of rpy2, relative to the top-level of the repo.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
